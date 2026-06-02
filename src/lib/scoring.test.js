@@ -1,0 +1,59 @@
+import { describe, it, expect } from 'vitest';
+import { scoreMatch, scoreKnockout, scoreBonus, outcome, POINTS } from './scoring';
+
+describe('scoreMatch', () => {
+  it('giver fuldt point for eksakt score', () => {
+    expect(scoreMatch({ home: 2, away: 1 }, { home: 2, away: 1 })).toBe(POINTS.EXACT);
+  });
+  it('giver målforskel-point for korrekt udfald + målforskel', () => {
+    expect(scoreMatch({ home: 2, away: 1 }, { home: 3, away: 2 })).toBe(POINTS.GOAL_DIFF);
+  });
+  it('giver udfald-point for korrekt vinder men forkert målforskel', () => {
+    expect(scoreMatch({ home: 2, away: 1 }, { home: 4, away: 0 })).toBe(POINTS.OUTCOME);
+  });
+  it('giver 0 for forkert udfald', () => {
+    expect(scoreMatch({ home: 2, away: 1 }, { home: 0, away: 1 })).toBe(POINTS.WRONG);
+  });
+  it('håndterer uafgjort eksakt vs. uafgjort målforskel', () => {
+    expect(scoreMatch({ home: 1, away: 1 }, { home: 1, away: 1 })).toBe(POINTS.EXACT);
+    expect(scoreMatch({ home: 1, away: 1 }, { home: 2, away: 2 })).toBe(POINTS.GOAL_DIFF);
+  });
+  it('returnerer 0 ved manglende data', () => {
+    expect(scoreMatch(null, { home: 1, away: 1 })).toBe(0);
+    expect(scoreMatch({ home: 1 }, { home: 1, away: 1 })).toBe(0);
+  });
+});
+
+describe('outcome', () => {
+  it('klassificerer korrekt', () => {
+    expect(outcome(2, 1)).toBe('home');
+    expect(outcome(1, 2)).toBe('away');
+    expect(outcome(1, 1)).toBe('draw');
+  });
+});
+
+describe('scoreKnockout', () => {
+  it('lægger advance-bonus til score-point', () => {
+    const pts = scoreKnockout(
+      { home: 1, away: 1, advance: 'BRA' },
+      { home: 1, away: 1, advance: 'BRA' }
+    );
+    expect(pts).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
+  });
+  it('giver ikke advance-bonus ved forkert videregående hold', () => {
+    const pts = scoreKnockout(
+      { home: 0, away: 0, advance: 'BRA' },
+      { home: 0, away: 0, advance: 'ARG' }
+    );
+    expect(pts).toBe(POINTS.EXACT);
+  });
+});
+
+describe('scoreBonus', () => {
+  it('giver bonuspoint for korrekt svar', () => {
+    expect(scoreBonus('Haaland', 'Haaland')).toBe(POINTS.BONUS);
+  });
+  it('giver 0 for forkert svar', () => {
+    expect(scoreBonus('Haaland', 'Mbappé')).toBe(0);
+  });
+});
