@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
-import { COL, ROLES, USER_STATUS } from '../../lib/constants';
+import { COL, ROLES } from '../../lib/constants';
 
 // ─── Brugerstyring (kun owner) ───────────────────────────────────────────────
 

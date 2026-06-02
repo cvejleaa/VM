@@ -2,7 +2,7 @@
 // Viser hjemmemål, udemål, og for knockout: videregående hold.
 import { useState } from 'react';
 import { saveMatchResult } from './adminActions';
-import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
+import { ROUNDS } from '../../lib/constants';
 
 // Runder der er knockout og kræver 'advance'-felt
 const KNOCKOUT_ROUNDS = new Set([
@@ -116,7 +116,7 @@ export default function MatchResultForm({ match, onClose }) {
       {isKnockout && (
         <div style={{ marginBottom: '0.75rem' }}>
           <label style={{ fontSize: '0.78rem', color: 'var(--c-muted)' }}>
-            Videregående hold (landekode, fx "DNK")
+            Videregående hold (landekode, fx &quot;DNK&quot;)
           </label>
           <input
             type="text"

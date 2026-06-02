@@ -13,7 +13,6 @@
 // ---------------------------------------------------------------------------
 
 import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
-import { expect }                  from 'vitest';
 import {
   initializeTestEnvironment,
   assertSucceeds,

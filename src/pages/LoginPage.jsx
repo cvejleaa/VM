@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthActions } from '../features/auth/useAuthActions';
-import { USER_STATUS } from '../lib/constants';
 
 // Interne fane-konstanter
 const TAB_LOGIN  = 'login';
 const TAB_SIGNUP = 'signup';
 
 export default function LoginPage() {
-  const { user, isApproved, status } = useAuth();
+  const { user, isApproved } = useAuth();
   const navigate = useNavigate();
   const { loading, error, clearError, signup, login, resetPassword } = useAuthActions();
 

@@ -4,7 +4,7 @@
  * Bruges til global stilling, dagsvisning og liga-stilling.
  */
 import { useMemo } from 'react';
-import { filterByMembers, sortByPoints } from './standingsUtils';
+import { filterByMembers } from './standingsUtils';
 
 /**
  * @param {object}   props
