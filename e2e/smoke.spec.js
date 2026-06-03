@@ -12,8 +12,9 @@ test.describe('Login & ruter (uautentificeret)', () => {
 
   test('login-siden viser begge faner', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('button', { name: 'Log ind' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Opret bruger' })).toBeVisible();
+    // "Log ind" matcher både fane og submit-knap → brug den første (fanen).
+    await expect(page.getByRole('button', { name: 'Log ind' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Opret bruger' }).first()).toBeVisible();
   });
 
   test('opret-bruger-validering viser dansk fejlbesked', async ({ page }) => {
