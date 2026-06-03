@@ -165,13 +165,43 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 npm run seed
 Du har to muligheder:
 
 ### A) Firebase Hosting (nemmest, gratis SSL, custom domæne)
+Deploy først frontenden (via GitHub Actions med `hosting-rules`, eller lokalt):
 ```bash
 npm run build
 firebase deploy --only hosting
 ```
-Tilføj derefter dit domæne i **Hosting → Tilføj brugerdefineret domæne →**
-`vm.vejleaa.dk`, og opret de DNS-records (A/TXT) Firebase viser hos din
-udbyder af `vejleaa.dk`. SSL klares automatisk.
+
+**Kobl `vm.vejleaa.dk` på (trin for trin):**
+1. Firebase Console → **Hosting** → knappen **"Tilføj brugerdefineret domæne"**.
+2. Skriv `vm.vejleaa.dk` → **Fortsæt**.
+3. **Bekræft ejerskab:** Firebase viser én **TXT**-record (navn `vm` eller
+   `vm.vejleaa.dk`, en lang værdi). Opret den hos din udbyder af `vejleaa.dk`
+   (se nedenfor), vent et par minutter, og tryk **Bekræft**.
+4. **Peg domænet:** Firebase viser nu typisk **to A-records** (to IP-adresser).
+   Opret begge med host/navn `vm`. *(Brug præcis de værdier Firebase viser —
+   de kan variere. Hvis Firebase i stedet tilbyder en CNAME, så brug den.)*
+5. Tryk **Færdig**. Firebase udsteder automatisk et gratis **SSL-certifikat**.
+   Det kan tage fra ~15 min op til 24 timer før alt er aktivt.
+
+**Sådan opretter du DNS-records** (hos den udbyder hvor `vejleaa.dk` ligger —
+fx Simply.com, one.com, GratisDNS, UnoEuro, Cloudflare):
+- Find **DNS-indstillinger** / **DNS-zone** for `vejleaa.dk`.
+- Tilføj posterne med **Navn/Host = `vm`** (IKKE `@` — det er kun subdomænet):
+
+  | Type | Navn/Host | Værdi | Formål |
+  |------|-----------|-------|--------|
+  | TXT  | `vm`      | (værdien fra Firebase) | bekræfter ejerskab |
+  | A    | `vm`      | (1. IP fra Firebase)   | peger domænet |
+  | A    | `vm`      | (2. IP fra Firebase)   | peger domænet |
+
+- Gem. DNS kan tage op til et par timer at slå igennem (TTL).
+- Når Firebase viser domænet som **"Forbundet"**, virker
+  <https://vm.vejleaa.dk>. ✅
+
+> Har du allerede en anden A-/CNAME-record på `vm` (fx en tidligere side),
+> skal den **fjernes/erstattes**, ellers peger domænet stadig det gamle sted.
+> Ligger `vejleaa.dk` bag Cloudflare-proxy, så sæt posten til **"DNS only"**
+> (grå sky), mens Firebase udsteder certifikatet.
 
 ### B) Din egen webserver
 Kør `npm run build` og upload indholdet af `dist/` til den mappe `vm.vejleaa.dk`
