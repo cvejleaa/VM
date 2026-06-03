@@ -24,9 +24,9 @@ export function useAuthActions() {
   }
 
   /**
-   * Opretter ny bruger. Cloud Function (onUserCreate) opretter måske også
-   * users/{uid} – vi bruger setDoc med merge:true så vi ikke overskriver
-   * role/status hvis dokumentet allerede eksisterer.
+   * Opretter ny bruger og dennes users/{uid}-dokument med default
+   * role:'player' og status:'pending'. Security Rules forhindrer, at en bruger
+   * selv kan vælge en højere rolle/status. Owner sættes manuelt én gang.
    */
   async function signup(email, password, displayName) {
     setLoading(true);
@@ -36,23 +36,17 @@ export function useAuthActions() {
       // Sæt displayName på Auth-profilen
       await updateProfile(cred.user, { displayName: displayName.trim() });
 
-      // Opret/merge Firestore-dokument. Cloud Function kan have sat role/status
-      // allerede – vi skriver kun displayName, email og createdAt som merge.
-      // Hvis dokumentet ikke findes endnu, sættes desuden status/role som default.
+      // Opret Firestore-profilen. role/status sættes til de eneste værdier
+      // reglerne tillader ved selv-oprettelse (player / pending).
       const userRef = doc(db, COL.USERS, cred.user.uid);
-      await setDoc(
-        userRef,
-        {
-          displayName: displayName.trim(),
-          email: email.toLowerCase(),
-          createdAt: serverTimestamp(),
-          // Sættes kun hvis feltet ikke allerede er der (merge: true betyder
-          // at eksisterende felter ikke overskrives – men da vi sender dem, ville
-          // de blive overskrevet). Vi lader Cloud Function styre role/status;
-          // her sætter vi kun sikrere defaults hvis dokumentet er helt nyt.
-        },
-        { merge: true }
-      );
+      await setDoc(userRef, {
+        displayName: displayName.trim(),
+        email: email.toLowerCase(),
+        role: 'player',
+        status: 'pending',
+        totalPoints: 0,
+        createdAt: serverTimestamp(),
+      });
 
       return cred.user;
     } catch (err) {

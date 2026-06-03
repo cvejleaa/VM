@@ -55,7 +55,7 @@ jobs:
             functions)     ONLY="functions" ;;
             all)           ONLY="hosting,firestore:rules,firestore:indexes,functions" ;;
           esac
-          firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive
+          firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive --force
 
       - name: Seed database (valgfrit)
         if: ${{ inputs.seed }}

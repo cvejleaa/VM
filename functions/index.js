@@ -3,18 +3,21 @@
 // Region: europe-west1, Node 22.
 //
 // Funktioner:
-//   onUserCreate      — auth trigger: opretter users/{uid} ved ny bruger
 //   recomputeMatch    — Firestore onWrite: beregner point når kampresultat sættes
 //   recomputeBonus    — Firestore onWrite: beregner point når bonus-facit sættes
 //   buildKnockout     — callable: bygger knockout-bracket fra grupperesultater
+//
+// Bemærk: bruger-oprettelse (users/{uid} med role:'player', status:'pending')
+// håndteres på klienten ved registrering + Security Rules. Owner sættes manuelt
+// én gang (se docs/firebase-setup.md, trin 8). Vi bruger derfor IKKE en blocking
+// auth-function, som ville kræve Identity Platform (GCIP).
 // ---------------------------------------------------------------------------
 
 'use strict';
 
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
-const { beforeUserCreated }        = require('firebase-functions/v2/identity');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 
 const { scoreMatch, scoreKnockout, scoreBonus } = require('./scoring');
@@ -23,33 +26,8 @@ const { computeGroupStandings, pickBestThirds } = require('./standings');
 // Initialiser Firebase Admin (singleton)
 initializeApp();
 
-// Owner-email: læses fra environment config eller hardcodet fallback
-const OWNER_EMAIL = process.env.OWNER_EMAIL || 'cvejleaa@gmail.com';
-
 // Region for alle funktioner
 const REGION = 'europe-west1';
-
-// ---------------------------------------------------------------------------
-// onUserCreate — opretter users/{uid} dokument ved ny registrering
-// ---------------------------------------------------------------------------
-exports.onUserCreate = beforeUserCreated({ region: REGION }, async (event) => {
-  const db = getFirestore();
-  const { uid, email, displayName } = event.data;
-
-  // Owner-email får automatisk owner-rolle og approved-status
-  const isOwner = email && email.toLowerCase() === OWNER_EMAIL.toLowerCase();
-
-  await db.collection('users').doc(uid).set({
-    displayName: displayName || email?.split('@')[0] || 'Spiller',
-    email: email || '',
-    role:        isOwner ? 'owner'    : 'player',
-    status:      isOwner ? 'approved' : 'pending',
-    totalPoints: 0,
-    createdAt:   FieldValue.serverTimestamp(),
-  });
-
-  return; // beforeUserCreated: returner ingenting = tillad oprettelse
-});
 
 // ---------------------------------------------------------------------------
 // recomputeMatch — beregner point for alle bets når et kampresultat ændres

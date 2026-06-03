@@ -62,13 +62,15 @@ service cloud.firestore {
     // users/{uid}
     // -----------------------------------------------------------------------
     match /users/{uid} {
-      // Alle godkendte brugere kan læse basisprofiler
-      allow read: if isApproved();
+      // Godkendte brugere kan læse basisprofiler; alle kan altid læse sin egen
+      // (så pending→approved kan opdatere live)
+      allow read: if isApproved() || (isSignedIn() && request.auth.uid == uid);
 
-      // Brugeren kan selv oprette sin profil (sættes af Cloud Function,
-      // men tillades her som fallback — kun egne felter, ikke role/status)
+      // Brugeren opretter selv sin profil ved registrering, men KUN med
+      // role:'player' og status:'pending' (kan ikke selv blive owner/approved)
       allow create: if isSignedIn() && request.auth.uid == uid
-        && !request.resource.data.keys().hasAny(['role', 'status']);
+        && request.resource.data.role == 'player'
+        && request.resource.data.status == 'pending';
 
       // Brugeren kan opdatere egne ikke-beskyttede felter (f.eks. displayName)
       allow update: if isSignedIn() && request.auth.uid == uid
