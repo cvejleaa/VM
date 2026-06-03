@@ -88,18 +88,36 @@ slipper du for at installere noget lokalt.
 1. **Lav en service-account-nøgle:** Firebase Console → **Projektindstillinger →
    Tjenestekonti → Generér ny privat nøgle**. Du får en JSON-fil.
 2. **Giv nøglen de rette rettigheder** (vigtigt — ellers fejler deploy med
-   `403 Permission denied`). Standard-nøglen må kun læse/skrive data, ikke
-   deploye. Gå til **Google Cloud Console → IAM & Admin → IAM**
+   `403 Permission denied` eller `failed to modify the IAM policy`).
+   Standard-nøglen må kun læse/skrive data, ikke deploye. Gå til
+   **Google Cloud Console → IAM & Admin → IAM**
    (<https://console.cloud.google.com/iam-admin/iam?project=vm2026-tip>), find
    service-kontoen (`firebase-adminsdk-…@vm2026-tip.iam.gserviceaccount.com`),
-   klik **rediger (blyant)** og tilføj disse roller:
-   - **Firebase Admin** (`roles/firebase.admin`) — hosting, rules, indexes
-   - **Service Usage Consumer** (`roles/serviceusage.serviceUsageConsumer`) — så CLI'en må tjekke API'er
-   - *(kun til functions, kræver Blaze)* **Cloud Functions Admin**,
-     **Service Account User** og **Artifact Registry Administrator**
+   klik **rediger (blyant)** og tilføj roller.
 
-   > Hurtig genvej (mindre restriktiv): giv i stedet rollen **Editor** +
-   > **Firebase Admin**. Det virker til alt, men er bredere adgang.
+   **Anbefalet (enkelt — undgår at jagte enkeltrettigheder):** tilføj
+   **Editor** + **Firebase Admin** + **Cloud Functions Admin**. Det dækker
+   hosting, rules, functions og indlæsning af data.
+
+   **Hvis functions-deploy stadig fejler med "failed to modify the IAM
+   policy":** CLI'en skal kunne ændre projektets IAM-politik for at give
+   Googles service-agenter de nødvendige roller. Tilføj én af disse:
+   - **Project IAM Admin** (`roles/resourcemanager.projectIamAdmin`) — målrettet, ELLER
+   - **Owner** (`roles/owner`) — bredest, men nemmest til et privat projekt.
+
+   <details><summary>Minimal liste (mest restriktiv)</summary>
+
+   - Firebase Admin (`roles/firebase.admin`) — hosting, rules, indexes
+   - Service Usage Consumer (`roles/serviceusage.serviceUsageConsumer`)
+   - Cloud Functions Admin, Service Account User, Artifact Registry Administrator
+   - Project IAM Admin (`roles/resourcemanager.projectIamAdmin`) — til at tildele service-agent-roller
+   </details>
+
+   > **Alternativ til functions-deploy:** den *allerførste* functions-deploy
+   > kræver flest rettigheder (opsætning af service-agenter). Du kan i stedet
+   > køre den én gang fra din egen maskine som projekt-ejer:
+   > `firebase login` og `firebase deploy --only functions`. Derefter klarer
+   > GitHub Actions-kontoen efterfølgende deploys uden de brede roller.
 3. **Læg nøglen som repo-secret:** GitHub → repoet → **Settings → Secrets and
    variables → Actions → New repository secret**. Navn:
    `FIREBASE_SERVICE_ACCOUNT`. Værdi: indsæt **hele indholdet** af JSON-filen.
