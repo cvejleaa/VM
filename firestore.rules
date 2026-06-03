@@ -1,0 +1,194 @@
+// ---------------------------------------------------------------------------
+// firestore.rules — Sikkerhedsregler for VM 2026 tippekonkurrence.
+// Håndhæver principper fra docs/architecture.md:
+//   - Spillere kan kun læse/skrive egne bets/bonusBets, og kun FØR deadline.
+//   - points, role, status, result, facit kan aldrig skrives af spillere.
+//   - Kun matchAdmin/owner skriver matches, result, facit.
+//   - Kun owner ændrer role/status på brugere.
+// ---------------------------------------------------------------------------
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -----------------------------------------------------------------------
+    // Hjælpefunktioner
+    // -----------------------------------------------------------------------
+
+    /** Er brugeren logget ind? */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Er brugeren godkendt (status == 'approved')? */
+    function isApproved() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    /** Er brugeren owner? */
+    function isOwner() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    /** Er brugeren matchAdmin eller owner? */
+    function isMatchAdmin() {
+      return isSignedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'matchAdmin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
+      );
+    }
+
+    /** Er brugeren ejeren af dette dokument (ownerUid == uid)? */
+    function isOwnerOfDoc(docData) {
+      return isSignedIn() && request.auth.uid == docData.ownerUid;
+    }
+
+    /** Forsøger klienten at skrive til et beskyttet felt? */
+    function writingProtectedUserFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'status']);
+    }
+
+    /** Forsøger klienten at skrive til points-feltet? */
+    function writingPointsField() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['points']);
+    }
+
+    // -----------------------------------------------------------------------
+    // users/{uid}
+    // -----------------------------------------------------------------------
+    match /users/{uid} {
+      // Godkendte brugere kan læse basisprofiler; alle kan altid læse sin egen
+      // (så pending→approved kan opdatere live)
+      allow read: if isApproved() || (isSignedIn() && request.auth.uid == uid);
+
+      // Brugeren opretter selv sin profil ved registrering, men KUN med
+      // role:'player' og status:'pending' (kan ikke selv blive owner/approved)
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'player'
+        && request.resource.data.status == 'pending';
+
+      // Brugeren kan opdatere egne ikke-beskyttede felter (f.eks. displayName)
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && !writingProtectedUserFields();
+
+      // Kun owner kan ændre role/status
+      allow update: if isOwner();
+
+      // Ingen kan slette brugerprofiler (kun admin via Functions/console)
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // matches/{matchId}
+    // -----------------------------------------------------------------------
+    match /matches/{matchId} {
+      // Godkendte brugere kan læse alle kampe
+      allow read: if isApproved();
+
+      // Kun matchAdmin/owner kan oprette og opdatere kampe
+      allow create, update: if isMatchAdmin();
+
+      // Ingen sletter kampe fra klienten
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // bets/{betId}  (betId = uid_matchId)
+    // -----------------------------------------------------------------------
+    match /bets/{betId} {
+      // Bruger kan kun læse egne bets
+      allow read: if isSignedIn() && request.auth.uid == resource.data.uid;
+
+      // Opret bet: kun eget, points-felt må ikke sættes, og kun FØR kickoff
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.uid
+        && !request.resource.data.keys().hasAny(['points'])
+        && request.time < get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.kickoff;
+
+      // Opdater bet: kun eget, points må ikke ændres, og kun FØR kickoff
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.uid
+        && !writingPointsField()
+        && request.time < get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.kickoff;
+
+      // Ingen sletter bets fra klienten
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // bonusQuestions/{questionId}
+    // -----------------------------------------------------------------------
+    match /bonusQuestions/{questionId} {
+      // Godkendte brugere kan læse bonusspørgsmål
+      allow read: if isApproved();
+
+      // Kun matchAdmin/owner kan oprette og opdatere (inkl. sætte facit)
+      allow create, update: if isMatchAdmin();
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // bonusBets/{bonusBetId}  (bonusBetId = uid_questionId)
+    // -----------------------------------------------------------------------
+    match /bonusBets/{bonusBetId} {
+      // Bruger kan kun læse egne bonusbets
+      allow read: if isSignedIn() && request.auth.uid == resource.data.uid;
+
+      // Opret bonusbet: kun eget, points må ikke sættes, og kun FØR deadline
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.uid
+        && !request.resource.data.keys().hasAny(['points'])
+        && request.time < get(/databases/$(database)/documents/bonusQuestions/$(request.resource.data.questionId)).data.deadline;
+
+      // Opdater bonusbet: kun eget, points må ikke ændres, og kun FØR deadline
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.uid
+        && !writingPointsField()
+        && request.time < get(/databases/$(database)/documents/bonusQuestions/$(resource.data.questionId)).data.deadline;
+
+      allow delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // leagues/{leagueId}
+    // -----------------------------------------------------------------------
+    match /leagues/{leagueId} {
+      // Medlemmer kan læse ligaen
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.memberUids;
+
+      // Godkendte brugere kan oprette en liga
+      allow create: if isApproved()
+        && request.auth.uid == request.resource.data.ownerUid
+        && request.auth.uid in request.resource.data.memberUids;
+
+      // Ejeren kan opdatere ligaen
+      allow update: if isOwnerOfDoc(resource.data);
+
+      // Godkendt bruger kan tilmelde sig (tilføje eget uid til memberUids)
+      allow update: if isApproved()
+        && request.auth.uid in request.resource.data.memberUids
+        && !request.auth.uid in resource.data.memberUids
+        // Kun memberUids-feltet ændres
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids']);
+
+      allow delete: if isOwner();
+    }
+
+    // -----------------------------------------------------------------------
+    // config/{docId}
+    // -----------------------------------------------------------------------
+    match /config/{docId} {
+      // Alle godkendte brugere kan læse konfiguration
+      allow read: if isApproved();
+
+      // Kun owner kan skrive konfiguration
+      allow write: if isOwner();
+    }
+  }
+}

@@ -1,0 +1,212 @@
+// Kampe & resultater-fanen i admin-panelet.
+// Tilgængelig for matchAdmin og owner.
+import { useState } from 'react';
+import { useMatches } from './useMatches';
+import MatchResultForm from './MatchResultForm';
+import MatchCreateForm from './MatchCreateForm';
+import { callBuildKnockout, formatTimestamp } from './adminActions';
+import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
+
+// Oversæt runde til dansk
+const ROUND_LABELS = {
+  [ROUNDS.GROUP]:  'Gruppe',
+  [ROUNDS.R32]:    '1/16',
+  [ROUNDS.R16]:    '1/8',
+  [ROUNDS.QF]:     'Kvart',
+  [ROUNDS.SF]:     'Semi',
+  [ROUNDS.BRONZE]: 'Bronze',
+  [ROUNDS.FINAL]:  'Finale',
+};
+
+// Oversæt status til dansk
+const STATUS_LABELS = {
+  [MATCH_STATUS.SCHEDULED]:    'Planlagt',
+  [MATCH_STATUS.PENDING_TEAMS]:'Afventer hold',
+  [MATCH_STATUS.LIVE]:         'I gang',
+  [MATCH_STATUS.FINISHED]:     'Afsluttet',
+};
+
+const STATUS_COLORS = {
+  [MATCH_STATUS.SCHEDULED]:    'var(--c-muted)',
+  [MATCH_STATUS.PENDING_TEAMS]:'var(--c-warn)',
+  [MATCH_STATUS.LIVE]:         'var(--c-ok)',
+  [MATCH_STATUS.FINISHED]:     'var(--c-pitch)',
+};
+
+export default function MatchesTab() {
+  const { matches, loading, error } = useMatches();
+  const [editMatchId, setEditMatchId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [knockoutMsg, setKnockoutMsg] = useState('');
+  const [knockoutBusy, setKnockoutBusy] = useState(false);
+
+  async function handleBuildKnockout() {
+    if (
+      !window.confirm(
+        'Er du sikker på, at du vil generere knockout-kampe? Dette kan ikke fortrydes.'
+      )
+    )
+      return;
+
+    setKnockoutBusy(true);
+    setKnockoutMsg('');
+    const res = await callBuildKnockout();
+    setKnockoutBusy(false);
+    setKnockoutMsg(
+      res.ok
+        ? 'Knockout-kampe er oprettet!'
+        : `Fejl: ${res.error}`
+    );
+  }
+
+  if (loading) {
+    return <p style={{ color: 'var(--c-muted)' }}>Henter kampe…</p>;
+  }
+
+  if (error) {
+    return (
+      <p role="alert" style={{ color: 'var(--c-err)' }}>
+        {error}
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      {/* Handlingsknapper */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.75rem',
+          flexWrap: 'wrap',
+          marginBottom: '1rem',
+          alignItems: 'center',
+        }}
+      >
+        <button
+          className="btn"
+          onClick={() => setShowCreate((v) => !v)}
+        >
+          {showCreate ? 'Annuller oprettelse' : '+ Opret kamp'}
+        </button>
+
+        <button
+          className="btn"
+          style={{ background: 'var(--c-accent-2)' }}
+          onClick={handleBuildKnockout}
+          disabled={knockoutBusy}
+        >
+          {knockoutBusy ? 'Genererer…' : 'Generer knockout-kampe'}
+        </button>
+      </div>
+
+      {/* Feedback fra buildKnockout */}
+      {knockoutMsg && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: '1rem',
+            padding: '0.5rem 0.8rem',
+            borderRadius: 8,
+            fontSize: '0.88rem',
+            background: knockoutMsg.startsWith('Fejl') ? '#fef2f2' : '#f0fdf4',
+            color: knockoutMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)',
+            border: `1px solid ${knockoutMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)'}`,
+          }}
+        >
+          {knockoutMsg}
+        </div>
+      )}
+
+      {/* Opret ny kamp */}
+      {showCreate && (
+        <MatchCreateForm onClose={() => setShowCreate(false)} />
+      )}
+
+      {/* Kampliste */}
+      {matches.length === 0 ? (
+        <p style={{ color: 'var(--c-muted)' }}>Ingen kampe oprettet endnu.</p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {matches.map((match) => {
+            const isEditing = editMatchId === match.id;
+            const title = `${match.homeTeam ?? match.homePlaceholder ?? '?'} vs ${match.awayTeam ?? match.awayPlaceholder ?? '?'}`;
+            const result = match.result
+              ? `${match.result.home}–${match.result.away}${match.result.advance ? ` (${match.result.advance})` : ''}`
+              : null;
+
+            return (
+              <li
+                key={match.id}
+                style={{
+                  padding: '0.75rem 0',
+                  borderBottom: '1px solid var(--c-border)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {/* Kampinfo */}
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{title}</div>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+                      {ROUND_LABELS[match.round] ?? match.round}
+                      {match.groupName ? ` · Gruppe ${match.groupName}` : ''}
+                      {' · '}
+                      {formatTimestamp(match.kickoff)}
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: '0.82rem' }}>
+                      <span style={{ color: STATUS_COLORS[match.status] ?? 'var(--c-muted)' }}>
+                        {STATUS_LABELS[match.status] ?? match.status}
+                      </span>
+                      {result && (
+                        <span style={{ marginLeft: 8, fontWeight: 700, color: 'var(--c-pitch)' }}>
+                          {result}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Rediger-knap */}
+                  <button
+                    className="btn btn--ghost"
+                    style={{ fontSize: '0.82rem', padding: '0.3rem 0.7rem', whiteSpace: 'nowrap' }}
+                    onClick={() =>
+                      setEditMatchId(isEditing ? null : match.id)
+                    }
+                  >
+                    {isEditing ? 'Luk' : 'Sæt resultat'}
+                  </button>
+                </div>
+
+                {/* Resultat-formular */}
+                {isEditing && (
+                  <div
+                    style={{
+                      marginTop: '0.75rem',
+                      padding: '0.75rem',
+                      background: 'var(--c-bg)',
+                      borderRadius: 10,
+                      border: '1px solid var(--c-border)',
+                    }}
+                  >
+                    <MatchResultForm
+                      match={match}
+                      onClose={() => setEditMatchId(null)}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
