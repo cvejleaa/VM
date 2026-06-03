@@ -87,14 +87,27 @@ slipper du for at installere noget lokalt.
 
 1. **Lav en service-account-nøgle:** Firebase Console → **Projektindstillinger →
    Tjenestekonti → Generér ny privat nøgle**. Du får en JSON-fil.
-2. **Læg den som repo-secret:** GitHub → repoet → **Settings → Secrets and
+2. **Giv nøglen de rette rettigheder** (vigtigt — ellers fejler deploy med
+   `403 Permission denied`). Standard-nøglen må kun læse/skrive data, ikke
+   deploye. Gå til **Google Cloud Console → IAM & Admin → IAM**
+   (<https://console.cloud.google.com/iam-admin/iam?project=vm2026-tip>), find
+   service-kontoen (`firebase-adminsdk-…@vm2026-tip.iam.gserviceaccount.com`),
+   klik **rediger (blyant)** og tilføj disse roller:
+   - **Firebase Admin** (`roles/firebase.admin`) — hosting, rules, indexes
+   - **Service Usage Consumer** (`roles/serviceusage.serviceUsageConsumer`) — så CLI'en må tjekke API'er
+   - *(kun til functions, kræver Blaze)* **Cloud Functions Admin**,
+     **Service Account User** og **Artifact Registry Administrator**
+
+   > Hurtig genvej (mindre restriktiv): giv i stedet rollen **Editor** +
+   > **Firebase Admin**. Det virker til alt, men er bredere adgang.
+3. **Læg nøglen som repo-secret:** GitHub → repoet → **Settings → Secrets and
    variables → Actions → New repository secret**. Navn:
    `FIREBASE_SERVICE_ACCOUNT`. Værdi: indsæt **hele indholdet** af JSON-filen.
    > Denne nøgle er hemmelig — læg den ALDRIG i koden, kun som GitHub-secret.
-3. **Kør deploy:** GitHub → fanen **Actions → "Deploy til Firebase" → Run
+4. **Kør deploy:** GitHub → fanen **Actions → "Deploy til Firebase" → Run
    workflow**. Vælg:
    - `hosting-rules` — frontend + security rules + indexes (virker på gratis
-     Spark-plan).
+     Spark-plan). **Start med denne.**
    - `functions` eller `all` — kræver **Blaze-plan** (se trin 6).
    - Sæt **seed = true** første gang for samtidig at indlæse alle kampe.
 
