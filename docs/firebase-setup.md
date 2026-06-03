@@ -81,6 +81,25 @@ firebase deploy --only functions
 
 ---
 
+## 6b. (Anbefalet) Automatisk deploy via GitHub Actions
+I stedet for at deploye fra din egen maskine kan du lade GitHub gøre det. Så
+slipper du for at installere noget lokalt.
+
+1. **Lav en service-account-nøgle:** Firebase Console → **Projektindstillinger →
+   Tjenestekonti → Generér ny privat nøgle**. Du får en JSON-fil.
+2. **Læg den som repo-secret:** GitHub → repoet → **Settings → Secrets and
+   variables → Actions → New repository secret**. Navn:
+   `FIREBASE_SERVICE_ACCOUNT`. Værdi: indsæt **hele indholdet** af JSON-filen.
+   > Denne nøgle er hemmelig — læg den ALDRIG i koden, kun som GitHub-secret.
+3. **Kør deploy:** GitHub → fanen **Actions → "Deploy til Firebase" → Run
+   workflow**. Vælg:
+   - `hosting-rules` — frontend + security rules + indexes (virker på gratis
+     Spark-plan).
+   - `functions` eller `all` — kræver **Blaze-plan** (se trin 6).
+   - Sæt **seed = true** første gang for samtidig at indlæse alle kampe.
+
+Workflowen deployer kun når du selv trykker — intet sker automatisk ved push.
+
 ## 7. Indlæs kampene (seed)
 Kør seed-scriptet for at lægge alle gruppespilskampe + bonus-spørgsmål ind.
 
