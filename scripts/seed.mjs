@@ -12,12 +12,9 @@
 // Scriptet kan køres flere gange (det overskriver eksisterende data).
 // ---------------------------------------------------------------------------
 
-import { createRequire } from 'module';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-
-const require = createRequire(import.meta.url);
 
 // Hent stien til projektets rod
 const __filename = fileURLToPath(import.meta.url);

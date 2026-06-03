@@ -5,6 +5,10 @@ on:
     branches: [main, master]
   pull_request:
 
+# Kør GitHub's JavaScript-actions på Node 24 (Node 20 udfases)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   frontend:
     name: Frontend – lint, unit-tests, build
