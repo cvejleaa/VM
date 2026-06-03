@@ -46,3 +46,4 @@ kamp starter.
 - [Firebase-opsætning & deploy](docs/firebase-setup.md)
 - [Testplan & testrapport](docs/testing.md)
 - [Admin-vejledning](docs/admin-guide.md)
+- [Vedligeholdelse & opdatering af afhængigheder](docs/maintenance.md)

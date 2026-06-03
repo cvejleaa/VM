@@ -15,7 +15,9 @@
     "test:rules": "vitest run --config vitest.rules.config.js",
     "test:e2e": "playwright test",
     "emulators": "firebase emulators:start",
-    "seed": "node scripts/seed.mjs"
+    "seed": "node scripts/seed.mjs",
+    "deps:check": "npx npm-check-updates && (cd functions && npx npm-check-updates)",
+    "deps:upgrade": "npx npm-check-updates -u && npm install && cd functions && npx npm-check-updates -u && npm install"
   },
   "dependencies": {
     "firebase": "^10.12.0",
