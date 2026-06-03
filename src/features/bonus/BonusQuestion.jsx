@@ -6,6 +6,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { COL, BONUS_TYPE } from '../../lib/constants';
 import { POINTS } from '../../lib/scoring';
+import { teamName } from '../../lib/teams';
+import Flag from '../../components/Flag';
 import { isBonusLocked, formatDeadline } from './bonusHelpers';
 
 /**
@@ -56,6 +58,7 @@ export default function BonusQuestion({ question, uid, existingBet }) {
   // Udled hvilke options der er tilgængelige
   const options = question.options ?? null;
   const isSelect = options && options.length > 0;
+  const isGroupWinner = question.type === BONUS_TYPE.GROUP_WINNER;
 
   // Afgør status-badge
   const isAnswered = !!existingBet?.answer;
@@ -111,7 +114,9 @@ export default function BonusQuestion({ question, uid, existingBet }) {
             fontSize: '0.88rem',
           }}
         >
-          <strong>Facit:</strong> {question.facit}
+          <strong>Facit:</strong>{' '}
+          {isGroupWinner && <Flag code={question.facit} size={18} style={{ marginRight: 4 }} />}
+          {isGroupWinner ? teamName(question.facit) : question.facit}
           {earnedPoints !== null && (
             <span
               className={`badge ${earnedPoints > 0 ? 'badge--green' : 'badge--muted'}`}
@@ -136,7 +141,7 @@ export default function BonusQuestion({ question, uid, existingBet }) {
           >
             <option value="">– Vælg hold –</option>
             {options.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
+              <option key={opt} value={opt}>{teamName(opt)}</option>
             ))}
           </select>
         ) : (
@@ -177,17 +182,29 @@ export default function BonusQuestion({ question, uid, existingBet }) {
         </p>
       )}
 
+      {/* Hjælpetekst for topscorer (fri tekst) */}
+      {!locked && !isSelect && question.type === BONUS_TYPE.TOP_SCORER && (
+        <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--c-muted)' }}>
+          Skriv spillerens navn — gerne efternavn, fx <em>Mbappé</em>, <em>Haaland</em> eller
+          <em> Messi</em>. Store/små bogstaver og mellemrum er ligegyldige.
+        </p>
+      )}
+
       {/* Vis brugerens eget svar */}
       {isAnswered && (
         <p style={{ margin: '0.4rem 0 0', fontSize: '0.83rem', color: 'var(--c-muted)' }}>
-          Dit svar: <strong style={{ color: 'var(--c-text)' }}>{existingBet.answer}</strong>
+          Dit svar:{' '}
+          {isGroupWinner && <Flag code={existingBet.answer} size={16} style={{ marginRight: 3 }} />}
+          <strong style={{ color: 'var(--c-text)' }}>
+            {isGroupWinner ? teamName(existingBet.answer) : existingBet.answer}
+          </strong>
         </p>
       )}
 
       {/* Mulige point-info */}
       {!locked && !isFinished && (
         <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'var(--c-muted)' }}>
-          Korrekt svar giver {POINTS.BONUS} point
+          Korrekt svar giver {POINTS.BONUS} point. Låses ved deadline (den første relevante kamps start).
         </p>
       )}
     </div>

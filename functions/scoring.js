@@ -58,10 +58,16 @@ function scoreKnockout(bet, result) {
   return pts;
 }
 
-/** Point for et bonus-svar. */
+/** Normaliser et bonus-svar: trim + små bogstaver (tolerant matchning). */
+function normalizeAnswer(v) {
+  return String(v).trim().toLowerCase();
+}
+
+/** Point for et bonus-svar (ufølsomt for store/små bogstaver og mellemrum). */
 function scoreBonus(answer, facit) {
   if (answer == null || facit == null) return 0;
-  return String(answer) === String(facit) ? POINTS.BONUS : 0;
+  if (normalizeAnswer(answer) === '' || normalizeAnswer(facit) === '') return 0;
+  return normalizeAnswer(answer) === normalizeAnswer(facit) ? POINTS.BONUS : 0;
 }
 
 module.exports = { POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus };

@@ -27,6 +27,7 @@ export default function Layout({ children }) {
               <NavLink to="/" style={linkStyle} end>Kampe</NavLink>
               <NavLink to="/mine-tips" style={linkStyle}>Mine tips</NavLink>
               <NavLink to="/bonus" style={linkStyle}>Bonus</NavLink>
+              <NavLink to="/turnering" style={linkStyle}>Turnering</NavLink>
               <NavLink to="/stilling" style={linkStyle}>Stilling</NavLink>
               <NavLink to="/ligaer" style={linkStyle}>Ligaer</NavLink>
               {isMatchAdmin && <NavLink to="/admin" style={linkStyle}>Admin</NavLink>}

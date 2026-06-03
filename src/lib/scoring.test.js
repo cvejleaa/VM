@@ -56,4 +56,11 @@ describe('scoreBonus', () => {
   it('giver 0 for forkert svar', () => {
     expect(scoreBonus('Haaland', 'Mbappé')).toBe(0);
   });
+  it('er ufølsom for store/små bogstaver og mellemrum', () => {
+    expect(scoreBonus('  haaland ', 'Haaland')).toBe(POINTS.BONUS);
+    expect(scoreBonus('MBAPPÉ', 'mbappé')).toBe(POINTS.BONUS);
+  });
+  it('giver 0 for tomt svar', () => {
+    expect(scoreBonus('   ', 'Haaland')).toBe(0);
+  });
 });
