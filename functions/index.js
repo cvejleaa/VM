@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // functions/index.js — Firebase Cloud Functions v2 til VM 2026 tippekonkurrence.
-// Region: europe-west1, Node 20.
+// Region: europe-west1, Node 22.
 //
 // Funktioner:
 //   onUserCreate      — auth trigger: opretter users/{uid} ved ny bruger
