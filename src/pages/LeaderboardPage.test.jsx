@@ -109,4 +109,54 @@ describe('LeaderboardPage', () => {
     expect(screen.getByText('8')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
   });
+
+  it('viser dato-badge i dagsfanen', () => {
+    render(<LeaderboardPage />);
+    fireEvent.click(screen.getByRole('tab', { name: /dagens kampe/i }));
+    // todayStr = '2026-06-02' → formateret dato vises
+    const datoBadge = screen.queryByText(/2026|juni|mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag/i);
+    expect(datoBadge).toBeInTheDocument();
+  });
+
+  it('viser samlet stilling for valgt liga med ligaens navn', () => {
+    render(<LeaderboardPage />);
+    const select = screen.getByLabelText(/filtrer efter liga/i);
+    fireEvent.change(select, { target: { value: 'league-1' } });
+    expect(screen.getByText(/Testliga – stilling/i)).toBeInTheDocument();
+  });
+
+  it('skifter til Dagens kampe og viser ligaens daglige stilling', () => {
+    render(<LeaderboardPage />);
+    const select = screen.getByLabelText(/filtrer efter liga/i);
+    fireEvent.change(select, { target: { value: 'league-1' } });
+    fireEvent.click(screen.getByRole('tab', { name: /dagens kampe/i }));
+    // Alice og Mig er i ligaen → Charlie er ikke
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
+  });
+
+  it('nulstiller filter til alle spillere ved valg af tom option', () => {
+    render(<LeaderboardPage />);
+    const select = screen.getByLabelText(/filtrer efter liga/i);
+    fireEvent.change(select, { target: { value: 'league-1' } });
+    fireEvent.change(select, { target: { value: '' } });
+    // Charlie bør nu vises igen
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
+  });
+
+  it('viser ThemeToggle-knap', () => {
+    render(<LeaderboardPage />);
+    // ThemeToggle er til stede – kigger efter knap med tema-relateret label
+    const toggleBtn = screen.getByRole('button', { name: /tema/i });
+    expect(toggleBtn).toBeInTheDocument();
+  });
+
+  it('"Samlet stilling"-fanen er ikke selected i dagsfanen', () => {
+    render(<LeaderboardPage />);
+    fireEvent.click(screen.getByRole('tab', { name: /dagens kampe/i }));
+    expect(screen.getByRole('tab', { name: /samlet stilling/i })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
 });

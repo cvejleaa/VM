@@ -1,5 +1,5 @@
-// Tests for LoginPage — fejlbesked-oversættelse og formular-adfærd.
-// Firebase og AuthContext mockes, så testene kører uden netværk.
+// Udtømmende tests for LoginPage — faneskift, login, signup, glemt adgangskode, fejlkoder.
+// Firebase og AuthContext mockes — ingen netværk.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -29,16 +29,19 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-// ─── Mock useAuthActions ───────────────────────────────────────────────────────
+// ─── Mock useAuthActions ──────────────────────────────────────────────────────
 const mockLogin = vi.fn();
 const mockSignup = vi.fn();
 const mockResetPassword = vi.fn();
 const mockClearError = vi.fn();
 
+let mockError = '';
+let mockLoading = false;
+
 vi.mock('../features/auth/useAuthActions', () => ({
   useAuthActions: () => ({
-    loading: false,
-    error: '',
+    loading: mockLoading,
+    error: mockError,
     clearError: mockClearError,
     signup: mockSignup,
     login: mockLogin,
@@ -50,15 +53,11 @@ vi.mock('../features/auth/useAuthActions', () => ({
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
+  return { ...actual, useNavigate: () => mockNavigate };
 });
 
 import LoginPage from './LoginPage';
 
-// Hjælpefunktion til at rendere siden i en MemoryRouter
 function renderLoginPage() {
   return render(
     <MemoryRouter>
@@ -67,14 +66,12 @@ function renderLoginPage() {
   );
 }
 
-// Hjælper: find faneknap med givet tekst (ingen type="submit")
 function getTabButton(label) {
   return screen.getAllByRole('button', { name: label }).find(
     (btn) => !btn.getAttribute('type') || btn.getAttribute('type') === 'button'
   );
 }
 
-// Hjælper: find submit-knap med givet tekst
 function getSubmitButton(label) {
   return screen.getAllByRole('button', { name: label }).find(
     (btn) => btn.getAttribute('type') === 'submit'
@@ -84,55 +81,44 @@ function getSubmitButton(label) {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Standard: ingen bruger logget ind
-    mockUseAuth.mockReturnValue({
-      user: null,
-      isApproved: false,
-      status: 'pending',
-    });
+    mockError = '';
+    mockLoading = false;
+    mockUseAuth.mockReturnValue({ user: null, isApproved: false, status: 'pending' });
   });
 
-  it('viser "Log ind"-fane som standard', () => {
-    renderLoginPage();
-    // Brug getAllByText — begge er i DOM, men siden er i login-tilstand
-    const logIndElements = screen.getAllByText('Log ind');
-    expect(logIndElements.length).toBeGreaterThan(0);
-  });
+  // ─── Grundlæggende rendering ──────────────────────────────────────────────
 
-  it('viser "Opret bruger"-fane', () => {
-    renderLoginPage();
-    const opretElements = screen.getAllByText('Opret bruger');
-    expect(opretElements.length).toBeGreaterThan(0);
-  });
-
-  it('viser VM 2026-overskrift', () => {
+  it('viser VM 2026 Tip-overskrift', () => {
     renderLoginPage();
     expect(screen.getByText(/VM 2026 Tip/i)).toBeInTheDocument();
   });
 
-  it('viser login-formular som standard med e-mail og adgangskode', () => {
+  it('viser tagline om Danmarks bedste fodbold-tippekonkurrence', () => {
     renderLoginPage();
-    // E-mail-feltet og adgangskodefeltet skal være synlige
+    expect(screen.getByText(/Danmarks bedste/i)).toBeInTheDocument();
+  });
+
+  it('viser Log ind-fane som standard', () => {
+    renderLoginPage();
+    expect(screen.getAllByText('Log ind').length).toBeGreaterThan(0);
+  });
+
+  it('viser Opret bruger-fane', () => {
+    renderLoginPage();
+    expect(screen.getAllByText('Opret bruger').length).toBeGreaterThan(0);
+  });
+
+  // ─── Login-formular ───────────────────────────────────────────────────────
+
+  it('viser e-mail og adgangskode-felt i login-tilstand', () => {
+    renderLoginPage();
     expect(screen.getByPlaceholderText('din@email.dk')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
   });
 
-  it('skifter til opret-bruger-formular ved klik på fanen', () => {
-    renderLoginPage();
-    const opretFane = getTabButton('Opret bruger');
-    fireEvent.click(opretFane);
-    expect(screen.getByLabelText(/Visningsnavn/i)).toBeInTheDocument();
-  });
-
-  it('viser "Glemt adgangskode?"-knap i login-fane', () => {
+  it('viser Glemt adgangskode-knap i login-fane', () => {
     renderLoginPage();
     expect(screen.getByText(/Glemt adgangskode/i)).toBeInTheDocument();
-  });
-
-  it('viser nulstillingsformular ved klik på glemt adgangskode', () => {
-    renderLoginPage();
-    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
-    expect(screen.getByText(/Send nulstillingslink/i)).toBeInTheDocument();
   });
 
   it('kalder login med korrekte data ved indsendelse', async () => {
@@ -146,31 +132,147 @@ describe('LoginPage', () => {
       target: { value: 'password123' },
     });
 
-    // Klik på submit-knappen i login-formularen
-    const loginSubmit = getSubmitButton('Log ind');
-    fireEvent.click(loginSubmit);
+    fireEvent.click(getSubmitButton('Log ind'));
 
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('test@test.dk', 'password123');
     });
   });
 
-  it('validerer manglende visningsnavn ved opret bruger', async () => {
+  it('viser login-knappen som deaktiveret under loading', () => {
+    mockLoading = true;
     renderLoginPage();
-    // Skift til opret-fanen
-    fireEvent.click(getTabButton('Opret bruger'));
+    const btn = screen.getByRole('button', { name: /Logger ind/i });
+    expect(btn).toBeDisabled();
+  });
 
-    // Klik submit uden at udfylde noget
-    const submitBtn = getSubmitButton('Opret bruger');
-    fireEvent.click(submitBtn);
+  it('viser teksten "Logger ind…" under loading', () => {
+    mockLoading = true;
+    renderLoginPage();
+    expect(screen.getByText(/Logger ind/i)).toBeInTheDocument();
+  });
+
+  // ─── Faneskift ────────────────────────────────────────────────────────────
+
+  it('skifter til Opret bruger-formular ved klik på fane', () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    expect(screen.getByLabelText(/Visningsnavn/i)).toBeInTheDocument();
+  });
+
+  it('skjuler login-formular efter faneskift til Opret bruger', () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    expect(screen.queryByPlaceholderText('••••••••')).not.toBeInTheDocument();
+  });
+
+  it('kalder clearError ved faneskift', () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    expect(mockClearError).toHaveBeenCalled();
+  });
+
+  it('skifter tilbage til login-fane fra opret-fane', () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    fireEvent.click(getTabButton('Log ind'));
+    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
+  });
+
+  // ─── Glemt adgangskode ────────────────────────────────────────────────────
+
+  it('viser nulstillingsformular ved klik på Glemt adgangskode', () => {
+    renderLoginPage();
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    expect(screen.getByText(/Send nulstillingslink/i)).toBeInTheDocument();
+  });
+
+  it('viser vejledende tekst i nulstillingsformularen', () => {
+    renderLoginPage();
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    expect(screen.getByText(/Indtast din e-mail/i)).toBeInTheDocument();
+  });
+
+  it('viser fejl ved tom e-mail i nulstillingsformular', async () => {
+    renderLoginPage();
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    fireEvent.click(getSubmitButton('Send nulstillingslink'));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(/e-mail/i);
+    });
+  });
+
+  it('kalder resetPassword med e-mail ved indsendelse', async () => {
+    mockResetPassword.mockResolvedValue(true);
+    renderLoginPage();
+
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    fireEvent.change(screen.getByPlaceholderText('din@email.dk'), {
+      target: { value: 'bruger@test.dk' },
+    });
+    fireEvent.click(getSubmitButton('Send nulstillingslink'));
+
+    await waitFor(() => {
+      expect(mockResetPassword).toHaveBeenCalledWith('bruger@test.dk');
+    });
+  });
+
+  it('viser succesbesked efter vellykket nulstilling', async () => {
+    mockResetPassword.mockResolvedValue(true);
+    renderLoginPage();
+
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    fireEvent.change(screen.getByPlaceholderText('din@email.dk'), {
+      target: { value: 'bruger@test.dk' },
+    });
+    fireEvent.click(getSubmitButton('Send nulstillingslink'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/nulstilling/i)).toBeInTheDocument();
+    });
+  });
+
+  it('viser Tilbage til login-knap i nulstillingsformular', () => {
+    renderLoginPage();
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    expect(screen.getByText(/Tilbage til login/i)).toBeInTheDocument();
+  });
+
+  it('skifter tilbage til login ved klik på Tilbage til login', () => {
+    renderLoginPage();
+    fireEvent.click(screen.getByText(/Glemt adgangskode/i));
+    fireEvent.click(screen.getByText(/Tilbage til login/i));
+    expect(screen.queryByText(/Send nulstillingslink/i)).not.toBeInTheDocument();
+  });
+
+  // ─── Opret bruger-formular — validering ──────────────────────────────────
+
+  it('viser fejl ved tomt visningsnavn ved signup', async () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/visningsnavn/i);
     });
   });
 
-  it('validerer adgangskode for kort ved opret bruger', async () => {
+  it('viser fejl når visningsnavn er for kort (1 tegn)', async () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+
+    fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
+      target: { value: 'A' },
+    });
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/mindst 2 tegn/i);
+    });
+  });
+
+  it('viser fejl ved adgangskode kortere end 6 tegn', async () => {
     renderLoginPage();
     fireEvent.click(getTabButton('Opret bruger'));
 
@@ -181,9 +283,8 @@ describe('LoginPage', () => {
       target: { value: 'anders@test.dk' },
     });
     fireEvent.change(screen.getByLabelText(/Adgangskode/i), {
-      target: { value: '123' }, // for kort
+      target: { value: '123' },
     });
-
     fireEvent.click(getSubmitButton('Opret bruger'));
 
     await waitFor(() => {
@@ -191,10 +292,40 @@ describe('LoginPage', () => {
     });
   });
 
-  it('navigerer til /afventer efter vellykket oprettelse', async () => {
+  it('viser fejl ved manglende e-mail ved signup', async () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+
+    fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
+      target: { value: 'Anders' },
+    });
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/e-mail/i);
+    });
+  });
+
+  it('viser fejl ved manglende adgangskode ved signup', async () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+
+    fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
+      target: { value: 'Anders' },
+    });
+    fireEvent.change(screen.getByLabelText(/E-mail/i), {
+      target: { value: 'anders@test.dk' },
+    });
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/adgangskode/i);
+    });
+  });
+
+  it('kalder signup med korrekte data ved succesfuld validering', async () => {
     mockSignup.mockResolvedValue({ uid: 'new-uid' });
     renderLoginPage();
-
     fireEvent.click(getTabButton('Opret bruger'));
 
     fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
@@ -206,32 +337,106 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByLabelText(/Adgangskode/i), {
       target: { value: 'password123' },
     });
-
     fireEvent.click(getSubmitButton('Opret bruger'));
 
     await waitFor(() => {
       expect(mockSignup).toHaveBeenCalledWith('ny@test.dk', 'password123', 'Ny Bruger');
+    });
+  });
+
+  it('navigerer til /afventer efter vellykket oprettelse', async () => {
+    mockSignup.mockResolvedValue({ uid: 'new-uid' });
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+
+    fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
+      target: { value: 'Ny Bruger' },
+    });
+    fireEvent.change(screen.getByLabelText(/E-mail/i), {
+      target: { value: 'ny@test.dk' },
+    });
+    fireEvent.change(screen.getByLabelText(/Adgangskode/i), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/afventer', { replace: true });
     });
   });
 
-  it('redirecter godkendt bruger til forsiden', () => {
-    mockUseAuth.mockReturnValue({
-      user: { uid: 'abc' },
-      isApproved: true,
-      status: 'approved',
+  it('navigerer IKKE til /afventer når signup returnerer null (fejl)', async () => {
+    mockSignup.mockResolvedValue(null);
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+
+    fireEvent.change(screen.getByLabelText(/Visningsnavn/i), {
+      target: { value: 'Ny Bruger' },
     });
+    fireEvent.change(screen.getByLabelText(/E-mail/i), {
+      target: { value: 'ny@test.dk' },
+    });
+    fireEvent.change(screen.getByLabelText(/Adgangskode/i), {
+      target: { value: 'password123' },
+    });
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
+      expect(mockNavigate).not.toHaveBeenCalledWith('/afventer', expect.anything());
+    });
+  });
+
+  it('viser Opretter…-tekst under signup loading', () => {
+    mockLoading = true;
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    expect(screen.getByText(/Opretter/i)).toBeInTheDocument();
+  });
+
+  it('viser deaktiveringsnotat om admin-godkendelse', () => {
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    expect(screen.getByText(/godkendes af en administrator/i)).toBeInTheDocument();
+  });
+
+  // ─── Fejlvisning fra hook ─────────────────────────────────────────────────
+
+  it('viser fejlbesked fra hook (role="alert")', () => {
+    mockError = 'Forkert e-mail eller adgangskode.';
+    renderLoginPage();
+    expect(screen.getByRole('alert')).toHaveTextContent(/Forkert e-mail/i);
+  });
+
+  it('kombinerer lokal valideringsfejl og hook-fejl — lokal viser først', async () => {
+    mockError = 'Firebase fejl';
+    renderLoginPage();
+    fireEvent.click(getTabButton('Opret bruger'));
+    fireEvent.click(getSubmitButton('Opret bruger'));
+
+    await waitFor(() => {
+      const alert = screen.getByRole('alert');
+      // Lokal fejl (visningsnavn) overstyrer hook-fejl
+      expect(alert).toHaveTextContent(/visningsnavn/i);
+    });
+  });
+
+  // ─── Redirect-logik ───────────────────────────────────────────────────────
+
+  it('redirecter godkendt bruger til forsiden', () => {
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, isApproved: true });
     renderLoginPage();
     expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
   });
 
   it('redirecter ikke-godkendt logget-ind bruger til /afventer', () => {
-    mockUseAuth.mockReturnValue({
-      user: { uid: 'abc' },
-      isApproved: false,
-      status: 'pending',
-    });
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, isApproved: false });
     renderLoginPage();
     expect(mockNavigate).toHaveBeenCalledWith('/afventer', { replace: true });
+  });
+
+  it('redirecter IKKE når ingen bruger er logget ind', () => {
+    mockUseAuth.mockReturnValue({ user: null, isApproved: false });
+    renderLoginPage();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

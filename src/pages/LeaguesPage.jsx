@@ -213,9 +213,10 @@ function CreateLeagueForm({ uid, onCreated }) {
     setLoading(true);
     try {
       await createLeague(name, uid);
-      setSuccess(`Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`);
+      const msg = `Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`;
+      setSuccess(msg);
       setName('');
-      onCreated?.();
+      onCreated?.(msg);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -307,6 +308,8 @@ export default function LeaguesPage() {
   // Fold/åbn formular-sektioner
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
+  // Side-besked (fx kvittering efter oprettelse)
+  const [pageMsg, setPageMsg] = useState('');
 
   const openLeague = leagues.find((l) => l.id === openLeagueId) ?? null;
 
@@ -334,6 +337,11 @@ export default function LeaguesPage() {
       {/* Fejlbesked */}
       {leagueError && (
         <p className="badge badge--red mb-2" role="alert">{leagueError}</p>
+      )}
+
+      {/* Kvittering (fx efter oprettelse) */}
+      {pageMsg && (
+        <p className="badge badge--green mb-2" role="status" style={{ display: 'block' }}>{pageMsg}</p>
       )}
 
       {/* Ligaliste */}
@@ -381,7 +389,7 @@ export default function LeaguesPage() {
       {showCreate && (
         <div className="card mb-2">
           <h2 className="card__title mb-2">Opret ny liga</h2>
-          <CreateLeagueForm uid={user?.uid} onCreated={() => setShowCreate(false)} />
+          <CreateLeagueForm uid={user?.uid} onCreated={(msg) => { setShowCreate(false); setPageMsg(msg); }} />
         </div>
       )}
 

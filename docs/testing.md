@@ -7,18 +7,20 @@ push/PR (se `.github/workflows/ci.yml`).
 
 | Niveau | Værktøj | Hvad dækkes | Antal | Kræver |
 |---|---|---|---:|---|
-| Unit (delt logik) | Vitest | Pointberegning (`src/lib/scoring.js`) | 11 | — |
-| Unit (functions) | Vitest | Autoritativ scoring + grupperangering/tiebreak | 37 | — |
-| Komponent/UI | Vitest + Testing Library | Sider, formularer, hooks (Firebase mocket) | 156 | — |
-| Security Rules | Vitest + `@firebase/rules-unit-testing` | Firestore-regler | 14 | Firestore-emulator |
+| Unit + komponent/UI | Vitest + Testing Library | Al UI (sider, komponenter, hooks), delt logik — alle scenarier inkl. fejl/kanttilfælde (Firebase mocket) | **855** | — |
+| Unit (functions) | Vitest | Autoritativ scoring (inkl. fuzzy bonus) + grupperangering/tiebreak | **42** | — |
+| Security Rules | Vitest + `@firebase/rules-unit-testing` | Firestore-regler (roller, deadlines, ligaer) | 14 | Firestore-emulator |
 | E2E | Playwright | UI-flows i rigtig browser | 4+ | Browser (CI) |
 
-**Frontend unit+komponent i alt: 167 grønne. Functions: 37 grønne.**
+**Frontend (unit + komponent): 855 grønne. Functions: 42 grønne.** Hele
+UI'et er dækket udtømmende — hver side/komponent testes i alle tilstande
+(loading, fejl, tom, rollebaseret adgang, låst/åben, før/efter deadline,
+godkendt/afventer, korrekte/forkerte tip, fuzzy bonus-matchning osv.).
 
 ## Sådan køres testene
 
 ```bash
-# Frontend unit + komponent (167 tests)
+# Frontend unit + komponent (855 tests)
 npm test
 npm run test:coverage          # med dækningsrapport (coverage/)
 
@@ -34,6 +36,20 @@ npm run test:e2e
 ```
 
 ## Dækningsområder
+
+### Udtømmende UI-dækning (alle scenarier)
+Hver side og komponent testes i alle relevante tilstande. Testfiler (uddrag):
+- **Auth/Admin:** LoginPage, PendingPage, AdminPage (rollebaserede faner),
+  UsersTab, MatchResultForm, MatchCreateForm, MatchesTab, BonusTab,
+  BonusSubmissions, LeaguesAdminTab, useAuthActions, adminActions, firebaseErrors.
+- **Tipning/Bonus:** MatchCard (åben/låst/afgjort/knockout/pendingTeams),
+  ScoreInput, matchHelpers, MatchesPage (filtre/loading/fejl/tom), MyBetsPage,
+  BonusPage (sortering/åbne/låste), BonusQuestion, bonusHelpers, PointRules, Hero, Flag.
+- **Ligaer/Rangering/Turnering:** LeaguesPage (opret/tilmeld/godkendelse/fejl),
+  leagueActions, leagueUtils, StandingsTable, standingsUtils, LeaderboardPage,
+  TournamentPage, computeStandings, teams, ThemeToggle.
+
+Firebase mockes fuldt i alle komponent-tests (ingen netværk).
 
 ### Pointlogik (kerne)
 - Eksakt score (5), målforskel (3), udfald (2), forkert (0)

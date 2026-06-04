@@ -4,6 +4,10 @@
 import { describe, it, expect } from 'vitest';
 import { generateJoinCode, filterUsersByLeague } from './leagueUtils';
 
+// Tilladte tegn (ingen tvetydige)
+const ALLOWED_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const AMBIGUOUS_CHARS = '0O1I';
+
 // ── generateJoinCode ─────────────────────────────────────────────────────────
 describe('generateJoinCode', () => {
   it('genererer en kode på præcis 6 tegn', () => {
@@ -28,6 +32,36 @@ describe('generateJoinCode', () => {
     }
     // Med ~28^6 kombinationer bør 100 kode-genereringer næsten altid give 100 unikke
     expect(codes.size).toBeGreaterThan(95);
+  });
+
+  it('indeholder ingen tvetydige tegn (0, O, 1, I) over 200 kald', () => {
+    for (let i = 0; i < 200; i++) {
+      const code = generateJoinCode();
+      for (const c of AMBIGUOUS_CHARS) {
+        expect(code, `kode ${code} indeholder tvetydigt tegn ${c}`).not.toContain(c);
+      }
+    }
+  });
+
+  it('alle tegn er fra det tilladte sæt over 200 kald', () => {
+    const allowedSet = new Set(ALLOWED_CHARS);
+    for (let i = 0; i < 200; i++) {
+      const code = generateJoinCode();
+      for (const c of code) {
+        expect(allowedSet.has(c), `ugyldigt tegn '${c}' i kode ${code}`).toBe(true);
+      }
+    }
+  });
+
+  it('returnerer en streng (ikke tal)', () => {
+    expect(typeof generateJoinCode()).toBe('string');
+  });
+
+  it('er altid store bogstaver', () => {
+    for (let i = 0; i < 20; i++) {
+      const code = generateJoinCode();
+      expect(code).toBe(code.toUpperCase());
+    }
   });
 });
 
