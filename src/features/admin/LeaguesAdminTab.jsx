@@ -21,7 +21,8 @@ export default function LeaguesAdminTab() {
     const u = users.find((x) => x.id === uid);
     return u?.displayName || u?.email || uid;
   };
-  const approvedUsers = users.filter((u) => u.status === USER_STATUS.APPROVED);
+  // Spillere der kan tilføjes: alle der ikke er afvist (også 'afventer' kan tilføjes)
+  const addableUsers = users.filter((u) => u.status !== USER_STATUS.REJECTED);
 
   async function run(key, fn) {
     setBusy(key);
@@ -40,7 +41,7 @@ export default function LeaguesAdminTab() {
         const status = lg.status ?? LEAGUE_STATUS.PENDING;
         const badge = STATUS_BADGE[status] ?? STATUS_BADGE.pending;
         const members = lg.memberUids ?? [];
-        const candidates = approvedUsers.filter((u) => !members.includes(u.id));
+        const candidates = addableUsers.filter((u) => !members.includes(u.id));
         return (
           <li key={lg.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--c-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -70,27 +71,38 @@ export default function LeaguesAdminTab() {
 
             {/* Tilmeld medlem */}
             <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <select
-                className="select"
-                style={{ maxWidth: 240 }}
-                value={pick[lg.id] ?? ''}
-                onChange={(e) => setPick((p) => ({ ...p, [lg.id]: e.target.value }))}
-              >
-                <option value="">– Vælg spiller –</option>
-                {candidates.map((u) => (
-                  <option key={u.id} value={u.id}>{u.displayName || u.email}</option>
-                ))}
-              </select>
-              <button
-                className="btn btn--sm"
-                disabled={!pick[lg.id] || busy === lg.id}
-                onClick={() => run(lg.id, async () => {
-                  await adminAddMember(lg.id, pick[lg.id]);
-                  setPick((p) => ({ ...p, [lg.id]: '' }));
-                })}
-              >
-                Tilmeld medlem
-              </button>
+              {candidates.length === 0 ? (
+                <span style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+                  Ingen spillere at tilføje{users.length === 0 ? ' (ingen brugere endnu)' : ' – alle er allerede medlem'}.
+                </span>
+              ) : (
+                <>
+                  <select
+                    className="select"
+                    style={{ maxWidth: 240 }}
+                    value={pick[lg.id] ?? ''}
+                    onChange={(e) => setPick((p) => ({ ...p, [lg.id]: e.target.value }))}
+                    data-testid={`add-member-select-${lg.id}`}
+                  >
+                    <option value="">– Vælg spiller –</option>
+                    {candidates.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {(u.displayName || u.email)}{u.status !== USER_STATUS.APPROVED ? ' (afventer)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn btn--sm"
+                    disabled={!pick[lg.id] || busy === lg.id}
+                    onClick={() => run(lg.id, async () => {
+                      await adminAddMember(lg.id, pick[lg.id]);
+                      setPick((p) => ({ ...p, [lg.id]: '' }));
+                    })}
+                  >
+                    Tilmeld medlem
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Medlemsliste */}
