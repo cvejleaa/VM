@@ -20,7 +20,7 @@ const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { getFirestore } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 
-const { scoreMatch, scoreKnockout, scoreBonus } = require('./scoring');
+const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { computeGroupStandings, pickBestThirds } = require('./standings');
 
 // Initialiser Firebase Admin (singleton)
@@ -112,10 +112,14 @@ exports.recomputeBonus = onDocumentWritten(
     if (!after?.facit) return; // Facit ikke sat endnu
 
     const before = event.data?.before?.data();
-    // Undgå genberegning hvis facit ikke ændret
-    if (before?.facit === after.facit) return;
+    // Genberegn hvis facit ELLER de admin-godkendte svar er ændret
+    const acceptedJSON = JSON.stringify(after.acceptedAnswers ?? []);
+    const beforeAcceptedJSON = JSON.stringify(before?.acceptedAnswers ?? []);
+    if (before?.facit === after.facit && beforeAcceptedJSON === acceptedJSON) return;
 
     const facit = after.facit;
+    const acceptedAnswers = after.acceptedAnswers ?? [];
+    const type = after.type;
 
     // Hent alle bonusBets for dette spørgsmål
     const betsSnap = await db
@@ -133,7 +137,7 @@ exports.recomputeBonus = onDocumentWritten(
 
     for (const betDoc of betsSnap.docs) {
       const bet = betDoc.data();
-      const pts = scoreBonus(bet.answer, facit);
+      const pts = bonusPoints({ answer: bet.answer, facit, type, acceptedAnswers });
 
       batch.update(betDoc.ref, { points: pts });
       opsInBatch++;

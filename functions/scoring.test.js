@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus } = require('./scoring.js');
+const { POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus, fuzzyNameMatch, bonusPoints } = require('./scoring.js');
 
 // ---------------------------------------------------------------------------
 // POINTS-konstanter
@@ -180,5 +180,24 @@ describe('scoreBonus()', () => {
     expect(scoreBonus(null, null)).toBe(0);
     expect(scoreBonus(undefined, 'BRA')).toBe(0);
     expect(scoreBonus('BRA', undefined)).toBe(0);
+  });
+});
+
+describe('fuzzyNameMatch + bonusPoints', () => {
+  it('topscorer matcher accenter og små stavefejl', () => {
+    expect(fuzzyNameMatch('Mbappe', 'Mbappé')).toBe(true);
+    expect(fuzzyNameMatch('Halland', 'Haaland')).toBe(true);
+    expect(fuzzyNameMatch('Kane', 'Sane')).toBe(false);
+  });
+  it('bonusPoints: fuzzy topscorer', () => {
+    expect(bonusPoints({ answer: 'mbappe', facit: 'Mbappé', type: 'topScorer' })).toBe(POINTS.BONUS);
+    expect(bonusPoints({ answer: 'Haaland', facit: 'Mbappé', type: 'topScorer' })).toBe(0);
+  });
+  it('bonusPoints: admin-godkendt svar tæller', () => {
+    expect(bonusPoints({ answer: 'Embappe', facit: 'Mbappé', type: 'topScorer', acceptedAnswers: ['Embappe'] })).toBe(POINTS.BONUS);
+  });
+  it('bonusPoints: gruppevinder kræver eksakt kode', () => {
+    expect(bonusPoints({ answer: 'BRA', facit: 'BRA', type: 'groupWinner' })).toBe(POINTS.BONUS);
+    expect(bonusPoints({ answer: 'BRC', facit: 'BRA', type: 'groupWinner' })).toBe(0);
   });
 });

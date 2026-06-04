@@ -136,8 +136,9 @@ service cloud.firestore {
     // bonusBets/{bonusBetId}  (bonusBetId = uid_questionId)
     // -----------------------------------------------------------------------
     match /bonusBets/{bonusBetId} {
-      // Bruger kan kun læse egne bonusbets
-      allow read: if isSignedIn() && request.auth.uid == resource.data.uid;
+      // Bruger kan læse egne bonusbets; matchAdmin/owner kan læse alle
+      // (til at se og godkende indsendte topscorer-svar)
+      allow read: if isMatchAdmin() || (isSignedIn() && request.auth.uid == resource.data.uid);
 
       // Opret bonusbet: kun eget, points må ikke sættes, og kun FØR deadline
       allow create: if isSignedIn()

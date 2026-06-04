@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { scoreMatch, scoreKnockout, scoreBonus, outcome, POINTS } from './scoring';
+import {
+  scoreMatch, scoreKnockout, scoreBonus, outcome, POINTS,
+  fuzzyNameMatch, bonusPoints,
+} from './scoring';
 
 describe('scoreMatch', () => {
   it('giver fuldt point for eksakt score', () => {
@@ -62,5 +65,40 @@ describe('scoreBonus', () => {
   });
   it('giver 0 for tomt svar', () => {
     expect(scoreBonus('   ', 'Haaland')).toBe(0);
+  });
+});
+
+describe('fuzzyNameMatch', () => {
+  it('matcher på tværs af accenter og tegn', () => {
+    expect(fuzzyNameMatch('Mbappe', 'Mbappé')).toBe(true);
+    expect(fuzzyNameMatch("M'Bappé", 'mbappe')).toBe(true);
+  });
+  it('tilgiver små stavefejl i længere navne', () => {
+    expect(fuzzyNameMatch('Mbappee', 'Mbappé')).toBe(true);   // ekstra bogstav
+    expect(fuzzyNameMatch('Halland', 'Haaland')).toBe(true);  // ombyttet
+    expect(fuzzyNameMatch('Ronalde', 'Ronaldo')).toBe(true);  // 1 fejl
+  });
+  it('matcher kun efternavn mod fuldt navn', () => {
+    expect(fuzzyNameMatch('Haaland', 'Erling Haaland')).toBe(true);
+  });
+  it('afviser klart forskellige navne', () => {
+    expect(fuzzyNameMatch('Messi', 'Ronaldo')).toBe(false);
+    expect(fuzzyNameMatch('Kane', 'Sane')).toBe(false); // korte navne kræver eksakt
+  });
+});
+
+describe('bonusPoints', () => {
+  it('topscorer: fuzzy mod facit giver point', () => {
+    expect(bonusPoints({ answer: 'mbappe', facit: 'Mbappé', type: 'topScorer' })).toBe(POINTS.BONUS);
+  });
+  it('topscorer: admin-godkendt svar giver point selv ved større afvigelse', () => {
+    expect(bonusPoints({ answer: 'Embappe', facit: 'Mbappé', type: 'topScorer', acceptedAnswers: ['Embappe'] })).toBe(POINTS.BONUS);
+  });
+  it('topscorer: forkert spiller giver 0', () => {
+    expect(bonusPoints({ answer: 'Haaland', facit: 'Mbappé', type: 'topScorer' })).toBe(0);
+  });
+  it('gruppevinder: kræver eksakt match (ingen fuzzy på koder)', () => {
+    expect(bonusPoints({ answer: 'BRA', facit: 'BRA', type: 'groupWinner' })).toBe(POINTS.BONUS);
+    expect(bonusPoints({ answer: 'BRC', facit: 'BRA', type: 'groupWinner' })).toBe(0);
   });
 });

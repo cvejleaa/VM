@@ -7,6 +7,8 @@ import {
   collection,
   serverTimestamp,
   Timestamp,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
@@ -112,6 +114,21 @@ export async function callBuildKnockout() {
 export async function saveBonusFacit(questionId, facit) {
   const ref = doc(db, COL.BONUS_QUESTIONS, questionId);
   await updateDoc(ref, { facit });
+}
+
+/**
+ * Godkend et (fejlstavet) svar manuelt som korrekt for et bonusspørgsmål.
+ * Lægges i acceptedAnswers; Cloud Function genberegner point automatisk.
+ */
+export async function approveBonusAnswer(questionId, answer) {
+  const ref = doc(db, COL.BONUS_QUESTIONS, questionId);
+  await updateDoc(ref, { acceptedAnswers: arrayUnion(answer) });
+}
+
+/** Fjern et tidligere godkendt svar igen. */
+export async function removeBonusAnswer(questionId, answer) {
+  const ref = doc(db, COL.BONUS_QUESTIONS, questionId);
+  await updateDoc(ref, { acceptedAnswers: arrayRemove(answer) });
 }
 
 // ─── Hjælpefunktioner ─────────────────────────────────────────────────────────
