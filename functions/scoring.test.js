@@ -166,7 +166,12 @@ describe('scoreBonus()', () => {
 
   it('giver 0 ved forkert svar', () => {
     expect(scoreBonus('ARG', 'BRA')).toBe(0);
-    expect(scoreBonus('mbappe', 'Mbappe')).toBe(0); // case-sensitiv
+  });
+
+  it('er tolerant: ufølsom for store/små bogstaver og mellemrum', () => {
+    expect(scoreBonus('mbappe', 'Mbappe')).toBe(10);
+    expect(scoreBonus('  HAALAND ', 'haaland')).toBe(10);
+    expect(scoreBonus('   ', 'Haaland')).toBe(0); // tomt svar
   });
 
   it('giver 0 ved null/undefined', () => {

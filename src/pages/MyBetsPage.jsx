@@ -12,9 +12,10 @@ import {
   isMatchLocked,
   formatKickoffTime,
   dayKey,
-  flagEmoji,
   roundLabel,
 } from '../features/matches/matchHelpers';
+import { teamName } from '../lib/teams';
+import Flag from '../components/Flag';
 import { scoreMatch, scoreKnockout } from '../lib/scoring';
 import { MATCH_STATUS, ROUNDS } from '../lib/constants';
 
@@ -167,17 +168,17 @@ export default function MyBetsPage() {
                   const locked = isMatchLocked(match.kickoff);
                   const pts = pointsPerMatch.get(match.id);
                   const { label: statusLabel, cls: statusCls } = betStatus(match, bet);
-                  const homeName = match.homeTeam ?? match.homePlaceholder ?? '?';
-                  const awayName = match.awayTeam ?? match.awayPlaceholder ?? '?';
+                  const homeName = match.homeTeam ? teamName(match.homeTeam) : (match.homePlaceholder ?? '?');
+                  const awayName = match.awayTeam ? teamName(match.awayTeam) : (match.awayPlaceholder ?? '?');
 
                   return (
                     <tr key={match.id}>
                       {/* Kamp */}
                       <td>
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                          {match.homeTeam ? flagEmoji(match.homeTeam) : '❓'} {homeName}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                          {match.homeTeam ? <Flag code={match.homeTeam} size={20} /> : '❓'} {homeName}
                           {' '}vs{' '}
-                          {match.awayTeam ? flagEmoji(match.awayTeam) : '❓'} {awayName}
+                          {match.awayTeam ? <Flag code={match.awayTeam} size={20} /> : '❓'} {awayName}
                         </span>
                         <div style={{ fontSize: '0.75rem', color: 'var(--c-muted)' }}>
                           {roundLabel(match.round)}

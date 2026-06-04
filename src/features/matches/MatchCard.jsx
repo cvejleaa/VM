@@ -11,8 +11,9 @@ import {
   isMatchLocked,
   formatKickoffTime,
   roundLabel,
-  flagEmoji,
 } from './matchHelpers';
+import { teamName } from '../../lib/teams';
+import Flag from '../../components/Flag';
 import ScoreInput from './ScoreInput';
 import Countdown from './Countdown';
 
@@ -33,11 +34,9 @@ export default function MatchCard({ match, uid, bet }) {
   const isPendingTeams = match.status === MATCH_STATUS.PENDING_TEAMS;
   const isFinished = match.status === MATCH_STATUS.FINISHED;
 
-  // Holdnavne (eller placeholders for ukendte knockout-hold)
-  const homeName = match.homeTeam ?? match.homePlaceholder ?? 'Hjemmehold';
-  const awayName = match.awayTeam ?? match.awayPlaceholder ?? 'Udehold';
-  const homeFlag = match.homeTeam ? flagEmoji(match.homeTeam) : '❓';
-  const awayFlag = match.awayTeam ? flagEmoji(match.awayTeam) : '❓';
+  // Holdnavne (fuldt landenavn, eller placeholders for ukendte knockout-hold)
+  const homeName = match.homeTeam ? teamName(match.homeTeam) : (match.homePlaceholder ?? 'Hjemmehold');
+  const awayName = match.awayTeam ? teamName(match.awayTeam) : (match.awayPlaceholder ?? 'Udehold');
 
   // Lokalt state for advance-valg
   const [advance, setAdvance] = useState(bet?.advance ?? '');
@@ -161,8 +160,8 @@ export default function MatchCard({ match, uid, bet }) {
         }}
       >
         {/* Hjemmehold */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flex: 1, minWidth: 90 }}>
-          <span style={{ fontSize: '1.4rem' }}>{homeFlag}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flex: 1, minWidth: 90 }}>
+          {match.homeTeam ? <Flag code={match.homeTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
           <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{homeName}</span>
         </div>
 
@@ -194,7 +193,7 @@ export default function MatchCard({ match, uid, bet }) {
           }}
         >
           <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{awayName}</span>
-          <span style={{ fontSize: '1.4rem' }}>{awayFlag}</span>
+          {match.awayTeam ? <Flag code={match.awayTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
         </div>
       </div>
 
@@ -208,7 +207,7 @@ export default function MatchCard({ match, uid, bet }) {
           }}
           data-testid="advance-result"
         >
-          Videre: <strong>{match.result.advance}</strong>
+          Videre: <strong>{teamName(match.result.advance)}</strong>
         </div>
       )}
 
@@ -266,8 +265,10 @@ export default function MatchCard({ match, uid, bet }) {
                     }}
                     className={`btn btn--sm ${advance === team ? '' : 'btn--ghost'}`}
                     data-testid={`advance-${team}`}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                   >
-                    {team}
+                    {match.homeTeam || match.awayTeam ? <Flag code={team} size={18} /> : null}
+                    {teamName(team)}
                   </button>
                 ))}
               </div>

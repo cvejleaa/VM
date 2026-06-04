@@ -14,6 +14,7 @@ import {
   roundLabel,
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
+import Hero from '../components/Hero';
 import { TIMEZONE } from '../lib/constants';
 
 // Filterkonstanter
@@ -78,12 +79,11 @@ export default function MatchesPage() {
 
   return (
     <div className="container">
-      <div style={{ marginBottom: '1rem' }}>
-        <h1 style={{ margin: '0 0 0.25rem', fontSize: '1.4rem' }}>⚽ Kampe</h1>
-        <p style={{ margin: 0, color: 'var(--c-muted)', fontSize: '0.88rem' }}>
-          Afgiv dine tips inden kampstart – point beregnes automatisk.
-        </p>
-      </div>
+      <Hero
+        title="VM 2026 Tip"
+        subtitle="Afgiv dine tips inden kampstart – point beregnes automatisk, og stillingen opdateres live."
+        chips={['48 hold', '104 kampe', 'Dansk tid']}
+      />
 
       {/* Filtre */}
       <div className="tabs" style={{ marginBottom: '1rem' }}>

@@ -495,3 +495,65 @@ button {
 @media (min-width: 900px) {
   .container { padding: 2rem 1.5rem; }
 }
+
+/* ═══════════════════════ HERO / GRAFIK ═══════════════════════ */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  padding: 1.6rem 1.4rem;
+  margin-bottom: 1.25rem;
+  color: #fff;
+  background:
+    radial-gradient(1200px 200px at 110% -40%, rgba(255,210,63,0.35), transparent 60%),
+    linear-gradient(135deg, var(--c-pitch) 0%, var(--c-pitch-dark) 100%);
+  box-shadow: var(--shadow);
+}
+/* Subtil "banehalvdel"-streg */
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.10) 1px, transparent 1px);
+  background-size: 100% 34px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.hero__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.hero__subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  opacity: 0.92;
+  max-width: 46ch;
+}
+.hero__badges { margin-top: 0.9rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.hero__chip {
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 99px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.hero__ball {
+  font-size: 1.7rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
+  animation: hero-bob 3s ease-in-out infinite;
+}
+@keyframes hero-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__ball { animation: none; }
+}
