@@ -5,12 +5,13 @@
 import { useAuth } from '../context/AuthContext';
 import { useBonusQuestions, useMyBonusBets } from '../features/bonus/useBonusData';
 import BonusQuestion from '../features/bonus/BonusQuestion';
-import { isBonusLocked } from '../features/bonus/bonusHelpers';
+import { isBonusLocked, sortBonusQuestions } from '../features/bonus/bonusHelpers';
 import { POINTS } from '../lib/scoring';
 
 export default function BonusPage() {
   const { user } = useAuth();
-  const { questions, loading, error } = useBonusQuestions();
+  const { questions: rawQuestions, loading, error } = useBonusQuestions();
+  const questions = sortBonusQuestions(rawQuestions);
   const { bonusBets, loading: betsLoading } = useMyBonusBets(user?.uid ?? null);
 
   const uid = user?.uid ?? '';

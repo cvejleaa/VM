@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Rene hjælpefunktioner til bonus-logik. Ingen Firebase-afhængigheder.
 // ---------------------------------------------------------------------------
-import { TIMEZONE } from '../../lib/constants';
+import { TIMEZONE, BONUS_TYPE } from '../../lib/constants';
 
 /**
  * Afgør om et bonusspørgsmål er låst (nu >= deadline).
@@ -33,4 +33,20 @@ export function formatDeadline(deadline) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(d);
+}
+
+/**
+ * Sorterer bonusspørgsmål: topscorer øverst, derefter gruppevindere efter
+ * gruppebogstav (A → L). Muterer ikke input-arrayet.
+ * @param {Array<object>} questions
+ * @returns {Array<object>}
+ */
+export function sortBonusQuestions(questions) {
+  const rank = (q) => (q.type === BONUS_TYPE.TOP_SCORER ? 0 : 1);
+  return [...(questions ?? [])].sort((a, b) => {
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    // Begge gruppevindere: sortér efter gruppenavn (A, B, C …)
+    return String(a.groupName ?? '').localeCompare(String(b.groupName ?? ''), 'da');
+  });
 }

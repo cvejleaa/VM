@@ -15,7 +15,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { COL } from '../../lib/constants';
+import { COL, LEAGUE_STATUS } from '../../lib/constants';
 import { generateJoinCode } from './leagueUtils';
 
 /**
@@ -35,6 +35,7 @@ export async function createLeague(name, ownerUid) {
     ownerUid,
     joinCode,
     memberUids: [ownerUid],
+    status: LEAGUE_STATUS.PENDING, // skal godkendes af admin
     createdAt: serverTimestamp(),
   });
 
@@ -63,6 +64,11 @@ export async function joinLeague(joinCode, uid) {
   const leagueDoc = snap.docs[0];
   const leagueData = leagueDoc.data();
 
+  // Ligaen skal være godkendt af admin før man kan tilmelde sig
+  if (leagueData.status !== LEAGUE_STATUS.APPROVED) {
+    throw new Error('Ligaen er endnu ikke godkendt af admin.');
+  }
+
   // Tjek om brugeren allerede er medlem
   if (leagueData.memberUids?.includes(uid)) {
     throw new Error('Du er allerede medlem af denne liga.');
@@ -73,6 +79,27 @@ export async function joinLeague(joinCode, uid) {
   });
 
   return { id: leagueDoc.id, name: leagueData.name };
+}
+
+/**
+ * Admin: sæt en ligas status (godkend/afvis).
+ * @param {string} leagueId
+ * @param {'approved'|'rejected'|'pending'} status
+ */
+export async function setLeagueStatus(leagueId, status) {
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { status });
+}
+
+/**
+ * Admin: tilmeld et medlem til en liga.
+ * @param {string} leagueId
+ * @param {string} memberUid
+ */
+export async function adminAddMember(leagueId, memberUid) {
+  if (!memberUid) throw new Error('Vælg et medlem.');
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), {
+    memberUids: arrayUnion(memberUid),
+  });
 }
 
 /**

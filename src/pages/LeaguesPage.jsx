@@ -42,6 +42,12 @@ function LeagueCard({ league, standings, meUid, onOpen }) {
         {league.ownerUid === meUid && (
           <span className="badge badge--green" style={{ marginLeft: '0.5rem' }}>ejer</span>
         )}
+        {league.status === 'pending' && (
+          <span className="badge badge--yellow" style={{ marginLeft: '0.5rem' }}>afventer godkendelse</span>
+        )}
+        {league.status === 'rejected' && (
+          <span className="badge badge--red" style={{ marginLeft: '0.5rem' }}>afvist</span>
+        )}
       </div>
       {top3.length > 0 && (
         <div className="league-card__top3">
@@ -207,7 +213,7 @@ function CreateLeagueForm({ uid, onCreated }) {
     setLoading(true);
     try {
       await createLeague(name, uid);
-      setSuccess(`Ligaen "${name}" er oprettet!`);
+      setSuccess(`Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`);
       setName('');
       onCreated?.();
     } catch (err) {
