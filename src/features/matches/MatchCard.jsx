@@ -106,13 +106,19 @@ export default function MatchCard({ match, uid, bet }) {
   // Beregn mulige point for info-tekst
   const maxPts = isKnockout ? MAX_KNOCKOUT_POINTS : MAX_MATCH_POINTS;
 
+  const hasBet = !!bet;
+  // Kantfarve: låst = rød; ellers grøn hvis tippet, orange hvis mangler tip
+  const borderColor = locked
+    ? 'var(--c-err)'
+    : (hasBet ? 'var(--c-pitch)' : 'var(--c-warn)');
+
   return (
     <div
       className="card"
       data-testid="match-card"
       style={{
         marginBottom: '0.6rem',
-        borderLeft: locked ? '4px solid var(--c-err)' : '4px solid var(--c-pitch)',
+        borderLeft: `4px solid ${borderColor}`,
         opacity: isPendingTeams ? 0.7 : 1,
       }}
     >
@@ -132,6 +138,17 @@ export default function MatchCard({ match, uid, bet }) {
           {match.groupName ? ` · Gruppe ${match.groupName}` : ''}
         </span>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* Tydelig markering af om man har tippet */}
+          {!isPendingTeams && hasBet && (
+            <span className="badge badge--green" style={{ fontSize: '0.72rem' }} data-testid="tipped-badge">
+              ✓ Tippet
+            </span>
+          )}
+          {!isPendingTeams && !hasBet && !locked && (
+            <span className="badge badge--yellow" style={{ fontSize: '0.72rem' }} data-testid="untipped-badge">
+              Mangler tip
+            </span>
+          )}
           <span style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
             {formatKickoffTime(match.kickoff)}
           </span>

@@ -426,3 +426,32 @@ describe('MatchCard – runde-labels', () => {
     expect(screen.getByText(/Semifinale/)).toBeInTheDocument();
   });
 });
+
+describe('MatchCard – tippet-markering', () => {
+  it('viser "✓ Tippet"-badge når der findes et tip', () => {
+    const bet = { home: 2, away: 1, matchId: 'match1' };
+    render(<MatchCard match={makeMatch()} uid="u1" bet={bet} />);
+    expect(screen.getByTestId('tipped-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('untipped-badge')).not.toBeInTheDocument();
+  });
+
+  it('viser "Mangler tip"-badge for åben kamp uden tip', () => {
+    render(<MatchCard match={makeMatch()} uid="u1" bet={null} />);
+    expect(screen.getByTestId('untipped-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('tipped-badge')).not.toBeInTheDocument();
+  });
+
+  it('viser hverken tippet- eller mangler-badge på låst kamp uden tip', () => {
+    const m = makeMatch({ kickoff: pastKickoff, status: 'live' });
+    render(<MatchCard match={m} uid="u1" bet={null} />);
+    expect(screen.queryByTestId('untipped-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tipped-badge')).not.toBeInTheDocument();
+  });
+
+  it('viser "✓ Tippet" på låst kamp hvis man nåede at tippe', () => {
+    const m = makeMatch({ kickoff: pastKickoff, status: 'live' });
+    const bet = { home: 1, away: 0, matchId: 'match1' };
+    render(<MatchCard match={m} uid="u1" bet={bet} />);
+    expect(screen.getByTestId('tipped-badge')).toBeInTheDocument();
+  });
+});
