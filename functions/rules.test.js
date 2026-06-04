@@ -300,6 +300,29 @@ describe('bets/{betId} — sikkerhedsregler', () => {
       getDoc(doc(ctx.firestore(), 'bets', `${uid1}_${matchId}`))
     );
   });
+
+  it('spiller KAN læse andres bets EFTER kickoff', async () => {
+    const uid1    = 'betUser7';
+    const uid2    = 'betUser8';
+    const matchId = 'test_match_6';
+    const pastKickoff = new Date(Date.now() - 60 * 60 * 1000);
+
+    await createUser(uid1, 'player', 'approved');
+    await createUser(uid2, 'player', 'approved');
+    await createMatch(matchId, pastKickoff);
+
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('bets').doc(`${uid1}_${matchId}`).set({
+        uid: uid1, matchId, home: 2, away: 1,
+      });
+    });
+
+    // uid2 (godkendt) kan læse uid1's bet efter kickoff
+    const ctx = testEnv.authenticatedContext(uid2);
+    await assertSucceeds(
+      getDoc(doc(ctx.firestore(), 'bets', `${uid1}_${matchId}`))
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
