@@ -15,6 +15,7 @@ import {
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
 import Hero from '../components/Hero';
+import PointRules from '../components/PointRules';
 import { TIMEZONE } from '../lib/constants';
 
 // Filterkonstanter
@@ -84,6 +85,8 @@ export default function MatchesPage() {
         subtitle="Afgiv dine tips inden kampstart – point beregnes automatisk, og stillingen opdateres live."
         chips={['48 hold', '104 kampe', 'Dansk tid']}
       />
+
+      <PointRules />
 
       {/* Filtre */}
       <div className="tabs" style={{ marginBottom: '1rem' }}>
