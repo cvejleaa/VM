@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useBonusQuestions } from './useBonusQuestions';
 import { saveBonusFacit, formatTimestamp } from './adminActions';
 import { BONUS_TYPE } from '../../lib/constants';
+import { sortBonusQuestions } from '../bonus/bonusHelpers';
 import BonusSubmissions from './BonusSubmissions';
 
 // Oversæt type til dansk
@@ -23,7 +24,8 @@ const inputStyle = {
 };
 
 export default function BonusTab() {
-  const { questions, loading, error } = useBonusQuestions();
+  const { questions: rawQuestions, loading, error } = useBonusQuestions();
+  const questions = sortBonusQuestions(rawQuestions);
   const [editing, setEditing] = useState({}); // { [questionId]: string }
   const [busy, setBusy] = useState({});        // { [questionId]: boolean }
   const [msgs, setMsgs] = useState({});        // { [questionId]: string }

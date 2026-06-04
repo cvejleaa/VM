@@ -116,10 +116,12 @@ describe('AdminPage — rollebaseret fanestyring', () => {
       expect(screen.queryByTestId('tab-bonus')).toBeInTheDocument();
     });
 
-    it('viser kun to faner for matchAdmin', () => {
+    it('viser kun ikke-bruger-faner for matchAdmin (Kampe, Bonus, Ligaer)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(2);
+      expect(tabs).toHaveLength(3); // matches, bonus, leagues — ikke 'users'
+      expect(screen.queryByTestId('tab-users')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
     it('viser tekst om kamp-administrator adgang', () => {

@@ -12,6 +12,13 @@ export const USER_STATUS = {
   REJECTED: 'rejected',
 };
 
+// Status for en liga (skal godkendes af admin før den kan bruges)
+export const LEAGUE_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+};
+
 export const MATCH_STATUS = {
   SCHEDULED: 'scheduled', // hold kendt, kan tippes indtil kickoff
   PENDING_TEAMS: 'pendingTeams', // knockout hvor hold endnu ikke kendes

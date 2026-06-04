@@ -8,11 +8,13 @@ import { useAuth } from '../context/AuthContext';
 import UsersTab from '../features/admin/UsersTab';
 import MatchesTab from '../features/admin/MatchesTab';
 import BonusTab from '../features/admin/BonusTab';
+import LeaguesAdminTab from '../features/admin/LeaguesAdminTab';
 
 // Fane-id'er
 const TAB_USERS   = 'users';
 const TAB_MATCHES = 'matches';
 const TAB_BONUS   = 'bonus';
+const TAB_LEAGUES = 'leagues';
 
 export default function AdminPage() {
   const { isOwner } = useAuth();
@@ -28,6 +30,7 @@ export default function AdminPage() {
       : []),
     { key: TAB_MATCHES, label: 'Kampe & resultater' },
     { key: TAB_BONUS,   label: 'Bonus-facit' },
+    { key: TAB_LEAGUES, label: 'Ligaer' },
   ];
 
   return (
@@ -84,6 +87,7 @@ export default function AdminPage() {
         {tab === TAB_USERS   && <UsersTab isOwner={isOwner} />}
         {tab === TAB_MATCHES && <MatchesTab />}
         {tab === TAB_BONUS   && <BonusTab />}
+        {tab === TAB_LEAGUES && <LeaguesAdminTab />}
       </div>
     </div>
   );
