@@ -94,7 +94,32 @@ hver kamp. Alt andet sker af sig selv.
 
 ---
 
-## 6. Status og næste skridt
+## 6. Udviklingsindsats i tal
+
+Hele løsningen blev bygget og sat i drift over **3 dage (2.–4. juni 2026)**.
+
+| Mål | Tal |
+|---|---|
+| Leverancer (pull requests, hver testet & kodegennemgået) | **27** |
+| Commits | **40** |
+| Kildefiler / testfiler | **66 / 40** |
+| Linjer kode (frontend) + Cloud Functions | **~16.300** |
+| Automatiske tests | **920** |
+| Specialiserede AI-agenter kørt parallelt | **8** |
+| Rapporteret agent-beregning | **~685.000 tokens · ~78 min** (kørte delvist samtidigt → kortere kalendertid) |
+
+> **Note om forbrug:** Det præcise *samlede* token- og tidsforbrug for hele
+> forløbet (inkl. dialogen) aflæses i Claude Codes forbrugsoversigt. Tallene
+> ovenfor er de dele, der kan dokumenteres direkte fra projektet og fra de
+> specialiserede agenters egne rapporter.
+
+**Perspektiv:** En tilsvarende løsning ville traditionelt tage et lille
+udviklingsteam **uger**. Her er den leveret på dage, med en testdækning og en
+driftsautomatik, der ligger over normalen for et projekt af denne størrelse.
+
+---
+
+## 7. Status og næste skridt
 
 - **Status:** Live og klar. Hold, kampe og tidspunkter er indlæst fra det
   officielle program. Konkurrencen kan åbnes for spillere med det samme.
