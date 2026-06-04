@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T09:38:17.382Z",
+  "generatedAt": "2026-06-04T14:15:29.487Z",
   "nodes": [
     {
       "id": "firebase",
@@ -29,7 +29,7 @@
     {
       "id": "features/admin",
       "layer": 2,
-      "files": 15
+      "files": 16
     },
     {
       "id": "features/auth",
@@ -104,6 +104,11 @@
       "count": 2
     },
     {
+      "from": "components",
+      "to": "features/admin",
+      "count": 1
+    },
+    {
       "from": "context",
       "to": "firebase",
       "count": 1
@@ -116,7 +121,7 @@
     {
       "from": "features/admin",
       "to": "lib (kerne)",
-      "count": 13
+      "count": 14
     },
     {
       "from": "features/admin",
@@ -136,7 +141,7 @@
     {
       "from": "features/admin",
       "to": "firebase",
-      "count": 5
+      "count": 6
     },
     {
       "from": "features/auth",

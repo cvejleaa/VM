@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { usePendingApprovals } from '../features/admin/usePendingApprovals';
 
 const linkStyle = ({ isActive }) => ({
   padding: '0.5rem 0.75rem',
@@ -16,6 +17,8 @@ const linkStyle = ({ isActive }) => ({
 export default function Layout({ children }) {
   const { user, isApproved, isMatchAdmin, isOwner, profile } = useAuth();
   const navigate = useNavigate();
+  // Antal ventende godkendelser (brugere for ejer + ligaer for alle admins)
+  const { total: pendingCount } = usePendingApprovals({ enabled: isMatchAdmin, includeUsers: isOwner });
 
   return (
     <div>
@@ -31,7 +34,26 @@ export default function Layout({ children }) {
               <NavLink to="/stilling" style={linkStyle}>Stilling</NavLink>
               <NavLink to="/statistik" style={linkStyle}>Statistik</NavLink>
               <NavLink to="/ligaer" style={linkStyle}>Ligaer</NavLink>
-              {isMatchAdmin && <NavLink to="/admin" style={linkStyle}>Admin</NavLink>}
+              {isMatchAdmin && (
+                <NavLink to="/admin" style={linkStyle}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    Admin
+                    {pendingCount > 0 && (
+                      <span
+                        data-testid="admin-pending-count"
+                        title={`${pendingCount} venter på godkendelse`}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          minWidth: 18, height: 18, padding: '0 5px', borderRadius: 99,
+                          background: 'var(--c-err)', color: '#fff', fontSize: '0.7rem', fontWeight: 800,
+                        }}
+                      >
+                        {pendingCount}
+                      </span>
+                    )}
+                  </span>
+                </NavLink>
+              )}
             </>
           )}
           {user ? (
