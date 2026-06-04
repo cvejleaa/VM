@@ -130,12 +130,12 @@ async function seedBonusQuestions() {
   const batch = db.batch();
 
   // Topscorer-spørgsmål
-  // Deadline: første kamps kickoff (11. juni 2026)
+  // Deadline: turneringens første kamp (11. juni 2026, 19:00 UTC)
   batch.set(db.collection('bonusQuestions').doc('topScorer'), {
     type:      'topScorer',
     label:     'Hvem bliver VM 2026\'s topscorer?',
     groupName: null,
-    deadline:  admin.firestore.Timestamp.fromDate(new Date('2026-06-11T23:00:00Z')),
+    deadline:  admin.firestore.Timestamp.fromDate(new Date('2026-06-11T19:00:00Z')),
     facit:     null,
     options:   null, // Fri tekst — ingen fast liste
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -146,34 +146,34 @@ async function seedBonusQuestions() {
 
   // Første kamp pr. gruppe (deadline = første kamps kickoff i gruppen)
   const firstKickoffs = {
-    A: '2026-06-11T23:00:00Z',
-    B: '2026-06-12T20:00:00Z',
-    C: '2026-06-13T02:00:00Z',
-    D: '2026-06-13T20:00:00Z',
-    E: '2026-06-14T23:00:00Z',
-    F: '2026-06-15T20:00:00Z',
-    G: '2026-06-16T23:00:00Z',
-    H: '2026-06-17T20:00:00Z',
-    I: '2026-06-18T20:00:00Z',
-    J: '2026-06-19T20:00:00Z',
-    K: '2026-06-20T23:00:00Z',
-    L: '2026-06-21T23:00:00Z',
+    A: '2026-06-11T19:00:00Z',
+    B: '2026-06-12T19:00:00Z',
+    C: '2026-06-14T22:00:00Z',
+    D: '2026-06-14T01:00:00Z',
+    E: '2026-06-14T17:00:00Z',
+    F: '2026-06-14T20:00:00Z',
+    G: '2026-06-15T19:00:00Z',
+    H: '2026-06-15T16:00:00Z',
+    I: '2026-06-16T19:00:00Z',
+    J: '2026-06-18T01:00:00Z',
+    K: '2026-06-17T17:00:00Z',
+    L: '2026-06-17T20:00:00Z',
   };
 
-  // Hold pr. gruppe til valgmuligheder
+  // Hold pr. gruppe til valgmuligheder (VM 2026-lodtrækningen)
   const groupTeams = {
-    A: ['MEX', 'CAN', 'USA', 'ECU'],
-    B: ['ARG', 'CHI', 'PER', 'BOL'],
-    C: ['BRA', 'VEN', 'COL', 'URU'],
-    D: ['FRA', 'POL', 'BEL', 'ISR'],
-    E: ['ESP', 'TUN', 'GER', 'DEN'],
-    F: ['POR', 'CRO', 'ALG', 'MAR'],
-    G: ['ENG', 'SRB', 'NED', 'SEN'],
-    H: ['ITA', 'ALB', 'SUI', 'CMR'],
-    I: ['KOR', 'JPN', 'AUS', 'IRN'],
-    J: ['SAU', 'QAT', 'NGA', 'GHA'],
-    K: ['MEX2', 'COT', 'ECU2', 'EGY'],
-    L: ['SVK', 'SLO', 'ROU', 'GRE'],
+    A: ['MEX', 'KOR', 'RSA', 'CZE'],
+    B: ['CAN', 'SUI', 'QAT', 'BIH'],
+    C: ['BRA', 'MAR', 'HAI', 'SCO'],
+    D: ['USA', 'PAR', 'AUS', 'TUR'],
+    E: ['GER', 'CUW', 'CIV', 'ECU'],
+    F: ['NED', 'SWE', 'TUN', 'JPN'],
+    G: ['BEL', 'EGY', 'IRN', 'NZL'],
+    H: ['ESP', 'CPV', 'KSA', 'URU'],
+    I: ['FRA', 'SEN', 'IRQ', 'NOR'],
+    J: ['ARG', 'ALG', 'AUT', 'JOR'],
+    K: ['POR', 'COD', 'UZB', 'COL'],
+    L: ['ENG', 'CRO', 'GHA', 'PAN'],
   };
 
   for (const groupName of groups) {
