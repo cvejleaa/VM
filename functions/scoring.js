@@ -70,4 +70,63 @@ function scoreBonus(answer, facit) {
   return normalizeAnswer(answer) === normalizeAnswer(facit) ? POINTS.BONUS : 0;
 }
 
-module.exports = { POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus };
+// --- Fleksibel navnematchning (topscorer) — spejler src/lib/scoring.js ---
+
+function normalizeName(v) {
+  return String(v == null ? '' : v)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  let cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+function fuzzyNameMatch(a, b) {
+  const na = normalizeName(a);
+  const nb = normalizeName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.length >= 4 && nb.length >= 4 && (na.includes(nb) || nb.includes(na))) return true;
+  const dist = levenshtein(na, nb);
+  const minLen = Math.min(na.length, nb.length);
+  const tol = minLen <= 4 ? 0 : minLen <= 7 ? 1 : 2;
+  return dist <= tol;
+}
+
+/**
+ * Point for et bonus-svar med fuld fleksibilitet.
+ * Gruppevinder kræver eksakt match; topscorer/fri tekst bruger fuzzy +
+ * admin-godkendte svar (acceptedAnswers).
+ */
+function bonusPoints({ answer, facit, type, acceptedAnswers = [] }) {
+  if (answer == null) return 0;
+  const accepted = Array.isArray(acceptedAnswers) ? acceptedAnswers : [];
+  if (type === 'groupWinner') return scoreBonus(answer, facit);
+  const candidates = [facit, ...accepted].filter((c) => c != null && String(c).trim() !== '');
+  for (const c of candidates) {
+    if (fuzzyNameMatch(answer, c)) return POINTS.BONUS;
+  }
+  return 0;
+}
+
+module.exports = {
+  POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus,
+  normalizeName, levenshtein, fuzzyNameMatch, bonusPoints,
+};

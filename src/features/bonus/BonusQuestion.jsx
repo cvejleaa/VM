@@ -186,7 +186,8 @@ export default function BonusQuestion({ question, uid, existingBet }) {
       {!locked && !isSelect && question.type === BONUS_TYPE.TOP_SCORER && (
         <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--c-muted)' }}>
           Skriv spillerens navn — gerne efternavn, fx <em>Mbappé</em>, <em>Haaland</em> eller
-          <em> Messi</em>. Store/små bogstaver og mellemrum er ligegyldige.
+          <em> Messi</em>. Store/små bogstaver, accenter og små stavefejl er ligegyldige —
+          og admin kan godkende din stavemåde manuelt.
         </p>
       )}
 

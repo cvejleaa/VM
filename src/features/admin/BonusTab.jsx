@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useBonusQuestions } from './useBonusQuestions';
 import { saveBonusFacit, formatTimestamp } from './adminActions';
 import { BONUS_TYPE } from '../../lib/constants';
+import BonusSubmissions from './BonusSubmissions';
 
 // Oversæt type til dansk
 const TYPE_LABELS = {
@@ -200,6 +201,9 @@ export default function BonusTab() {
                 </button>
               </div>
             )}
+
+            {/* Topscorer: indsendte svar + manuel godkendelse af stavevarianter */}
+            {q.type === BONUS_TYPE.TOP_SCORER && <BonusSubmissions question={q} />}
           </li>
         );
       })}
