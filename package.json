@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:report": "node scripts/build-test-report.mjs",
     "test:rules": "vitest run --config vitest.rules.config.js",
     "test:e2e": "playwright test",
     "emulators": "firebase emulators:start",
