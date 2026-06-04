@@ -34,6 +34,7 @@ export default function Layout({ children }) {
               <NavLink to="/stilling" style={linkStyle}>Stilling</NavLink>
               <NavLink to="/statistik" style={linkStyle}>Statistik</NavLink>
               <NavLink to="/ligaer" style={linkStyle}>Ligaer</NavLink>
+              <NavLink to="/beskeder" style={linkStyle}>Beskeder</NavLink>
               {isMatchAdmin && (
                 <NavLink to="/admin" style={linkStyle}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>

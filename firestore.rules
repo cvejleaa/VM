@@ -193,6 +193,68 @@ service cloud.firestore {
     }
 
     // -----------------------------------------------------------------------
+    // leagueComments/{commentId} — beskeder på en ligas væg
+    // -----------------------------------------------------------------------
+    function isMemberOfLeague(leagueId) {
+      return isSignedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/leagues/$(leagueId)).data.memberUids;
+    }
+
+    match /leagueComments/{commentId} {
+      // Kun medlemmer af ligaen kan læse væggen
+      allow read: if isMemberOfLeague(resource.data.leagueId) || isMatchAdmin();
+
+      // Opret: kun som sig selv, kun hvis man er medlem af ligaen
+      allow create: if isApproved()
+        && request.auth.uid == request.resource.data.uid
+        && !request.resource.data.keys().hasAny(['edited'])
+        && isMemberOfLeague(request.resource.data.leagueId);
+
+      // Ingen redigering af eksisterende kommentarer
+      allow update: if false;
+
+      // Slet: forfatteren selv, ligaens ejer eller en admin
+      allow delete: if isMatchAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.uid)
+        || (isSignedIn() && request.auth.uid ==
+            get(/databases/$(database)/documents/leagues/$(resource.data.leagueId)).data.ownerUid);
+    }
+
+    // -----------------------------------------------------------------------
+    // messages/{messageId} — private 1:1-beskeder
+    //   participants: [uidA, uidB] (sorteret), from, to, text, createdAt
+    // -----------------------------------------------------------------------
+    match /messages/{messageId} {
+      // Kun de to deltagere kan læse beskeden
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      // Opret: afsenderen er sig selv, er deltager, og begge er godkendte brugere
+      allow create: if isApproved()
+        && request.auth.uid == request.resource.data.from
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.to in request.resource.data.participants;
+
+      // Beskeder kan ikke redigeres
+      allow update: if false;
+
+      // Slet: kun afsenderen
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.from;
+    }
+
+    // -----------------------------------------------------------------------
+    // tipParticipation/{matchId} — hvem har tippet på kampen
+    //   { uids: [...] } — vedligeholdes af Cloud Functions, afslører IKKE tips
+    // -----------------------------------------------------------------------
+    match /tipParticipation/{matchId} {
+      // Alle godkendte brugere kan se hvor mange/hvem der har tippet
+      allow read: if isApproved();
+
+      // Kun server (Cloud Functions via admin-SDK) kan skrive
+      allow write: if false;
+    }
+
+    // -----------------------------------------------------------------------
     // config/{docId}
     // -----------------------------------------------------------------------
     match /config/{docId} {

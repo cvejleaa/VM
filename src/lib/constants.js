@@ -49,6 +49,9 @@ export const COL = {
   BONUS_QUESTIONS: 'bonusQuestions',
   BONUS_BETS: 'bonusBets',
   LEAGUES: 'leagues',
+  LEAGUE_COMMENTS: 'leagueComments', // beskeder på en ligas væg
+  MESSAGES: 'messages', // private 1:1-beskeder mellem brugere
+  TIP_PARTICIPATION: 'tipParticipation', // hvem har tippet pr. kamp (uden at afsløre tips)
   CONFIG: 'config',
 };
 

@@ -25,11 +25,13 @@ vi.mock('firebase/firestore', () => ({
 const mockSetLeagueStatus = vi.fn();
 const mockAdminAddMember = vi.fn();
 const mockRemoveMember = vi.fn();
+const mockRenameLeague = vi.fn();
 
 vi.mock('../leagues/leagueActions', () => ({
   setLeagueStatus: (...args) => mockSetLeagueStatus(...args),
   adminAddMember: (...args) => mockAdminAddMember(...args),
   removeMember: (...args) => mockRemoveMember(...args),
+  renameLeague: (...args) => mockRenameLeague(...args),
 }));
 
 import LeaguesAdminTab from './LeaguesAdminTab';
@@ -169,7 +171,7 @@ describe('LeaguesAdminTab', () => {
   it('viser Afvis-knap for pending liga', () => {
     setupData([pendingLeague]);
     render(<LeaguesAdminTab />);
-    expect(screen.getByRole('button', { name: /Afvis/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Afvis' })).toBeInTheDocument();
   });
 
   it('viser IKKE Godkend-knap for allerede godkendt liga', () => {
@@ -181,7 +183,24 @@ describe('LeaguesAdminTab', () => {
   it('viser IKKE Afvis-knap for allerede afvist liga', () => {
     setupData([rejectedLeague]);
     render(<LeaguesAdminTab />);
-    expect(screen.queryByRole('button', { name: /Afvis/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Afvis' })).not.toBeInTheDocument();
+  });
+
+  it('kan omdøbe en liga via blyant-knappen', async () => {
+    setupData([pendingLeague]);
+    render(<LeaguesAdminTab />);
+
+    // Åbn redigering
+    fireEvent.click(screen.getByTestId('rename-btn-league-1'));
+    const input = screen.getByTestId('rename-input-league-1');
+    expect(input).toHaveValue('Vennenes Liga');
+
+    fireEvent.change(input, { target: { value: 'Nyt Liganavn' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Gem' }));
+
+    await waitFor(() => {
+      expect(mockRenameLeague).toHaveBeenCalledWith('league-1', 'Nyt Liganavn');
+    });
   });
 
   it('kalder setLeagueStatus med approved ved klik på Godkend', async () => {

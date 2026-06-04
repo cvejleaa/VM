@@ -91,6 +91,18 @@ export async function setLeagueStatus(leagueId, status) {
 }
 
 /**
+ * Admin: omdøb en liga.
+ * @param {string} leagueId
+ * @param {string} name – det nye navn
+ */
+export async function renameLeague(leagueId, name) {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) throw new Error('Ligaen skal have et navn.');
+  if (trimmed.length > 40) throw new Error('Navnet er for langt (maks. 40 tegn).');
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { name: trimmed });
+}
+
+/**
  * Admin: tilmeld et medlem til en liga.
  * @param {string} leagueId
  * @param {string} memberUid

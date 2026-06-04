@@ -21,7 +21,7 @@ import {
 import { readFileSync }            from 'fs';
 import { fileURLToPath }           from 'url';
 import { dirname, join }           from 'path';
-import { setDoc, doc, updateDoc, getDoc, Timestamp } from 'firebase/firestore';
+import { setDoc, doc, updateDoc, getDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = dirname(__filename);
@@ -430,6 +430,181 @@ describe('matches — sikkerhedsregler', () => {
         result:          null,
         homePlaceholder: null,
         awayPlaceholder: null,
+      })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hjælpefunktion: opret en liga via admin-context
+// ---------------------------------------------------------------------------
+async function createLeague(leagueId, ownerUid, memberUids, status = 'approved') {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await ctx.firestore().collection('leagues').doc(leagueId).set({
+      name:       `Liga ${leagueId}`,
+      ownerUid,
+      joinCode:   'ABC123',
+      memberUids,
+      status,
+      createdAt:  Timestamp.now(),
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TESTS: leagueComments-collection (liga-væg)
+// ---------------------------------------------------------------------------
+describe('leagueComments/{id} — sikkerhedsregler', () => {
+  it('et medlem KAN skrive på sin ligas væg', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createLeague('lg1', 'm1', ['m1']);
+
+    const ctx = testEnv.authenticatedContext('m1');
+    await assertSucceeds(
+      setDoc(doc(ctx.firestore(), 'leagueComments', 'c1'), {
+        leagueId: 'lg1', uid: 'm1', displayName: 'M1', text: 'Hej!', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('et IKKE-medlem KAN IKKE skrive på væggen', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('outsider', 'player', 'approved');
+    await createLeague('lg2', 'm1', ['m1']);
+
+    const ctx = testEnv.authenticatedContext('outsider');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'leagueComments', 'c2'), {
+        leagueId: 'lg2', uid: 'outsider', displayName: 'O', text: 'snyd', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('man KAN IKKE skrive en kommentar i en andens navn', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await createLeague('lg3', 'm1', ['m1', 'm2']);
+
+    const ctx = testEnv.authenticatedContext('m2');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'leagueComments', 'c3'), {
+        leagueId: 'lg3', uid: 'm1', displayName: 'M1', text: 'falsk', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('et medlem KAN læse væggen, en udenforstående KAN IKKE', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await createUser('outsider', 'player', 'approved');
+    await createLeague('lg4', 'm1', ['m1', 'm2']);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueComments').doc('c4').set({
+        leagueId: 'lg4', uid: 'm1', displayName: 'M1', text: 'hemmeligt', createdAt: Timestamp.now(),
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(testEnv.authenticatedContext('m2').firestore(), 'leagueComments', 'c4')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('outsider').firestore(), 'leagueComments', 'c4')));
+  });
+
+  it('forfatteren KAN slette egen kommentar; en anden kan ikke', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await createLeague('lg5', 'm1', ['m1', 'm2']);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueComments').doc('c5').set({
+        leagueId: 'lg5', uid: 'm2', displayName: 'M2', text: 'slet mig', createdAt: Timestamp.now(),
+      });
+    });
+
+    // m1 er ikke forfatter, men er ligaens ejer → må slette
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('m1').firestore(), 'leagueComments', 'c5')));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: messages-collection (private 1:1-beskeder)
+// ---------------------------------------------------------------------------
+describe('messages/{id} — sikkerhedsregler', () => {
+  it('en bruger KAN sende en besked til en anden', async () => {
+    await createUser('a', 'player', 'approved');
+    await createUser('b', 'player', 'approved');
+
+    const ctx = testEnv.authenticatedContext('a');
+    await assertSucceeds(
+      setDoc(doc(ctx.firestore(), 'messages', 'msg1'), {
+        participants: ['a', 'b'], conversationId: 'a__b', from: 'a', to: 'b',
+        text: 'Hej B', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('man KAN IKKE sende en besked i en andens navn', async () => {
+    await createUser('a', 'player', 'approved');
+    await createUser('b', 'player', 'approved');
+
+    const ctx = testEnv.authenticatedContext('a');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'messages', 'msg2'), {
+        participants: ['a', 'b'], conversationId: 'a__b', from: 'b', to: 'a',
+        text: 'falsk', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('en udenforstående KAN IKKE læse en samtale', async () => {
+    await createUser('a', 'player', 'approved');
+    await createUser('b', 'player', 'approved');
+    await createUser('c', 'player', 'approved');
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('messages').doc('msg3').set({
+        participants: ['a', 'b'], conversationId: 'a__b', from: 'a', to: 'b',
+        text: 'privat', createdAt: Timestamp.now(),
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(testEnv.authenticatedContext('b').firestore(), 'messages', 'msg3')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('c').firestore(), 'messages', 'msg3')));
+  });
+
+  it('afsenderen KAN slette egen besked; modtageren KAN IKKE', async () => {
+    await createUser('a', 'player', 'approved');
+    await createUser('b', 'player', 'approved');
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('messages').doc('msg4').set({
+        participants: ['a', 'b'], conversationId: 'a__b', from: 'a', to: 'b',
+        text: 'slet', createdAt: Timestamp.now(),
+      });
+    });
+
+    await assertFails(deleteDoc(doc(testEnv.authenticatedContext('b').firestore(), 'messages', 'msg4')));
+    await assertSucceeds(deleteDoc(doc(testEnv.authenticatedContext('a').firestore(), 'messages', 'msg4')));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: tipParticipation-collection (skrivebeskyttet for klienter)
+// ---------------------------------------------------------------------------
+describe('tipParticipation/{matchId} — sikkerhedsregler', () => {
+  it('godkendt bruger KAN læse deltagelse', async () => {
+    await createUser('p1', 'player', 'approved');
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('tipParticipation').doc('match_1').set({
+        matchId: 'match_1', uids: ['p1', 'p2'],
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(testEnv.authenticatedContext('p1').firestore(), 'tipParticipation', 'match_1')));
+  });
+
+  it('en klient KAN IKKE skrive deltagelse (kun server)', async () => {
+    await createUser('p1', 'player', 'approved');
+
+    const ctx = testEnv.authenticatedContext('p1');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'tipParticipation', 'match_2'), {
+        matchId: 'match_2', uids: ['p1'],
       })
     );
   });
