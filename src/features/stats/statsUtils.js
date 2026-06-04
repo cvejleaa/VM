@@ -69,6 +69,7 @@ export function computeMatchStats(match, bets) {
     correctOutcome,
     outcomePct: pct(correctOutcome),
     avgPoints: Math.round((pointsSum / total) * 10) / 10,
+    pointsSum,
     popular,
     exactUids,
   };
@@ -93,4 +94,106 @@ export function topScorersOfDay(pointsByUid, usersById, limit = 3) {
 export function maxPointsForMatch(match) {
   const isKnockout = match?.round && match.round !== ROUNDS.GROUP;
   return isKnockout ? POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE : POINTS.EXACT;
+}
+
+// ─── Sæson-statistik (hele turneringen) ─────────────────────────────────────
+
+/** Kun afsluttede kampe med gyldigt resultat. */
+function finishedWithResult(matches) {
+  return (matches ?? []).filter((m) => m && m.result);
+}
+
+/**
+ * Samlet overblik på tværs af alle afsluttede kampe.
+ * @returns {{matches:number, tips:number, exact:number, correctOutcome:number,
+ *            exactPct:number, outcomePct:number, totalPoints:number, avgPoints:number}}
+ */
+export function computeSeasonOverview(matches, betsByMatch) {
+  const finished = finishedWithResult(matches);
+  let tips = 0, exact = 0, correctOutcome = 0, totalPoints = 0;
+  for (const m of finished) {
+    const s = computeMatchStats(m, betsByMatch?.get?.(m.id) ?? []);
+    tips += s.total;
+    exact += s.exact;
+    correctOutcome += s.correctOutcome;
+    totalPoints += s.pointsSum;
+  }
+  const pct = (n) => (tips ? Math.round((n / tips) * 100) : 0);
+  return {
+    matches: finished.length,
+    tips,
+    exact,
+    correctOutcome,
+    exactPct: pct(exact),
+    outcomePct: pct(correctOutcome),
+    totalPoints,
+    avgPoints: tips ? Math.round((totalPoints / tips) * 10) / 10 : 0,
+  };
+}
+
+/**
+ * Per-spiller træfsikkerhed over hele turneringen.
+ * @returns {Array<{uid,name,tips,exact,correctOutcome,points,exactPct,outcomePct,avgPoints}>}
+ */
+export function computePlayerAccuracy(matches, betsByMatch, usersById) {
+  const finished = finishedWithResult(matches);
+  const byUid = new Map();
+  for (const m of finished) {
+    const isKo = m.round && m.round !== ROUNDS.GROUP;
+    const res = m.result;
+    for (const b of betsByMatch?.get?.(m.id) ?? []) {
+      if (!b.uid) continue;
+      const row = byUid.get(b.uid) ?? { uid: b.uid, tips: 0, exact: 0, correctOutcome: 0, points: 0 };
+      row.tips += 1;
+      row.points += isKo ? scoreKnockout(b, res) : scoreMatch(b, res);
+      if (b.home === res.home && b.away === res.away) row.exact += 1;
+      if (Number.isFinite(b.home) && Number.isFinite(b.away) && outcome(b.home, b.away) === outcome(res.home, res.away)) {
+        row.correctOutcome += 1;
+      }
+      byUid.set(b.uid, row);
+    }
+  }
+  return [...byUid.values()]
+    .map((r) => ({
+      ...r,
+      name: usersById?.[r.uid]?.displayName || 'Spiller',
+      exactPct: r.tips ? Math.round((r.exact / r.tips) * 100) : 0,
+      outcomePct: r.tips ? Math.round((r.correctOutcome / r.tips) * 100) : 0,
+      avgPoints: r.tips ? Math.round((r.points / r.tips) * 10) / 10 : 0,
+    }))
+    .sort((a, b) => b.points - a.points || b.exact - a.exact || a.name.localeCompare(b.name, 'da'));
+}
+
+/**
+ * Mest overraskende resultat: den afsluttede kamp hvor færrest ramte udfaldet
+ * (mindst `minTips` tips). Returnerer {match, stats} eller null.
+ */
+export function mostSurprising(matches, betsByMatch, minTips = 3) {
+  let best = null;
+  for (const m of finishedWithResult(matches)) {
+    const stats = computeMatchStats(m, betsByMatch?.get?.(m.id) ?? []);
+    if (stats.total < minTips) continue;
+    if (!best || stats.outcomePct < best.stats.outcomePct ||
+        (stats.outcomePct === best.stats.outcomePct && stats.exactPct < best.stats.exactPct)) {
+      best = { match: m, stats };
+    }
+  }
+  return best;
+}
+
+/**
+ * Bedst forudsagte kamp: flest ramte eksakt score (mindst `minTips` tips).
+ * Returnerer {match, stats} eller null.
+ */
+export function bestPredicted(matches, betsByMatch, minTips = 3) {
+  let best = null;
+  for (const m of finishedWithResult(matches)) {
+    const stats = computeMatchStats(m, betsByMatch?.get?.(m.id) ?? []);
+    if (stats.total < minTips) continue;
+    if (!best || stats.exactPct > best.stats.exactPct ||
+        (stats.exactPct === best.stats.exactPct && stats.outcomePct > best.stats.outcomePct)) {
+      best = { match: m, stats };
+    }
+  }
+  return best;
 }
