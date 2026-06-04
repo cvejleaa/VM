@@ -17,6 +17,14 @@ UI'et er dækket udtømmende — hver side/komponent testes i alle tilstande
 (loading, fejl, tom, rollebaseret adgang, låst/åben, før/efter deadline,
 godkendt/afventer, korrekte/forkerte tip, fuzzy bonus-matchning osv.).
 
+## Oversigt i appen (kun admin)
+Under **Admin → Tests** kan administratorer se en komplet oversigt over alle
+gennemførte tests (pr. fil og pr. test, med bestået/fejlet-status). Oversigten
+genereres fra den faktiske suite med:
+```bash
+npm run test:report   # opdaterer src/data/testReport.json
+```
+
 ## Sådan køres testene
 
 ```bash

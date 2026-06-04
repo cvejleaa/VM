@@ -84,10 +84,11 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser alle fire faner for owner', () => {
+    it('viser alle fem faner for owner', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(4);
+      expect(tabs).toHaveLength(5);
+      expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
     });
 
     it('viser tekst om fuld adgang som ejer', () => {
@@ -170,10 +171,11 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 3 faner for matchAdmin (Kampe, Bonus, Ligaer)', () => {
+    it('viser præcis 4 faner for matchAdmin (Kampe, Bonus, Ligaer, Tests)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(3);
+      expect(tabs).toHaveLength(4);
+      expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
     });
 
     it('viser tekst om kamp-administrator adgang', () => {
