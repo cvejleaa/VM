@@ -11,6 +11,7 @@ import MyBetsPage from './pages/MyBetsPage';
 import BonusPage from './pages/BonusPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import LeaguesPage from './pages/LeaguesPage';
+import MessagesPage from './pages/MessagesPage';
 import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/statistik" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
         <Route path="/stilling" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/ligaer" element={<ProtectedRoute><LeaguesPage /></ProtectedRoute>} />
+        <Route path="/beskeder" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute require="matchAdmin"><AdminPage /></ProtectedRoute>} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

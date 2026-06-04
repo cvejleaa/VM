@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-04T19:08:13.167Z",
+  "generatedAt": "2026-06-04T20:12:20.325Z",
   "totals": {
-    "files": 40,
-    "tests": 923,
-    "passed": 923,
+    "files": 44,
+    "tests": 949,
+    "passed": 949,
     "failed": 0
   },
   "suites": [
@@ -598,7 +598,7 @@
     {
       "file": "src/features/admin/LeaguesAdminTab.test.jsx",
       "area": "frontend",
-      "passed": 24,
+      "passed": 25,
       "failed": 0,
       "tests": [
         {
@@ -651,6 +651,10 @@
         },
         {
           "name": "LeaguesAdminTab › viser IKKE Afvis-knap for allerede afvist liga",
+          "status": "passed"
+        },
+        {
+          "name": "LeaguesAdminTab › kan omdøbe en liga via blyant-knappen",
           "status": "passed"
         },
         {
@@ -1552,6 +1556,114 @@
       ]
     },
     {
+      "file": "src/features/comments/commentActions.test.js",
+      "area": "frontend",
+      "passed": 12,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "conversationId › er uafhængig af rækkefølge",
+          "status": "passed"
+        },
+        {
+          "name": "conversationId › joiner sorterede uids med dobbelt-underscore",
+          "status": "passed"
+        },
+        {
+          "name": "postLeagueComment › afviser tom tekst",
+          "status": "passed"
+        },
+        {
+          "name": "postLeagueComment › afviser for lang tekst",
+          "status": "passed"
+        },
+        {
+          "name": "postLeagueComment › kræver liga og bruger",
+          "status": "passed"
+        },
+        {
+          "name": "postLeagueComment › gemmer trimmet tekst og forfatter",
+          "status": "passed"
+        },
+        {
+          "name": "postLeagueComment › falder tilbage til \"Spiller\" uden displayName",
+          "status": "passed"
+        },
+        {
+          "name": "sendMessage › afviser besked til sig selv",
+          "status": "passed"
+        },
+        {
+          "name": "sendMessage › kræver modtager",
+          "status": "passed"
+        },
+        {
+          "name": "sendMessage › sætter sorterede participants og conversationId",
+          "status": "passed"
+        },
+        {
+          "name": "deleteLeagueComment › kræver id",
+          "status": "passed"
+        },
+        {
+          "name": "deleteLeagueComment › kalder deleteDoc",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/comments/formatTimestamp.test.js",
+      "area": "frontend",
+      "passed": 4,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "formatTimestamp › returnerer tom streng for null",
+          "status": "passed"
+        },
+        {
+          "name": "formatTimestamp › viser kun klokkeslæt for samme dag",
+          "status": "passed"
+        },
+        {
+          "name": "formatTimestamp › viser dato + tid for en anden dag",
+          "status": "passed"
+        },
+        {
+          "name": "formatTimestamp › accepterer rå Date",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/comments/useMessages.test.js",
+      "area": "frontend",
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "groupConversations › grupperer pr. modpart",
+          "status": "passed"
+        },
+        {
+          "name": "groupConversations › tæller beskeder pr. samtale",
+          "status": "passed"
+        },
+        {
+          "name": "groupConversations › bruger seneste besked som \"last\"",
+          "status": "passed"
+        },
+        {
+          "name": "groupConversations › sorterer nyeste samtale øverst",
+          "status": "passed"
+        },
+        {
+          "name": "groupConversations › håndterer tom liste",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/leaderboard/StandingsTable.test.jsx",
       "area": "frontend",
       "passed": 20,
@@ -2039,6 +2151,30 @@
         },
         {
           "name": "filterUsersByLeague › ignorerer uid-er i memberUids der ikke har tilsvarende bruger",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/leagues/useTipParticipation.test.js",
+      "area": "frontend",
+      "passed": 4,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "leagueTipStatus › tæller hvor mange der har tippet",
+          "status": "passed"
+        },
+        {
+          "name": "leagueTipStatus › lister hvem der mangler",
+          "status": "passed"
+        },
+        {
+          "name": "leagueTipStatus › håndterer at ingen har tippet (undefined set)",
+          "status": "passed"
+        },
+        {
+          "name": "leagueTipStatus › håndterer at alle har tippet",
           "status": "passed"
         }
       ]

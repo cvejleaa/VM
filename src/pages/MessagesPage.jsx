@@ -1,0 +1,208 @@
+/**
+ * MessagesPage — private 1:1-beskeder mellem brugere.
+ *  - Liste over igangværende samtaler (nyeste øverst)
+ *  - Start en ny samtale ved at vælge en spiller
+ *  - Trådvisning med beskeder + skrivefelt
+ */
+import { useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useStandings } from '../features/leaderboard/useStandings';
+import { useMyMessages, groupConversations, useConversation } from '../features/comments/useMessages';
+import { sendMessage, deleteMessage } from '../features/comments/commentActions';
+import { formatTimestamp } from '../features/comments/formatTimestamp';
+
+// ── Trådvisning ───────────────────────────────────────────────────────────────
+function Thread({ meUid, otherUid, nameOf }) {
+  const { messages, loading } = useConversation(meUid, otherUid);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSend(e) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await sendMessage({ from: meUid, to: otherUid, text });
+      setText('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h3 className="card__title mb-2">Samtale med {nameOf(otherUid)}</h3>
+
+      {loading ? (
+        <div className="spinner" role="status" aria-label="Indlæser" />
+      ) : messages.length === 0 ? (
+        <p style={{ color: 'var(--c-muted)', fontSize: '0.9rem' }}>
+          Ingen beskeder endnu. Skriv den første nedenfor.
+        </p>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: 420, overflowY: 'auto' }}>
+          {messages.map((m) => {
+            const mine = m.from === meUid;
+            return (
+              <li
+                key={m.id}
+                data-testid="dm-message"
+                style={{ display: 'flex', justifyContent: mine ? 'flex-end' : 'flex-start' }}
+              >
+                <div
+                  style={{
+                    maxWidth: '80%',
+                    background: mine ? 'var(--c-pitch)' : 'var(--c-surface-2, #f0f0f0)',
+                    color: mine ? '#fff' : 'inherit',
+                    borderRadius: 12,
+                    padding: '0.45rem 0.7rem',
+                  }}
+                >
+                  <div style={{ fontSize: '0.92rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.text}</div>
+                  <div style={{ fontSize: '0.68rem', opacity: 0.75, marginTop: '0.15rem', display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    {formatTimestamp(m.createdAt)}
+                    {mine && (
+                      <button
+                        title="Slet besked"
+                        aria-label="Slet besked"
+                        onClick={() => deleteMessage(m.id).catch((e) => alert(e.message))}
+                        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, opacity: 0.8 }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <form onSubmit={handleSend} style={{ marginTop: '0.75rem' }}>
+        <textarea
+          className="input"
+          rows={2}
+          placeholder={`Skriv til ${nameOf(otherUid)}…`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={1000}
+          aria-label="Ny privat besked"
+          style={{ resize: 'vertical' }}
+        />
+        {error && <p className="form-error mt-1">{error}</p>}
+        <button className="btn btn--sm mt-1" type="submit" disabled={busy || !text.trim()}>
+          {busy ? 'Sender…' : 'Send'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ── Hoved-komponent ───────────────────────────────────────────────────────────
+export default function MessagesPage() {
+  const { user } = useAuth();
+  const meUid = user?.uid;
+  const { standings } = useStandings();
+  const { messages, loading } = useMyMessages(meUid);
+  const [activeUid, setActiveUid] = useState(null);
+  const [pick, setPick] = useState('');
+
+  const nameOf = (uid) => standings.find((u) => u.uid === uid)?.displayName || '(ukendt)';
+
+  const conversations = useMemo(
+    () => groupConversations(messages, meUid),
+    [messages, meUid],
+  );
+
+  // Spillere man kan skrive til (alle godkendte undtagen én selv)
+  const others = standings.filter((u) => u.uid !== meUid);
+
+  function startConversation(uid) {
+    if (!uid) return;
+    setActiveUid(uid);
+    setPick('');
+  }
+
+  return (
+    <div>
+      <h1 style={{ margin: '0 0 1rem', fontSize: '1.4rem', fontWeight: 800 }}>✉️ Beskeder</h1>
+
+      <div className="grid-2" style={{ alignItems: 'start' }}>
+        {/* Venstre: samtaler + ny besked */}
+        <div className="card">
+          <h3 className="card__title mb-2">Samtaler</h3>
+
+          {/* Ny besked */}
+          <div className="flex gap-1 mb-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              className="select"
+              value={pick}
+              onChange={(e) => setPick(e.target.value)}
+              aria-label="Vælg modtager"
+              style={{ maxWidth: 200 }}
+            >
+              <option value="">– Ny samtale med… –</option>
+              {others.map((u) => (
+                <option key={u.uid} value={u.uid}>{u.displayName || '(ukendt)'}</option>
+              ))}
+            </select>
+            <button className="btn btn--sm" disabled={!pick} onClick={() => startConversation(pick)}>
+              Start
+            </button>
+          </div>
+
+          {/* Liste */}
+          {loading ? (
+            <div className="spinner" role="status" aria-label="Indlæser" />
+          ) : conversations.length === 0 ? (
+            <p style={{ color: 'var(--c-muted)', fontSize: '0.9rem' }}>
+              Ingen samtaler endnu. Vælg en spiller ovenfor for at starte.
+            </p>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              {conversations.map((c) => {
+                const active = c.otherUid === activeUid;
+                return (
+                  <li key={c.otherUid}>
+                    <button
+                      onClick={() => setActiveUid(c.otherUid)}
+                      data-testid="dm-conversation"
+                      style={{
+                        width: '100%', textAlign: 'left', cursor: 'pointer',
+                        background: active ? 'var(--c-pitch)' : 'transparent',
+                        color: active ? '#fff' : 'inherit',
+                        border: '1px solid var(--c-border)', borderRadius: 8, padding: '0.45rem 0.6rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.9rem' }}>{nameOf(c.otherUid)}</strong>
+                        <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>{formatTimestamp(c.last?.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {c.last?.from === meUid ? 'Du: ' : ''}{c.last?.text}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Højre: aktiv tråd */}
+        {activeUid ? (
+          <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} />
+        ) : (
+          <div className="card" style={{ color: 'var(--c-muted)' }}>
+            Vælg en samtale eller start en ny for at skrive beskeder.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -17,7 +17,7 @@
 
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
@@ -157,6 +157,41 @@ exports.recomputeBonus = onDocumentWritten(
     const affectedUids = [...new Set(betsSnap.docs.map(d => d.data().uid))];
     for (const uid of affectedUids) {
       await recalcUserTotal(db, uid);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// syncTipParticipation — vedligeholder tipParticipation/{matchId} = { uids: [...] }
+// Holder styr på HVEM der har tippet på en kamp (men ikke hvad de tippede),
+// så ligaer kan vise "X af N har tippet" og hvem der mangler — uden at afsløre
+// nogen forudsigelser før kickoff.
+// ---------------------------------------------------------------------------
+exports.syncTipParticipation = onDocumentWritten(
+  { document: 'bets/{betId}', region: REGION },
+  async (event) => {
+    const db = getFirestore();
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+
+    const matchId = after?.matchId ?? before?.matchId;
+    const uid = after?.uid ?? before?.uid;
+    if (!matchId || !uid) return;
+
+    const ref = db.collection('tipParticipation').doc(matchId);
+
+    if (after) {
+      // Bet oprettet eller opdateret → uid har tippet på kampen
+      await ref.set(
+        { matchId, uids: FieldValue.arrayUnion(uid) },
+        { merge: true },
+      );
+    } else {
+      // Bet slettet → fjern uid (sker normalt ikke fra klienten)
+      await ref.set(
+        { matchId, uids: FieldValue.arrayRemove(uid) },
+        { merge: true },
+      );
     }
   }
 );

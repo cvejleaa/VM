@@ -21,6 +21,8 @@ import {
 import { filterUsersByLeague } from '../features/leagues/leagueUtils';
 import { sortByPoints } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
+import LeagueWall from '../features/comments/LeagueWall';
+import LeagueTipCounter from '../features/leagues/LeagueTipCounter';
 
 // ── Liga-kort (listevisning) ─────────────────────────────────────────────────
 function LeagueCard({ league, standings, meUid, onOpen }) {
@@ -64,7 +66,7 @@ function LeagueCard({ league, standings, meUid, onOpen }) {
 }
 
 // ── Ligadetalje-panel ─────────────────────────────────────────────────────────
-function LeagueDetail({ league, standings, meUid, onClose }) {
+function LeagueDetail({ league, standings, meUid, meName, isAdmin = false, onClose }) {
   const [removing, setRemoving] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -163,6 +165,21 @@ function LeagueDetail({ league, standings, meUid, onClose }) {
           emptyMsg="Ingen spillere i ligaen."
         />
       </div>
+
+      {/* Hvem har tippet på de kommende kampe */}
+      <div className="card mt-2">
+        <h3 className="card__title mb-2">✅ Hvem har tippet?</h3>
+        <LeagueTipCounter members={members} />
+      </div>
+
+      {/* Liga-væg (kommentarer) */}
+      <LeagueWall
+        leagueId={league.id}
+        meUid={meUid}
+        myName={meName}
+        isOwner={isOwner}
+        isAdmin={isAdmin}
+      />
 
       {/* Medlemsliste med fjern-knapper for ejeren */}
       {isOwner && members.length > 0 && (
@@ -298,7 +315,7 @@ function JoinLeagueForm({ uid }) {
 
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 export default function LeaguesPage() {
-  const { user } = useAuth();
+  const { user, profile, isMatchAdmin } = useAuth();
   const { leagues, loading: loadingLeagues, error: leagueError } = useLeagues(user?.uid);
   const { standings, loading: loadingStandings } = useStandings();
 
@@ -321,6 +338,8 @@ export default function LeaguesPage() {
           league={openLeague}
           standings={standings}
           meUid={user?.uid}
+          meName={profile?.displayName}
+          isAdmin={isMatchAdmin}
           onClose={() => setOpenLeagueId(null)}
         />
       </div>

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAllLeagues } from '../leagues/useAllLeagues';
 import { useUsers } from './useUsers';
-import { setLeagueStatus, adminAddMember, removeMember } from '../leagues/leagueActions';
+import { setLeagueStatus, adminAddMember, removeMember, renameLeague } from '../leagues/leagueActions';
 import { LEAGUE_STATUS, USER_STATUS } from '../../lib/constants';
 
 const STATUS_BADGE = {
@@ -16,6 +16,7 @@ export default function LeaguesAdminTab() {
   const { users } = useUsers();
   const [busy, setBusy] = useState('');
   const [pick, setPick] = useState({}); // { [leagueId]: uid }
+  const [editing, setEditing] = useState({}); // { [leagueId]: nyt navn (string) }
 
   const nameOf = (uid) => {
     const u = users.find((x) => x.id === uid);
@@ -45,7 +46,49 @@ export default function LeaguesAdminTab() {
         return (
           <li key={lg.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--c-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <strong style={{ fontSize: '1rem' }}>{lg.name}</strong>
+              {editing[lg.id] !== undefined ? (
+                <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    className="input"
+                    style={{ maxWidth: 220 }}
+                    value={editing[lg.id]}
+                    maxLength={40}
+                    aria-label="Nyt liganavn"
+                    data-testid={`rename-input-${lg.id}`}
+                    onChange={(e) => setEditing((s) => ({ ...s, [lg.id]: e.target.value }))}
+                  />
+                  <button
+                    className="btn btn--sm"
+                    disabled={busy === lg.id || !editing[lg.id]?.trim()}
+                    onClick={() => run(lg.id, async () => {
+                      await renameLeague(lg.id, editing[lg.id]);
+                      setEditing((s) => { const n = { ...s }; delete n[lg.id]; return n; });
+                    })}
+                  >
+                    Gem
+                  </button>
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setEditing((s) => { const n = { ...s }; delete n[lg.id]; return n; })}
+                  >
+                    Annullér
+                  </button>
+                </span>
+              ) : (
+                <>
+                  <strong style={{ fontSize: '1rem' }}>{lg.name}</strong>
+                  <button
+                    className="btn--icon"
+                    title="Omdøb liga"
+                    aria-label={`Omdøb ${lg.name}`}
+                    data-testid={`rename-btn-${lg.id}`}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    onClick={() => setEditing((s) => ({ ...s, [lg.id]: lg.name }))}
+                  >
+                    ✏️
+                  </button>
+                </>
+              )}
               <span className={`badge ${badge.cls}`}>{badge.label}</span>
               <span className="badge badge--muted">{members.length} medlem{members.length === 1 ? '' : 'mer'}</span>
               <span style={{ fontSize: '0.8rem', color: 'var(--c-muted)' }}>
