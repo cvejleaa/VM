@@ -10,6 +10,7 @@ import { useStandings } from '../features/leaderboard/useStandings';
 import { useMyMessages, groupConversations, useConversation } from '../features/comments/useMessages';
 import { sendMessage, deleteMessage } from '../features/comments/commentActions';
 import { formatTimestamp } from '../features/comments/formatTimestamp';
+import EmojiPicker from '../features/comments/EmojiPicker';
 
 // ── Trådvisning ───────────────────────────────────────────────────────────────
 function Thread({ meUid, otherUid, nameOf }) {
@@ -95,9 +96,12 @@ function Thread({ meUid, otherUid, nameOf }) {
           style={{ resize: 'vertical' }}
         />
         {error && <p className="form-error mt-1">{error}</p>}
-        <button className="btn btn--sm mt-1" type="submit" disabled={busy || !text.trim()}>
-          {busy ? 'Sender…' : 'Send'}
-        </button>
+        <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
+          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
+          <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
+            {busy ? 'Sender…' : 'Send'}
+          </button>
+        </div>
       </form>
     </div>
   );

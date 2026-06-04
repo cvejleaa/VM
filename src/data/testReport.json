@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-04T20:12:20.325Z",
+  "generatedAt": "2026-06-04T20:39:43.636Z",
   "totals": {
-    "files": 44,
-    "tests": 949,
-    "passed": 949,
+    "files": 45,
+    "tests": 953,
+    "passed": 953,
     "failed": 0
   },
   "suites": [
@@ -806,7 +806,7 @@
     {
       "file": "src/features/admin/MatchesTab.test.jsx",
       "area": "frontend",
-      "passed": 20,
+      "passed": 21,
       "failed": 0,
       "tests": [
         {
@@ -867,6 +867,10 @@
         },
         {
           "name": "MatchesTab › kalder callBuildKnockout ved klik og bekræftelse",
+          "status": "passed"
+        },
+        {
+          "name": "MatchesTab › kalder backfill ved klik og viser besked",
           "status": "passed"
         },
         {
@@ -1607,6 +1611,26 @@
         },
         {
           "name": "deleteLeagueComment › kalder deleteDoc",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/comments/EmojiPicker.test.jsx",
+      "area": "frontend",
+      "passed": 3,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "EmojiPicker › viser ikke gitteret før man klikker",
+          "status": "passed"
+        },
+        {
+          "name": "EmojiPicker › åbner gitteret ved klik på knappen",
+          "status": "passed"
+        },
+        {
+          "name": "EmojiPicker › kalder onSelect med valgt emoji og lukker gitteret",
           "status": "passed"
         }
       ]

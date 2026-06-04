@@ -104,6 +104,24 @@ export async function callBuildKnockout() {
   }
 }
 
+/**
+ * Kald Cloud Function 'backfillTipParticipation' for at genopbygge tip-deltagelse
+ * ud fra alle eksisterende tips.
+ */
+export async function callBackfillTipParticipation() {
+  try {
+    const fn = httpsCallable(functions, 'backfillTipParticipation');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "backfillTipParticipation" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af backfillTipParticipation.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
 
 /**

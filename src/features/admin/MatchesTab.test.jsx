@@ -29,10 +29,12 @@ vi.mock('firebase/functions', () => ({
 
 // ─── Mock adminActions ────────────────────────────────────────────────────────
 const mockCallBuildKnockout = vi.fn();
+const mockCallBackfill = vi.fn();
 const mockFormatTimestamp = vi.fn(() => '11.06.2026 18:00');
 
 vi.mock('./adminActions', () => ({
   callBuildKnockout: () => mockCallBuildKnockout(),
+  callBackfillTipParticipation: () => mockCallBackfill(),
   formatTimestamp: (...args) => mockFormatTimestamp(...args),
   saveMatchResult: vi.fn().mockResolvedValue(undefined),
   createMatch: vi.fn().mockResolvedValue(undefined),
@@ -192,6 +194,19 @@ describe('MatchesTab', () => {
 
     await waitFor(() => {
       expect(mockCallBuildKnockout).toHaveBeenCalled();
+    });
+  });
+
+  // ─── backfill tip-deltagelse ────────────────────────────────────────────────
+
+  it('kalder backfill ved klik og viser besked', async () => {
+    mockCallBackfill.mockResolvedValue({ ok: true, data: { message: 'Backfill færdig: 3 kampe.' } });
+    render(<MatchesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Genopbyg tip-deltagelse/i }));
+
+    await waitFor(() => {
+      expect(mockCallBackfill).toHaveBeenCalled();
+      expect(screen.getByRole('alert')).toHaveTextContent(/Backfill færdig: 3 kampe/i);
     });
   });
 
