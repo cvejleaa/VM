@@ -1,0 +1,287 @@
+{
+  "generatedAt": "2026-06-04T09:38:17.382Z",
+  "nodes": [
+    {
+      "id": "firebase",
+      "layer": 0,
+      "files": 1
+    },
+    {
+      "id": "lib (kerne)",
+      "layer": 0,
+      "files": 3
+    },
+    {
+      "id": "Cloud Functions",
+      "layer": 1,
+      "files": 3
+    },
+    {
+      "id": "context",
+      "layer": 1,
+      "files": 1
+    },
+    {
+      "id": "components",
+      "layer": 2,
+      "files": 5
+    },
+    {
+      "id": "features/admin",
+      "layer": 2,
+      "files": 15
+    },
+    {
+      "id": "features/auth",
+      "layer": 2,
+      "files": 2
+    },
+    {
+      "id": "features/bonus",
+      "layer": 2,
+      "files": 3
+    },
+    {
+      "id": "features/leaderboard",
+      "layer": 2,
+      "files": 5
+    },
+    {
+      "id": "features/leagues",
+      "layer": 2,
+      "files": 4
+    },
+    {
+      "id": "features/matches",
+      "layer": 2,
+      "files": 6
+    },
+    {
+      "id": "features/stats",
+      "layer": 2,
+      "files": 2
+    },
+    {
+      "id": "features/tournament",
+      "layer": 2,
+      "files": 1
+    },
+    {
+      "id": "pages",
+      "layer": 3,
+      "files": 11
+    },
+    {
+      "id": "app-skal",
+      "layer": 4,
+      "files": 3
+    }
+  ],
+  "edges": [
+    {
+      "from": "app-skal",
+      "to": "components",
+      "count": 2
+    },
+    {
+      "from": "app-skal",
+      "to": "pages",
+      "count": 11
+    },
+    {
+      "from": "components",
+      "to": "lib (kerne)",
+      "count": 2
+    },
+    {
+      "from": "components",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "components",
+      "to": "context",
+      "count": 2
+    },
+    {
+      "from": "context",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "context",
+      "to": "lib (kerne)",
+      "count": 1
+    },
+    {
+      "from": "features/admin",
+      "to": "lib (kerne)",
+      "count": 13
+    },
+    {
+      "from": "features/admin",
+      "to": "features/bonus",
+      "count": 1
+    },
+    {
+      "from": "features/admin",
+      "to": "app-skal",
+      "count": 2
+    },
+    {
+      "from": "features/admin",
+      "to": "features/leagues",
+      "count": 2
+    },
+    {
+      "from": "features/admin",
+      "to": "firebase",
+      "count": 5
+    },
+    {
+      "from": "features/auth",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "features/auth",
+      "to": "lib (kerne)",
+      "count": 1
+    },
+    {
+      "from": "features/bonus",
+      "to": "firebase",
+      "count": 2
+    },
+    {
+      "from": "features/bonus",
+      "to": "lib (kerne)",
+      "count": 5
+    },
+    {
+      "from": "features/bonus",
+      "to": "components",
+      "count": 1
+    },
+    {
+      "from": "features/leaderboard",
+      "to": "lib (kerne)",
+      "count": 4
+    },
+    {
+      "from": "features/leaderboard",
+      "to": "firebase",
+      "count": 2
+    },
+    {
+      "from": "features/leagues",
+      "to": "firebase",
+      "count": 3
+    },
+    {
+      "from": "features/leagues",
+      "to": "lib (kerne)",
+      "count": 3
+    },
+    {
+      "from": "features/matches",
+      "to": "firebase",
+      "count": 3
+    },
+    {
+      "from": "features/matches",
+      "to": "lib (kerne)",
+      "count": 6
+    },
+    {
+      "from": "features/matches",
+      "to": "components",
+      "count": 1
+    },
+    {
+      "from": "features/stats",
+      "to": "lib (kerne)",
+      "count": 3
+    },
+    {
+      "from": "features/stats",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "features/stats",
+      "to": "features/leaderboard",
+      "count": 1
+    },
+    {
+      "from": "features/tournament",
+      "to": "lib (kerne)",
+      "count": 2
+    },
+    {
+      "from": "app-skal",
+      "to": "context",
+      "count": 1
+    },
+    {
+      "from": "pages",
+      "to": "context",
+      "count": 8
+    },
+    {
+      "from": "pages",
+      "to": "features/admin",
+      "count": 5
+    },
+    {
+      "from": "pages",
+      "to": "features/bonus",
+      "count": 3
+    },
+    {
+      "from": "pages",
+      "to": "lib (kerne)",
+      "count": 10
+    },
+    {
+      "from": "pages",
+      "to": "features/leaderboard",
+      "count": 7
+    },
+    {
+      "from": "pages",
+      "to": "features/leagues",
+      "count": 4
+    },
+    {
+      "from": "pages",
+      "to": "features/auth",
+      "count": 1
+    },
+    {
+      "from": "pages",
+      "to": "features/matches",
+      "count": 9
+    },
+    {
+      "from": "pages",
+      "to": "components",
+      "count": 6
+    },
+    {
+      "from": "pages",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "pages",
+      "to": "features/stats",
+      "count": 2
+    },
+    {
+      "from": "pages",
+      "to": "features/tournament",
+      "count": 2
+    }
+  ]
+}
