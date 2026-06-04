@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock rapport-data så testen er uafhængig af det genererede øjebliksbillede
 vi.mock('../../data/testReport.json', () => ({
@@ -22,31 +22,44 @@ vi.mock('../../data/testReport.json', () => ({
   },
 }));
 
+// Mock afhængighedsgraf (lille)
+vi.mock('../../data/depGraph.json', () => ({
+  default: {
+    generatedAt: '2026-06-04T10:00:00.000Z',
+    nodes: [
+      { id: 'lib (kerne)', layer: 0, files: 3 },
+      { id: 'pages', layer: 3, files: 2 },
+    ],
+    edges: [{ from: 'pages', to: 'lib (kerne)', count: 4 }],
+  },
+}));
+
 import TestsTab from './TestsTab';
 
 describe('TestsTab', () => {
-  it('viser sammenfatning med antal tests og filer', () => {
+  it('viser oversigt med antal tests, filer og bestået-andel', () => {
     render(<TestsTab />);
     expect(screen.getByText('5 tests')).toBeInTheDocument();
-    expect(screen.getByText('2 testfiler')).toBeInTheDocument();
-    expect(screen.getByText(/Alle 5 bestået/)).toBeInTheDocument();
+    expect(screen.getByText('2 filer')).toBeInTheDocument();
+    expect(screen.getByText(/5 bestået/)).toBeInTheDocument();
   });
 
-  it('grupperer efter område (Frontend og Cloud Functions)', () => {
+  it('viser tests pr. område (Frontend og Cloud Functions)', () => {
     render(<TestsTab />);
     expect(screen.getByText(/Frontend \(UI\)/)).toBeInTheDocument();
     expect(screen.getByText(/Cloud Functions/)).toBeInTheDocument();
   });
 
-  it('viser de enkelte testfiler og testnavne', () => {
+  it('detaljer-fanen viser testfiler og testnavne', () => {
     render(<TestsTab />);
+    fireEvent.click(screen.getByTestId('subtab-details'));
     expect(screen.getByText('src/lib/scoring.test.js')).toBeInTheDocument();
     expect(screen.getByText(/scoreMatch › eksakt/)).toBeInTheDocument();
   });
 
-  it('markerer en fejlende test', () => {
+  it('afhængigheds-fanen viser et diagram', () => {
     render(<TestsTab />);
-    // alle bestået i mock → ingen ✗
-    expect(screen.queryByText('✗', { exact: false })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('subtab-deps'));
+    expect(screen.getByRole('img', { name: /Afhængighedsdiagram/i })).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T09:23:47.969Z",
+  "generatedAt": "2026-06-04T09:38:17.333Z",
   "totals": {
     "files": 39,
     "tests": 920,
@@ -1002,19 +1002,19 @@
       "failed": 0,
       "tests": [
         {
-          "name": "TestsTab › viser sammenfatning med antal tests og filer",
+          "name": "TestsTab › viser oversigt med antal tests, filer og bestået-andel",
           "status": "passed"
         },
         {
-          "name": "TestsTab › grupperer efter område (Frontend og Cloud Functions)",
+          "name": "TestsTab › viser tests pr. område (Frontend og Cloud Functions)",
           "status": "passed"
         },
         {
-          "name": "TestsTab › viser de enkelte testfiler og testnavne",
+          "name": "TestsTab › detaljer-fanen viser testfiler og testnavne",
           "status": "passed"
         },
         {
-          "name": "TestsTab › markerer en fejlende test",
+          "name": "TestsTab › afhængigheds-fanen viser et diagram",
           "status": "passed"
         }
       ]

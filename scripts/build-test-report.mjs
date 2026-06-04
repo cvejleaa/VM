@@ -56,3 +56,6 @@ fs.writeFileSync(path.join(ROOT, 'src', 'data', 'testReport.json'), JSON.stringi
 fs.rmSync(FE, { force: true });
 fs.rmSync(FN, { force: true });
 console.log('Skrev src/data/testReport.json:', report.totals);
+
+// Opdater også afhængighedsdiagrammet
+execSync('node scripts/build-dep-graph.mjs', { cwd: ROOT, stdio: 'inherit' });
