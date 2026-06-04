@@ -196,6 +196,91 @@ describe('computeGroupStandings', () => {
     expect(arg.gd).toBe(2);
     expect(arg.points).toBe(6);
   });
+
+  it('returnerer tom liste ved ingen kampe', () => {
+    expect(computeGroupStandings([])).toEqual([]);
+  });
+
+  it('hvert række-objekt har de forventede felter', () => {
+    const kampe = [lavKamp('ARG', 'BRA', 'finished', 1, 0)];
+    const stilling = computeGroupStandings(kampe);
+    const forventedeNøgler = ['team', 'played', 'won', 'drawn', 'lost', 'gf', 'ga', 'gd', 'points'];
+    for (const nøgle of forventedeNøgler) {
+      expect(stilling[0]).toHaveProperty(nøgle);
+    }
+  });
+
+  it('tæller korrekt med live-status (ikke finished)', () => {
+    const kampe = [
+      lavKamp('ARG', 'BRA', 'live', 2, 0), // ignoreres
+      lavKamp('ARG', 'CHI', 'finished', 1, 1), // tæller
+    ];
+    const stilling = computeGroupStandings(kampe);
+    const arg = stilling.find((r) => r.team === 'ARG');
+    // Kun den finished kamp tæller
+    expect(arg.played).toBe(1);
+    expect(arg.drawn).toBe(1);
+    expect(arg.points).toBe(1);
+  });
+
+  it('ignorerer kamp med result.home ikke-numerisk', () => {
+    const kampe = [
+      {
+        round: 'group',
+        groupName: 'A',
+        homeTeam: 'ARG',
+        awayTeam: 'BRA',
+        status: 'finished',
+        result: { home: 'TBD', away: 0 },
+        kickoff: '2026-06-11T23:00:00Z',
+      },
+    ];
+    const stilling = computeGroupStandings(kampe);
+    const arg = stilling.find((r) => r.team === 'ARG');
+    expect(arg.played).toBe(0);
+  });
+
+  it('beregner gd korrekt for alle hold', () => {
+    const kampe = [
+      lavKamp('ARG', 'BRA', 'finished', 3, 0), // ARG gd=+3, BRA gd=-3
+    ];
+    const stilling = computeGroupStandings(kampe);
+    const arg = stilling.find((r) => r.team === 'ARG');
+    const bra = stilling.find((r) => r.team === 'BRA');
+    expect(arg.gd).toBe(3);
+    expect(bra.gd).toBe(-3);
+    // Summen af alle gd bør altid være 0
+    const totalGd = stilling.reduce((sum, r) => sum + r.gd, 0);
+    expect(totalGd).toBe(0);
+  });
+
+  it('0-0 uafgjort registreres korrekt', () => {
+    const kampe = [lavKamp('ARG', 'BRA', 'finished', 0, 0)];
+    const stilling = computeGroupStandings(kampe);
+    const arg = stilling.find((r) => r.team === 'ARG');
+    const bra = stilling.find((r) => r.team === 'BRA');
+    expect(arg.drawn).toBe(1);
+    expect(arg.points).toBe(1);
+    expect(arg.gf).toBe(0);
+    expect(arg.ga).toBe(0);
+    expect(bra.drawn).toBe(1);
+  });
+
+  it('ignorerer kamp med null homeTeam', () => {
+    const kampe = [
+      {
+        round: 'group',
+        groupName: 'A',
+        homeTeam: null,
+        awayTeam: 'BRA',
+        status: 'finished',
+        result: { home: 1, away: 0 },
+        kickoff: '2026-06-11T23:00:00Z',
+      },
+    ];
+    // hentHold(null) returnerer null → kampen springes over
+    expect(() => computeGroupStandings(kampe)).not.toThrow();
+  });
 });
 
 // ─── grupperEfterGruppe ───────────────────────────────────────────────────
@@ -231,5 +316,42 @@ describe('grupperEfterGruppe', () => {
     const gruppeMap = grupperEfterGruppe(kampe);
     const nøgler = [...gruppeMap.keys()];
     expect(nøgler).toEqual(['A', 'B', 'C']);
+  });
+
+  it('returnerer tom Map ved tom input', () => {
+    const gruppeMap = grupperEfterGruppe([]);
+    expect(gruppeMap.size).toBe(0);
+  });
+
+  it('ignorerer kampe uden groupName', () => {
+    const kampe = [
+      { round: 'group', groupName: null, homeTeam: 'ARG', awayTeam: 'BRA', status: 'scheduled', result: null },
+      lavKamp('MEX', 'USA', 'scheduled', null, null, 'A'),
+    ];
+    const gruppeMap = grupperEfterGruppe(kampe);
+    expect(gruppeMap.size).toBe(1);
+    expect(gruppeMap.has('A')).toBe(true);
+  });
+
+  it('returnerer Map (ikke Array)', () => {
+    const gruppeMap = grupperEfterGruppe([lavKamp('ARG', 'BRA', 'scheduled', null, null, 'A')]);
+    expect(gruppeMap instanceof Map).toBe(true);
+  });
+
+  it('inkluderer kampe uden resultat i gruppen', () => {
+    const kampe = [
+      lavKamp('ARG', 'BRA', 'scheduled', null, null, 'A'),
+      lavKamp('CHI', 'PER', 'finished', 1, 0, 'A'),
+    ];
+    const gruppeMap = grupperEfterGruppe(kampe);
+    expect(gruppeMap.get('A')).toHaveLength(2);
+  });
+
+  it('håndterer mange grupper (A-L)', () => {
+    const grupper = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+    const kampe = grupper.map((g) => lavKamp('ARG', 'BRA', 'scheduled', null, null, g));
+    const gruppeMap = grupperEfterGruppe(kampe);
+    expect(gruppeMap.size).toBe(12);
+    expect([...gruppeMap.keys()]).toEqual(grupper);
   });
 });

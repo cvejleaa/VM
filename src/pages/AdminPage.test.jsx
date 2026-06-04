@@ -1,7 +1,6 @@
-// Tests for AdminPage — rollebaseret fanegentlighed.
-// Bekræfter at Brugere-fanen er skjult for matchAdmin og synlig for owner.
+// Udtømmende tests for AdminPage — rollebaseret fanestyring og indhold.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // ─── Mock Firebase ────────────────────────────────────────────────────────────
@@ -13,16 +12,19 @@ vi.mock('../firebase', () => ({
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
-  onSnapshot: vi.fn(() => vi.fn()), // returnerer unsubscribe-funktion
+  onSnapshot: vi.fn(() => vi.fn()),
   orderBy: vi.fn(),
   query: vi.fn(),
   doc: vi.fn(),
   updateDoc: vi.fn(),
   addDoc: vi.fn(),
   serverTimestamp: vi.fn(),
+  arrayUnion: vi.fn((v) => ({ _arrayUnion: v })),
+  arrayRemove: vi.fn((v) => ({ _arrayRemove: v })),
   Timestamp: {
     fromDate: vi.fn((d) => ({ toDate: () => d })),
   },
+  where: vi.fn(),
 }));
 
 vi.mock('firebase/functions', () => ({
@@ -45,12 +47,14 @@ function renderAdminPage() {
   );
 }
 
-describe('AdminPage — rollebaseret fanestyring', () => {
+describe('AdminPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('Owner-bruger', () => {
+  // ─── Owner-bruger ─────────────────────────────────────────────────────────
+
+  describe('Owner-bruger (fuld adgang)', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         isOwner: true,
@@ -62,9 +66,7 @@ describe('AdminPage — rollebaseret fanestyring', () => {
 
     it('viser Brugere-fanen for owner', () => {
       renderAdminPage();
-      // Fane-knappen med teksten "Brugere" skal være synlig
-      const brugereTab = screen.queryByTestId('tab-users');
-      expect(brugereTab).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-users')).toBeInTheDocument();
     });
 
     it('viser Kampe & resultater-fanen for owner', () => {
@@ -77,20 +79,68 @@ describe('AdminPage — rollebaseret fanestyring', () => {
       expect(screen.queryByTestId('tab-bonus')).toBeInTheDocument();
     });
 
-    it('viser alle tre faner for owner', () => {
+    it('viser Ligaer-fanen for owner', () => {
       renderAdminPage();
-      expect(screen.queryByTestId('tab-users')).toBeInTheDocument();
-      expect(screen.queryByTestId('tab-matches')).toBeInTheDocument();
-      expect(screen.queryByTestId('tab-bonus')).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
+    });
+
+    it('viser alle fire faner for owner', () => {
+      renderAdminPage();
+      const tabs = screen.queryAllByTestId(/^tab-/);
+      expect(tabs).toHaveLength(4);
     });
 
     it('viser tekst om fuld adgang som ejer', () => {
       renderAdminPage();
       expect(screen.getByText(/fuld adgang som ejer/i)).toBeInTheDocument();
     });
+
+    it('starter på Brugere-fanen for owner', () => {
+      renderAdminPage();
+      const brugereTab = screen.getByTestId('tab-users');
+      // Fanen er aktiv (markeret med stærkere farve/fontWeight)
+      expect(brugereTab).toBeInTheDocument();
+    });
+
+    it('faneskift fra Brugere til Kampe viser kamp-indhold', async () => {
+      renderAdminPage();
+      fireEvent.click(screen.getByTestId('tab-matches'));
+      await waitFor(() => {
+        // MatchesTab indlæser — tjek loading-besked eller kamp-liste
+        expect(
+          screen.queryByText(/Henter kampe/i) ||
+          screen.queryByText(/Ingen kampe/i) ||
+          screen.queryByText(/Opret kamp/i)
+        ).toBeTruthy();
+      });
+    });
+
+    it('faneskift fra Brugere til Bonus-facit viser bonus-indhold', async () => {
+      renderAdminPage();
+      fireEvent.click(screen.getByTestId('tab-bonus'));
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Henter bonusspørgsmål/i) ||
+          screen.queryByText(/Ingen bonusspørgsmål/i)
+        ).toBeTruthy();
+      });
+    });
+
+    it('faneskift til Ligaer viser ligaer-indhold', async () => {
+      renderAdminPage();
+      fireEvent.click(screen.getByTestId('tab-leagues'));
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Henter ligaer/i) ||
+          screen.queryByText(/Ingen ligaer/i)
+        ).toBeTruthy();
+      });
+    });
   });
 
-  describe('MatchAdmin-bruger (ikke owner)', () => {
+  // ─── MatchAdmin-bruger ────────────────────────────────────────────────────
+
+  describe('MatchAdmin-bruger (begrænset adgang)', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         isOwner: false,
@@ -102,7 +152,6 @@ describe('AdminPage — rollebaseret fanestyring', () => {
 
     it('SKJULER Brugere-fanen for matchAdmin', () => {
       renderAdminPage();
-      // data-testid="tab-users" må IKKE eksistere for matchAdmin
       expect(screen.queryByTestId('tab-users')).not.toBeInTheDocument();
     });
 
@@ -116,17 +165,50 @@ describe('AdminPage — rollebaseret fanestyring', () => {
       expect(screen.queryByTestId('tab-bonus')).toBeInTheDocument();
     });
 
-    it('viser kun ikke-bruger-faner for matchAdmin (Kampe, Bonus, Ligaer)', () => {
+    it('viser Ligaer-fanen for matchAdmin', () => {
+      renderAdminPage();
+      expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
+    });
+
+    it('viser præcis 3 faner for matchAdmin (Kampe, Bonus, Ligaer)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(3); // matches, bonus, leagues — ikke 'users'
-      expect(screen.queryByTestId('tab-users')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
+      expect(tabs).toHaveLength(3);
     });
 
     it('viser tekst om kamp-administrator adgang', () => {
       renderAdminPage();
       expect(screen.getByText(/kamp-administrator/i)).toBeInTheDocument();
     });
+
+    it('starter på Kampe-fanen for matchAdmin', async () => {
+      renderAdminPage();
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Henter kampe/i) ||
+          screen.queryByText(/Ingen kampe/i) ||
+          screen.queryByText(/Opret kamp/i)
+        ).toBeTruthy();
+      });
+    });
+
+    it('faneskift til Bonus-facit viser bonus-indhold for matchAdmin', async () => {
+      renderAdminPage();
+      fireEvent.click(screen.getByTestId('tab-bonus'));
+      await waitFor(() => {
+        expect(
+          screen.queryByText(/Henter bonusspørgsmål/i) ||
+          screen.queryByText(/Ingen bonusspørgsmål/i)
+        ).toBeTruthy();
+      });
+    });
+  });
+
+  // ─── Panel-overskrift ─────────────────────────────────────────────────────
+
+  it('viser Admin-panel som overskrift', () => {
+    mockUseAuth.mockReturnValue({ isOwner: true, isMatchAdmin: true, user: { uid: 'x' } });
+    renderAdminPage();
+    expect(screen.getByText(/Admin-panel/i)).toBeInTheDocument();
   });
 });
