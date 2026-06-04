@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-04T09:38:17.333Z",
+  "generatedAt": "2026-06-04T14:15:29.438Z",
   "totals": {
-    "files": 39,
-    "tests": 920,
-    "passed": 920,
+    "files": 40,
+    "tests": 923,
+    "passed": 923,
     "failed": 0
   },
   "suites": [
@@ -1015,6 +1015,26 @@
         },
         {
           "name": "TestsTab › afhængigheds-fanen viser et diagram",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/admin/usePendingApprovals.test.js",
+      "area": "frontend",
+      "passed": 3,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "usePendingApprovals › returnerer 0 når deaktiveret (ikke-admin)",
+          "status": "passed"
+        },
+        {
+          "name": "usePendingApprovals › tæller kun ligaer for matchAdmin (uden brugere)",
+          "status": "passed"
+        },
+        {
+          "name": "usePendingApprovals › tæller både brugere og ligaer for ejer",
           "status": "passed"
         }
       ]
