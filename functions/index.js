@@ -162,6 +162,55 @@ exports.recomputeBonus = onDocumentWritten(
 );
 
 // ---------------------------------------------------------------------------
+// backfillTipParticipation — callable (owner/matchAdmin)
+// Engangs-/vedligeholdelsesfunktion: genopbygger tipParticipation ud fra ALLE
+// eksisterende bets, så tip-tælleren også dækker tips afgivet før
+// syncTipParticipation blev deployet.
+// ---------------------------------------------------------------------------
+exports.backfillTipParticipation = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  }
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  const role = userDoc.data()?.role;
+  if (role !== 'owner' && role !== 'matchAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan køre backfill.');
+  }
+
+  // Saml uids pr. matchId fra alle bets
+  const betsSnap = await db.collection('bets').get();
+  const byMatch = new Map();
+  for (const d of betsSnap.docs) {
+    const { matchId, uid } = d.data();
+    if (!matchId || !uid) continue;
+    if (!byMatch.has(matchId)) byMatch.set(matchId, new Set());
+    byMatch.get(matchId).add(uid);
+  }
+
+  // Skriv tipParticipation-dokumenter i batches
+  const BATCH_SIZE = 400;
+  let batch = db.batch();
+  let ops = 0;
+  const batches = [batch];
+  for (const [matchId, uidSet] of byMatch.entries()) {
+    const ref = db.collection('tipParticipation').doc(matchId);
+    batch.set(ref, { matchId, uids: [...uidSet] }, { merge: true });
+    ops++;
+    if (ops >= BATCH_SIZE) { batch = db.batch(); batches.push(batch); ops = 0; }
+  }
+  for (const b of batches) await b.commit();
+
+  return {
+    success: true,
+    matches: byMatch.size,
+    bets: betsSnap.size,
+    message: `Backfill færdig: ${byMatch.size} kampe opdateret ud fra ${betsSnap.size} tips.`,
+  };
+});
+
+// ---------------------------------------------------------------------------
 // syncTipParticipation — vedligeholder tipParticipation/{matchId} = { uids: [...] }
 // Holder styr på HVEM der har tippet på en kamp (men ikke hvad de tippede),
 // så ligaer kan vise "X af N har tippet" og hvem der mangler — uden at afsløre

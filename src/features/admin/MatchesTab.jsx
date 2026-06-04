@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
-import { callBuildKnockout, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -39,6 +39,17 @@ export default function MatchesTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [knockoutMsg, setKnockoutMsg] = useState('');
   const [knockoutBusy, setKnockoutBusy] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState('');
+  const [backfillBusy, setBackfillBusy] = useState(false);
+
+  async function handleBackfill() {
+    if (!window.confirm('Genopbyg tip-deltagelse ud fra alle eksisterende tips?')) return;
+    setBackfillBusy(true);
+    setBackfillMsg('');
+    const res = await callBackfillTipParticipation();
+    setBackfillBusy(false);
+    setBackfillMsg(res.ok ? (res.data?.message ?? 'Backfill færdig!') : `Fejl: ${res.error}`);
+  }
 
   async function handleBuildKnockout() {
     if (
@@ -98,7 +109,34 @@ export default function MatchesTab() {
         >
           {knockoutBusy ? 'Genererer…' : 'Generer knockout-kampe'}
         </button>
+
+        <button
+          className="btn btn--ghost"
+          onClick={handleBackfill}
+          disabled={backfillBusy}
+          title="Genopbyg tip-tælleren ud fra alle eksisterende tips"
+        >
+          {backfillBusy ? 'Kører…' : 'Genopbyg tip-deltagelse'}
+        </button>
       </div>
+
+      {/* Feedback fra backfill */}
+      {backfillMsg && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: '1rem',
+            padding: '0.5rem 0.8rem',
+            borderRadius: 8,
+            fontSize: '0.88rem',
+            background: backfillMsg.startsWith('Fejl') ? '#fef2f2' : '#f0fdf4',
+            color: backfillMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)',
+            border: `1px solid ${backfillMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)'}`,
+          }}
+        >
+          {backfillMsg}
+        </div>
+      )}
 
       {/* Feedback fra buildKnockout */}
       {knockoutMsg && (

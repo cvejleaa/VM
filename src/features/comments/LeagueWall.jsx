@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useLeagueComments } from './useLeagueComments';
 import { postLeagueComment, deleteLeagueComment } from './commentActions';
 import { formatTimestamp } from './formatTimestamp';
+import EmojiPicker from './EmojiPicker';
 
 export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, isAdmin = false }) {
   const { comments, loading, error } = useLeagueComments(leagueId);
@@ -108,9 +109,12 @@ export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, i
           style={{ resize: 'vertical' }}
         />
         {postError && <p className="form-error mt-1">{postError}</p>}
-        <button className="btn btn--sm mt-1" type="submit" disabled={busy || !text.trim()}>
-          {busy ? 'Sender…' : 'Send'}
-        </button>
+        <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
+          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
+          <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
+            {busy ? 'Sender…' : 'Send'}
+          </button>
+        </div>
       </form>
     </div>
   );

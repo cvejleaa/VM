@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T20:12:20.496Z",
+  "generatedAt": "2026-06-04T20:39:43.687Z",
   "nodes": [
     {
       "id": "firebase",
@@ -44,7 +44,7 @@
     {
       "id": "features/comments",
       "layer": 2,
-      "files": 5
+      "files": 6
     },
     {
       "id": "features/leaderboard",
@@ -281,7 +281,7 @@
     {
       "from": "pages",
       "to": "features/comments",
-      "count": 4
+      "count": 5
     },
     {
       "from": "pages",
