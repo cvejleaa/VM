@@ -40,6 +40,7 @@ import {
   saveMatchResult,
   createMatch,
   callBuildKnockout,
+  callSendTipRemindersNow,
   saveBonusFacit,
   approveBonusAnswer,
   removeBonusAnswer,
@@ -225,6 +226,36 @@ describe('adminActions', () => {
 
       await callBuildKnockout();
       expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'buildKnockout');
+    });
+  });
+
+  // ─── callSendTipRemindersNow ──────────────────────────────────────────────
+
+  describe('callSendTipRemindersNow', () => {
+    it('returnerer ok:true med antal sendte ved succes', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { success: true, sent: 3 } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+
+      const result = await callSendTipRemindersNow();
+      expect(result.ok).toBe(true);
+      expect(result.data.sent).toBe(3);
+    });
+
+    it('returnerer ok:false ved fejl', async () => {
+      const mockFn = vi.fn().mockRejectedValue({ message: 'RESEND_API_KEY er ikke sat endnu.' });
+      mockHttpsCallable.mockReturnValue(mockFn);
+
+      const result = await callSendTipRemindersNow();
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('RESEND_API_KEY');
+    });
+
+    it('kalder httpsCallable med sendTipRemindersNow', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: {} });
+      mockHttpsCallable.mockReturnValue(mockFn);
+
+      await callSendTipRemindersNow();
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'sendTipRemindersNow');
     });
   });
 

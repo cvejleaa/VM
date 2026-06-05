@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
-import { callBuildKnockout, callBackfillTipParticipation, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -41,6 +41,19 @@ export default function MatchesTab() {
   const [knockoutBusy, setKnockoutBusy] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState('');
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [reminderMsg, setReminderMsg] = useState('');
+  const [reminderBusy, setReminderBusy] = useState(false);
+
+  async function handleSendReminders() {
+    if (!window.confirm('Send e-mail-påmindelser til alle der mangler at tippe på dagens kampe?')) return;
+    setReminderBusy(true);
+    setReminderMsg('');
+    const res = await callSendTipRemindersNow();
+    setReminderBusy(false);
+    setReminderMsg(res.ok
+      ? `Påmindelser sendt: ${res.data?.sent ?? 0}`
+      : `Fejl: ${res.error}`);
+  }
 
   async function handleBackfill() {
     if (!window.confirm('Genopbyg tip-deltagelse ud fra alle eksisterende tips?')) return;
@@ -118,7 +131,23 @@ export default function MatchesTab() {
         >
           {backfillBusy ? 'Kører…' : 'Genopbyg tip-deltagelse'}
         </button>
+
+        <button
+          className="btn btn--ghost"
+          onClick={handleSendReminders}
+          disabled={reminderBusy}
+          title="Send e-mail-påmindelser nu (test)"
+        >
+          {reminderBusy ? 'Sender…' : '✉️ Send påmindelser nu'}
+        </button>
       </div>
+
+      {/* Feedback fra påmindelser */}
+      {reminderMsg && (
+        <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, background: 'var(--c-surface-2, #f0f0f0)', fontSize: '0.88rem' }}>
+          {reminderMsg}
+        </div>
+      )}
 
       {/* Feedback fra backfill */}
       {backfillMsg && (

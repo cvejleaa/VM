@@ -503,71 +503,91 @@ async function sendEmail(apiKey, { to, subject, html }) {
   }
 }
 
+// Kerne-logik: send påmindelser om dagens utippede kampe. Returnerer antal sendte.
+async function runTipReminders(db, apiKey) {
+  if (!apiKey) { console.log('tipReminders: ingen RESEND_API_KEY — springer over.'); return { sent: 0, reason: 'no-api-key' }; }
+
+  const now = new Date();
+  const todayStr = cphDateStr(now);
+
+  // Dagens kampe der stadig kan tippes (kendte hold, ikke kickoff endnu)
+  const matchesSnap = await db
+    .collection('matches')
+    .where('status', '==', 'scheduled')
+    .get();
+
+  const todayMatches = matchesSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((m) => m.homeTeam && m.awayTeam && m.kickoff?.toDate
+      && cphDateStr(m.kickoff.toDate()) === todayStr
+      && m.kickoff.toDate() > now);
+
+  if (todayMatches.length === 0) { console.log('tipReminders: ingen kampe i dag.'); return { sent: 0, reason: 'no-matches' }; }
+
+  // Hvem har tippet hver kamp (fra tipParticipation)
+  const tippedByMatch = {};
+  await Promise.all(todayMatches.map(async (m) => {
+    const p = await db.collection('tipParticipation').doc(m.id).get();
+    tippedByMatch[m.id] = new Set(p.exists ? (p.data().uids ?? []) : []);
+  }));
+
+  const usersSnap = await db
+    .collection('users')
+    .where('status', '==', 'approved')
+    .get();
+
+  let sent = 0;
+  for (const userDoc of usersSnap.docs) {
+    const u = userDoc.data();
+    if (u.emailOptOut || !u.email) continue;
+
+    const missing = todayMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
+    if (missing.length === 0) continue;
+
+    const list = missing
+      .map((m) => `<li>${m.homeTeam} – ${m.awayTeam}</li>`)
+      .join('');
+    const html = `
+      <p>Hej ${u.displayName || 'spiller'} 👋</p>
+      <p>Du mangler at tippe på <strong>${missing.length}</strong> af dagens kampe:</p>
+      <ul>${list}</ul>
+      <p><a href="${APP_URL}">Afgiv dine tips på vm.vejleaa.dk</a> inden kampstart.</p>
+      <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
+
+    try {
+      await sendEmail(apiKey, {
+        to: u.email,
+        subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
+        html,
+      });
+      sent++;
+    } catch (e) {
+      console.error(`tipReminders: kunne ikke sende til ${u.email}:`, e.message);
+    }
+  }
+  console.log(`tipReminders: sendte ${sent} påmindelser.`);
+  return { sent, candidates: todayMatches.length };
+}
+
 exports.tipReminders = onSchedule(
   { schedule: '0 9 * * *', timeZone: TZ, region: REGION, secrets: [RESEND_API_KEY] },
-  async () => {
-    const apiKey = RESEND_API_KEY.value();
-    if (!apiKey) { console.log('tipReminders: ingen RESEND_API_KEY — springer over.'); return; }
+  async () => { await runTipReminders(getFirestore(), RESEND_API_KEY.value()); }
+);
 
+// Callable: admin kan udløse påmindelserne manuelt (til test).
+exports.sendTipRemindersNow = onCall(
+  { region: REGION, secrets: [RESEND_API_KEY] },
+  async (request) => {
     const db = getFirestore();
-    const now = new Date();
-    const todayStr = cphDateStr(now);
-
-    // Dagens kampe der stadig kan tippes (kendte hold, ikke kickoff endnu)
-    const matchesSnap = await db
-      .collection('matches')
-      .where('status', '==', 'scheduled')
-      .get();
-
-    const todayMatches = matchesSnap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((m) => m.homeTeam && m.awayTeam && m.kickoff?.toDate
-        && cphDateStr(m.kickoff.toDate()) === todayStr
-        && m.kickoff.toDate() > now);
-
-    if (todayMatches.length === 0) { console.log('tipReminders: ingen kampe i dag.'); return; }
-
-    // Hvem har tippet hver kamp (fra tipParticipation)
-    const tippedByMatch = {};
-    await Promise.all(todayMatches.map(async (m) => {
-      const p = await db.collection('tipParticipation').doc(m.id).get();
-      tippedByMatch[m.id] = new Set(p.exists ? (p.data().uids ?? []) : []);
-    }));
-
-    const usersSnap = await db
-      .collection('users')
-      .where('status', '==', 'approved')
-      .get();
-
-    let sent = 0;
-    for (const userDoc of usersSnap.docs) {
-      const u = userDoc.data();
-      if (u.emailOptOut || !u.email) continue;
-
-      const missing = todayMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
-      if (missing.length === 0) continue;
-
-      const list = missing
-        .map((m) => `<li>${m.homeTeam} – ${m.awayTeam}</li>`)
-        .join('');
-      const html = `
-        <p>Hej ${u.displayName || 'spiller'} 👋</p>
-        <p>Du mangler at tippe på <strong>${missing.length}</strong> af dagens kampe:</p>
-        <ul>${list}</ul>
-        <p><a href="${APP_URL}">Afgiv dine tips på vm.vejleaa.dk</a> inden kampstart.</p>
-        <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
-
-      try {
-        await sendEmail(apiKey, {
-          to: u.email,
-          subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
-          html,
-        });
-        sent++;
-      } catch (e) {
-        console.error(`tipReminders: kunne ikke sende til ${u.email}:`, e.message);
-      }
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const userDoc = await db.collection('users').doc(request.auth.uid).get();
+    const role = userDoc.data()?.role;
+    if (role !== 'owner' && role !== 'matchAdmin') {
+      throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan sende påmindelser.');
     }
-    console.log(`tipReminders: sendte ${sent} påmindelser.`);
+    const apiKey = RESEND_API_KEY.value();
+    if (!apiKey) throw new HttpsError('failed-precondition', 'RESEND_API_KEY er ikke sat endnu.');
+    const result = await runTipReminders(db, apiKey);
+    return { success: true, ...result };
   }
 );
