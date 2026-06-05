@@ -436,6 +436,72 @@ describe('matches — sikkerhedsregler', () => {
 });
 
 // ---------------------------------------------------------------------------
+// TESTS: liga-admins (adminUids) — kun global ejer tildeler
+// ---------------------------------------------------------------------------
+describe('leagues — liga-admins (adminUids)', () => {
+  async function seedLeague(id, data) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagues').doc(id).set({
+        name: 'Liga', joinCode: 'ABC123', status: 'approved',
+        createdAt: Timestamp.now(), adminUids: [], ...data,
+      });
+    });
+  }
+
+  it('global ejer KAN tildele liga-admin', async () => {
+    await createUser('owner1', 'owner', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await seedLeague('lgA', { ownerUid: 'owner1', memberUids: ['owner1', 'm2'] });
+
+    const ctx = testEnv.authenticatedContext('owner1');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgA'), { adminUids: ['m2'] })
+    );
+  });
+
+  it('matchAdmin (ikke ejer) KAN IKKE ændre adminUids', async () => {
+    await createUser('ma', 'matchAdmin', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await seedLeague('lgB', { ownerUid: 'someone', memberUids: ['someone', 'm2'] });
+
+    const ctx = testEnv.authenticatedContext('ma');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgB'), { adminUids: ['m2'] })
+    );
+  });
+
+  it('en liga-admin KAN tilføje medlemmer', async () => {
+    await createUser('admin2', 'player', 'approved');
+    await seedLeague('lgC', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'] });
+
+    const ctx = testEnv.authenticatedContext('admin2');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgC'), { memberUids: ['owner9', 'admin2', 'newguy'] })
+    );
+  });
+
+  it('en liga-admin KAN IKKE ændre status', async () => {
+    await createUser('admin2', 'player', 'approved');
+    await seedLeague('lgD', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'] });
+
+    const ctx = testEnv.authenticatedContext('admin2');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgD'), { status: 'rejected' })
+    );
+  });
+
+  it('et almindeligt medlem KAN IKKE tilføje andre medlemmer', async () => {
+    await createUser('plain', 'player', 'approved');
+    await seedLeague('lgE', { ownerUid: 'owner9', memberUids: ['owner9', 'plain'], adminUids: [] });
+
+    const ctx = testEnv.authenticatedContext('plain');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgE'), { memberUids: ['owner9', 'plain', 'newguy'] })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Hjælpefunktion: opret en liga via admin-context
 // ---------------------------------------------------------------------------
 async function createLeague(leagueId, ownerUid, memberUids, status = 'approved') {

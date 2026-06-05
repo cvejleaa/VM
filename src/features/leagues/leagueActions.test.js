@@ -10,6 +10,7 @@ import {
   leaveLeague,
   deleteLeague,
   removeMember,
+  setLeagueAdmin,
 } from './leagueActions';
 
 // ── Mock firebase/firestore ───────────────────────────────────────────────────
@@ -245,6 +246,31 @@ describe('adminAddMember', () => {
     await adminAddMember('liga-1', 'uid-ny');
     expect(mockUpdateDoc).toHaveBeenCalled();
     expect(mockArrayUnion).toHaveBeenCalledWith('uid-ny');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('setLeagueAdmin', () => {
+  beforeEach(() => {
+    mockUpdateDoc.mockResolvedValue(undefined);
+    mockArrayUnion.mockImplementation((...args) => ({ _arrayUnion: args }));
+    mockArrayRemove.mockImplementation((...args) => ({ _arrayRemove: args }));
+  });
+
+  it('kaster fejl uden uid', async () => {
+    await expect(setLeagueAdmin('liga-1', '', true)).rejects.toThrow('Vælg en bruger.');
+  });
+
+  it('tilføjer liga-admin med arrayUnion', async () => {
+    await setLeagueAdmin('liga-1', 'uid-2', true);
+    expect(mockArrayUnion).toHaveBeenCalledWith('uid-2');
+    expect(mockUpdateDoc).toHaveBeenCalled();
+  });
+
+  it('fjerner liga-admin med arrayRemove', async () => {
+    await setLeagueAdmin('liga-1', 'uid-2', false);
+    expect(mockArrayRemove).toHaveBeenCalledWith('uid-2');
   });
 });
 

@@ -17,6 +17,8 @@ import {
   leaveLeague,
   deleteLeague,
   removeMember,
+  adminAddMember,
+  renameLeague,
 } from '../features/leagues/leagueActions';
 import { filterUsersByLeague } from '../features/leagues/leagueUtils';
 import { sortByPoints } from '../features/leaderboard/standingsUtils';
@@ -72,19 +74,57 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const [removing, setRemoving] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [addPick, setAddPick] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [renameVal, setRenameVal] = useState(null); // null = ikke i gang
+  const [renaming, setRenaming] = useState(false);
 
   const isOwner = league.ownerUid === meUid;
+  const leagueAdminUids = league.adminUids ?? [];
+  const isLeagueAdmin = leagueAdminUids.includes(meUid);
+  // "Manager" = liga-ejer eller udpeget liga-admin (eller global match-admin)
+  const isManager = isOwner || isLeagueAdmin || isAdmin;
   const members = filterUsersByLeague(standings, league.memberUids);
+  // Spillere der kan tilføjes (godkendte, ikke allerede medlem)
+  const addable = standings.filter((u) => !(league.memberUids ?? []).includes(u.uid));
 
   async function handleRemoveMember(memberUid) {
     setRemoving(memberUid);
     setActionError('');
     try {
-      await removeMember(league.id, memberUid, meUid);
+      // 3. arg = liga-ejeren, så hverken admin eller ejer kan fjerne liga-ejeren
+      await removeMember(league.id, memberUid, league.ownerUid);
     } catch (e) {
       setActionError(e.message);
     } finally {
       setRemoving(null);
+    }
+  }
+
+  async function handleAddMember() {
+    if (!addPick) return;
+    setAdding(true);
+    setActionError('');
+    try {
+      await adminAddMember(league.id, addPick);
+      setAddPick('');
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRename() {
+    setRenaming(true);
+    setActionError('');
+    try {
+      await renameLeague(league.id, renameVal);
+      setRenameVal(null);
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -122,12 +162,38 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
       {/* Overskrift */}
       <div className="card mb-2">
         <div className="card__header">
-          <h2 className="card__title" style={{ fontSize: '1.25rem' }}>{league.name}</h2>
+          {renameVal !== null ? (
+            <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                className="input" style={{ maxWidth: 240 }} maxLength={40}
+                value={renameVal} aria-label="Nyt liganavn"
+                onChange={(e) => setRenameVal(e.target.value)}
+              />
+              <button className="btn btn--sm" disabled={renaming || !renameVal.trim()} onClick={handleRename}>
+                {renaming ? 'Gemmer…' : 'Gem'}
+              </button>
+              <button className="btn btn--ghost btn--sm" onClick={() => setRenameVal(null)}>Annullér</button>
+            </span>
+          ) : (
+            <h2 className="card__title" style={{ fontSize: '1.25rem', display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+              {league.name}
+              {isManager && (
+                <button
+                  className="btn--icon" title="Omdøb liga" aria-label="Omdøb liga"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.9rem' }}
+                  onClick={() => setRenameVal(league.name)}
+                >
+                  ✏️
+                </button>
+              )}
+            </h2>
+          )}
           <div className="flex gap-1" style={{ flexWrap: 'wrap' }}>
             <span className="badge badge--muted">
               Kode: <strong>{league.joinCode}</strong>
             </span>
             <span className="badge badge--blue">{league.memberUids?.length ?? 0} spillere</span>
+            {isLeagueAdmin && !isOwner && <span className="badge badge--green">du er liga-admin</span>}
           </div>
         </div>
 
@@ -189,10 +255,28 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
         isAdmin={isAdmin}
       />
 
-      {/* Medlemsliste med fjern-knapper for ejeren */}
-      {isOwner && members.length > 0 && (
+      {/* Administrér medlemmer (liga-ejer eller liga-admin) */}
+      {isManager && (
         <div className="card mt-2">
           <h3 className="card__title mb-2">Administrér medlemmer</h3>
+
+          {/* Tilføj medlem */}
+          <div className="flex gap-1 mb-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+            <select
+              className="select" style={{ maxWidth: 220 }}
+              value={addPick} onChange={(e) => setAddPick(e.target.value)}
+              aria-label="Tilføj spiller til ligaen"
+            >
+              <option value="">– Tilføj spiller –</option>
+              {addable.map((u) => (
+                <option key={u.uid} value={u.uid}>{u.displayName || '(ukendt)'}</option>
+              ))}
+            </select>
+            <button className="btn btn--sm" disabled={!addPick || adding} onClick={handleAddMember}>
+              {adding ? 'Tilføjer…' : 'Tilføj'}
+            </button>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {members.map((u) => (
               <div key={u.uid} className="flex items-center justify-between" style={{ gap: '0.5rem' }}>
@@ -204,8 +288,11 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
                   {u.uid === league.ownerUid && (
                     <span className="badge badge--green" style={{ marginLeft: '0.4rem' }}>ejer</span>
                   )}
+                  {u.uid !== league.ownerUid && leagueAdminUids.includes(u.uid) && (
+                    <span className="badge badge--blue" style={{ marginLeft: '0.4rem' }}>liga-admin</span>
+                  )}
                 </span>
-                {u.uid !== meUid && (
+                {u.uid !== league.ownerUid && (
                   <button
                     className="btn btn--danger btn--sm"
                     onClick={() => handleRemoveMember(u.uid)}
@@ -218,6 +305,9 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
               </div>
             ))}
           </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginTop: '0.5rem' }}>
+            Liga-admins udpeges af den globale administrator.
+          </p>
         </div>
       )}
     </div>
