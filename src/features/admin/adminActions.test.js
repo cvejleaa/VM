@@ -41,6 +41,7 @@ import {
   createMatch,
   callBuildKnockout,
   callSendTipRemindersNow,
+  callSendTestReminderToMe,
   saveBonusFacit,
   approveBonusAnswer,
   removeBonusAnswer,
@@ -256,6 +257,28 @@ describe('adminActions', () => {
 
       await callSendTipRemindersNow();
       expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'sendTipRemindersNow');
+    });
+  });
+
+  // ─── callSendTestReminderToMe ─────────────────────────────────────────────
+
+  describe('callSendTestReminderToMe', () => {
+    it('returnerer ok:true med modtager og antal', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { success: true, sentTo: 'a@b.dk', days: 3, matches: 12 } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+
+      const result = await callSendTestReminderToMe();
+      expect(result.ok).toBe(true);
+      expect(result.data.sentTo).toBe('a@b.dk');
+      expect(result.data.matches).toBe(12);
+    });
+
+    it('kalder httpsCallable med sendTestReminderToMe', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: {} });
+      mockHttpsCallable.mockReturnValue(mockFn);
+
+      await callSendTestReminderToMe();
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'sendTestReminderToMe');
     });
   });
 

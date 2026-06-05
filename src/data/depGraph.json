@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T06:52:18.035Z",
+  "generatedAt": "2026-06-05T07:52:53.044Z",
   "nodes": [
     {
       "id": "firebase",
@@ -141,7 +141,7 @@
     {
       "from": "features/admin",
       "to": "lib (kerne)",
-      "count": 14
+      "count": 15
     },
     {
       "from": "features/admin",
@@ -157,6 +157,11 @@
       "from": "features/admin",
       "to": "features/leagues",
       "count": 2
+    },
+    {
+      "from": "features/admin",
+      "to": "components",
+      "count": 1
     },
     {
       "from": "features/admin",

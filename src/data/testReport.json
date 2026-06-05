@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T06:52:17.974Z",
+  "generatedAt": "2026-06-05T07:52:52.993Z",
   "totals": {
     "files": 49,
-    "tests": 978,
-    "passed": 978,
+    "tests": 980,
+    "passed": 980,
     "failed": 0
   },
   "suites": [
@@ -306,7 +306,7 @@
     {
       "file": "src/features/admin/adminActions.test.js",
       "area": "frontend",
-      "passed": 34,
+      "passed": 36,
       "failed": 0,
       "tests": [
         {
@@ -399,6 +399,14 @@
         },
         {
           "name": "adminActions › callSendTipRemindersNow › kalder httpsCallable med sendTipRemindersNow",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › callSendTestReminderToMe › returnerer ok:true med modtager og antal",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › callSendTestReminderToMe › kalder httpsCallable med sendTestReminderToMe",
           "status": "passed"
         },
         {

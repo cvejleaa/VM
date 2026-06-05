@@ -600,3 +600,69 @@ exports.sendTipRemindersNow = onCall(
     return { success: true, ...result };
   }
 );
+
+// Callable: send en testmail KUN til admin selv, med alle kampe for de
+// første 3 spilledage (uanset om de er tippet).
+exports.sendTestReminderToMe = onCall(
+  { region: REGION, secrets: [SMTP_PASSWORD] },
+  async (request) => {
+    const db = getFirestore();
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const userDoc = await db.collection('users').doc(request.auth.uid).get();
+    const u = userDoc.data();
+    if (!u || (u.role !== 'owner' && u.role !== 'matchAdmin')) {
+      throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan sende testmail.');
+    }
+    if (!u.email) throw new HttpsError('failed-precondition', 'Din profil har ingen e-mailadresse.');
+
+    const transporter = buildTransport(SMTP_PASSWORD.value());
+    if (!transporter) throw new HttpsError('failed-precondition', 'SMTP_PASSWORD er ikke sat endnu.');
+
+    // Alle kampe med kendte hold, sorteret efter kickoff
+    const snap = await db.collection('matches').get();
+    const playable = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((m) => m.homeTeam && m.awayTeam && m.kickoff?.toDate)
+      .sort((a, b) => a.kickoff.toDate() - b.kickoff.toDate());
+
+    // Saml de første 3 spilledage (distinkte CPH-datoer)
+    const days = [];
+    const byDay = new Map();
+    for (const m of playable) {
+      const day = cphDateStr(m.kickoff.toDate());
+      if (!byDay.has(day)) {
+        if (days.length >= 3) break; // sorteret → alle tidligere dage er med
+        days.push(day);
+        byDay.set(day, []);
+      }
+      byDay.get(day).push(m);
+    }
+
+    if (days.length === 0) throw new HttpsError('failed-precondition', 'Ingen kampe med kendte hold fundet.');
+
+    const dayLabel = (d) => new Intl.DateTimeFormat('da-DK', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+    const timeLabel = (d) => new Intl.DateTimeFormat('da-DK', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(d);
+
+    let total = 0;
+    let html = `<p>Hej ${u.displayName || 'spiller'} 👋</p><p>Testmail — kampene for de første 3 spilledage:</p>`;
+    for (const day of days) {
+      const ms = byDay.get(day);
+      total += ms.length;
+      html += `<h3 style="margin:14px 0 4px">${dayLabel(ms[0].kickoff.toDate())}</h3><ul style="margin:0">`;
+      for (const m of ms) {
+        html += `<li>${timeLabel(m.kickoff.toDate())} — ${m.homeTeam} – ${m.awayTeam}</li>`;
+      }
+      html += '</ul>';
+    }
+    html += `<p style="margin-top:14px"><a href="${APP_URL}">Gå til vm.vejleaa.dk</a></p>
+      <p style="color:#888;font-size:12px">Dette er en testmail sendt kun til dig.</p>`;
+
+    await sendEmail(transporter, {
+      to: u.email,
+      subject: '🧪 Testmail: kampe for de første 3 spilledage',
+      html,
+    });
+
+    return { success: true, sentTo: u.email, days: days.length, matches: total };
+  }
+);
