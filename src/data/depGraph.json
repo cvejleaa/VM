@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T07:52:53.044Z",
+  "generatedAt": "2026-06-05T10:44:32.517Z",
   "nodes": [
     {
       "id": "firebase",
@@ -44,7 +44,7 @@
     {
       "id": "features/comments",
       "layer": 2,
-      "files": 6
+      "files": 8
     },
     {
       "id": "features/leaderboard",
@@ -129,6 +129,11 @@
       "count": 1
     },
     {
+      "from": "components",
+      "to": "features/comments",
+      "count": 1
+    },
+    {
       "from": "context",
       "to": "firebase",
       "count": 1
@@ -206,7 +211,7 @@
     {
       "from": "features/comments",
       "to": "lib (kerne)",
-      "count": 5
+      "count": 6
     },
     {
       "from": "features/comments",
@@ -216,7 +221,7 @@
     {
       "from": "features/comments",
       "to": "firebase",
-      "count": 3
+      "count": 4
     },
     {
       "from": "features/leaderboard",
@@ -346,7 +351,7 @@
     {
       "from": "pages",
       "to": "features/comments",
-      "count": 6
+      "count": 7
     },
     {
       "from": "pages",
