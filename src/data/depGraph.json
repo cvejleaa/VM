@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T11:14:56.841Z",
+  "generatedAt": "2026-06-05T11:50:45.208Z",
   "nodes": [
     {
       "id": "firebase",
@@ -54,7 +54,7 @@
     {
       "id": "features/leagues",
       "layer": 2,
-      "files": 9
+      "files": 10
     },
     {
       "id": "features/matches",
@@ -256,7 +256,7 @@
     {
       "from": "features/leagues",
       "to": "lib (kerne)",
-      "count": 7
+      "count": 8
     },
     {
       "from": "features/leagues",
@@ -341,7 +341,7 @@
     {
       "from": "pages",
       "to": "lib (kerne)",
-      "count": 11
+      "count": 13
     },
     {
       "from": "pages",
@@ -351,7 +351,7 @@
     {
       "from": "pages",
       "to": "features/leagues",
-      "count": 7
+      "count": 9
     },
     {
       "from": "pages",

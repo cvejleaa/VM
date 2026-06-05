@@ -11,6 +11,7 @@ export default defineConfig({
       'scoring.test.js',
       'standings.test.js',
       'knockout.test.js',
+      'breakdown.test.js',
     ],
     exclude: [
       'rules.test.js',

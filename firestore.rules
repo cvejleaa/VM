@@ -186,11 +186,11 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminUids']);
 
-      // Liga-admin (udpeget pr. liga) kan styre medlemmer og omdøbe ligaen,
-      // men ikke ændre status, ejer eller adminUids.
+      // Liga-admin (udpeget pr. liga) kan styre medlemmer, omdøbe ligaen og
+      // ændre format, men ikke ændre status, ejer eller adminUids.
       allow update: if isApproved()
         && (request.auth.uid in resource.data.get('adminUids', []))
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'name']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'name', 'format']);
 
       // Tilmeld: godkendt bruger føjer sit eget uid til en GODKENDT liga
       allow update: if isApproved()

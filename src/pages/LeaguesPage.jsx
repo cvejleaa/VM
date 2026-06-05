@@ -19,7 +19,10 @@ import {
   removeMember,
   adminAddMember,
   renameLeague,
+  setLeagueFormat,
 } from '../features/leagues/leagueActions';
+import { FORMAT_OPTIONS, formatLabel, leagueScore } from '../features/leagues/leagueFormat';
+import { LEAGUE_FORMAT } from '../lib/constants';
 import { filterUsersByLeague } from '../features/leagues/leagueUtils';
 import { sortByPoints } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
@@ -78,6 +81,7 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const [adding, setAdding] = useState(false);
   const [renameVal, setRenameVal] = useState(null); // null = ikke i gang
   const [renaming, setRenaming] = useState(false);
+  const [savingFormat, setSavingFormat] = useState(false);
 
   const isOwner = league.ownerUid === meUid;
   const leagueAdminUids = league.adminUids ?? [];
@@ -193,9 +197,34 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
               Kode: <strong>{league.joinCode}</strong>
             </span>
             <span className="badge badge--blue">{league.memberUids?.length ?? 0} spillere</span>
+            <span className="badge badge--muted" title="Liga-format">⚙️ {formatLabel(league.format)}</span>
             {isLeagueAdmin && !isOwner && <span className="badge badge--green">du er liga-admin</span>}
           </div>
         </div>
+
+        {/* Format-valg (liga-ejer/-admin) */}
+        {isManager && (
+          <div className="flex gap-1" style={{ flexWrap: 'wrap', marginTop: '0.5rem', alignItems: 'center' }}>
+            <label className="form-label" style={{ margin: 0 }} htmlFor={`fmt-${league.id}`}>Format:</label>
+            <select
+              id={`fmt-${league.id}`}
+              className="select"
+              style={{ maxWidth: 220 }}
+              value={league.format ?? LEAGUE_FORMAT.FULL}
+              disabled={savingFormat}
+              onChange={async (e) => {
+                setSavingFormat(true); setActionError('');
+                try { await setLeagueFormat(league.id, e.target.value); }
+                catch (e2) { setActionError(e2.message); }
+                finally { setSavingFormat(false); }
+              }}
+            >
+              {FORMAT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Admin-handlinger (kun ejer) */}
         {isOwner && (
@@ -224,13 +253,21 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
         )}
       </div>
 
-      {/* Rangering */}
+      {/* Rangering (efter ligaens format) */}
       <div className="card card--flat">
-        <h3 className="card__title mb-2">Ligaens stilling</h3>
+        <h3 className="card__title mb-2">
+          Ligaens stilling
+          {(league.format && league.format !== LEAGUE_FORMAT.FULL) && (
+            <span className="badge badge--muted" style={{ marginLeft: '0.5rem', fontWeight: 500 }}>
+              {formatLabel(league.format)}
+            </span>
+          )}
+        </h3>
         <StandingsTable
           users={standings}
           meUid={meUid}
           memberUids={league.memberUids}
+          getPoints={(uid) => leagueScore(standings.find((u) => u.uid === uid), league.format)}
           emptyMsg="Ingen spillere i ligaen."
         />
       </div>
@@ -317,9 +354,12 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
 // ── Opret liga-formular ───────────────────────────────────────────────────────
 function CreateLeagueForm({ uid, meName, onCreated }) {
   const [name, setName] = useState('');
+  const [format, setFormat] = useState(LEAGUE_FORMAT.FULL);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const formatDesc = FORMAT_OPTIONS.find((o) => o.value === format)?.desc;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -327,7 +367,7 @@ function CreateLeagueForm({ uid, meName, onCreated }) {
     setSuccess('');
     setLoading(true);
     try {
-      const newId = await createLeague(name, uid);
+      const newId = await createLeague(name, uid, format);
       tryLogActivity({ leagueId: newId, type: ACTIVITY.CREATED, actorUid: uid, actorName: meName, text: 'oprettede ligaen' });
       const msg = `Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`;
       setSuccess(msg);
@@ -354,6 +394,22 @@ function CreateLeagueForm({ uid, meName, onCreated }) {
           maxLength={40}
           required
         />
+      </div>
+      <div className="form-group">
+        <label className="form-label" htmlFor="league-format">Format</label>
+        <select
+          id="league-format"
+          className="select"
+          value={format}
+          onChange={(e) => setFormat(e.target.value)}
+        >
+          {FORMAT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {formatDesc && (
+          <p style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginTop: '0.25rem' }}>{formatDesc}</p>
+        )}
       </div>
       {error && <p className="form-error mt-1">{error}</p>}
       {success && <p className="badge badge--green mt-1" style={{ display: 'block' }}>{success}</p>}

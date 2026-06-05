@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T11:14:56.787Z",
+  "generatedAt": "2026-06-05T11:50:45.152Z",
   "totals": {
-    "files": 52,
-    "tests": 1006,
-    "passed": 1006,
+    "files": 54,
+    "tests": 1020,
+    "passed": 1020,
     "failed": 0
   },
   "suites": [
@@ -2184,6 +2184,54 @@
       ]
     },
     {
+      "file": "src/features/leagues/leagueFormat.test.js",
+      "area": "frontend",
+      "passed": 10,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "leagueScore › FULL bruger totalPoints",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › BONUS_ONLY bruger bonusPoints",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › KNOCKOUT_ONLY bruger knockoutPoints",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › GROUP_ONLY bruger groupPoints",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › DOUBLE_KNOCKOUT vægter slutspil dobbelt",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › ukendt format falder tilbage til total",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore › håndterer manglende felter som 0",
+          "status": "passed"
+        },
+        {
+          "name": "formatLabel / FORMAT_OPTIONS › har 5 formater",
+          "status": "passed"
+        },
+        {
+          "name": "formatLabel / FORMAT_OPTIONS › giver en label for hvert format",
+          "status": "passed"
+        },
+        {
+          "name": "formatLabel / FORMAT_OPTIONS › falder tilbage til Fuld-label ved ukendt",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/leagues/leagueUtils.test.js",
       "area": "frontend",
       "passed": 13,
@@ -4223,6 +4271,30 @@
         },
         {
           "name": "TournamentPage – Slutspil-fane › viser LIVE-badge for live-slutspilskamp",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "functions/breakdown.test.js",
+      "area": "functions",
+      "passed": 4,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "computeBreakdown › opdeler point i grundspil, slutspil og bonus",
+          "status": "passed"
+        },
+        {
+          "name": "computeBreakdown › ignorerer bets uden point",
+          "status": "passed"
+        },
+        {
+          "name": "computeBreakdown › behandler ukendt matchId som grundspil",
+          "status": "passed"
+        },
+        {
+          "name": "computeBreakdown › håndterer tomme lister",
           "status": "passed"
         }
       ]

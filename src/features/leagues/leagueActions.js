@@ -15,8 +15,10 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { COL, LEAGUE_STATUS } from '../../lib/constants';
+import { COL, LEAGUE_STATUS, LEAGUE_FORMAT } from '../../lib/constants';
 import { generateJoinCode } from './leagueUtils';
+
+const VALID_FORMATS = Object.values(LEAGUE_FORMAT);
 
 /**
  * Opret en ny liga.
@@ -24,9 +26,10 @@ import { generateJoinCode } from './leagueUtils';
  * @param {string} ownerUid  – opretterens uid
  * @returns {Promise<string>} – det nye dokument-id
  */
-export async function createLeague(name, ownerUid) {
+export async function createLeague(name, ownerUid, format = LEAGUE_FORMAT.FULL) {
   if (!name?.trim()) throw new Error('Ligaen skal have et navn.');
   if (!ownerUid) throw new Error('Mangler brugerId.');
+  const fmt = VALID_FORMATS.includes(format) ? format : LEAGUE_FORMAT.FULL;
 
   const joinCode = generateJoinCode();
 
@@ -36,11 +39,22 @@ export async function createLeague(name, ownerUid) {
     joinCode,
     memberUids: [ownerUid],
     adminUids: [], // liga-admins udpeges af den globale ejer
+    format: fmt, // hvilke point der tæller i ligaen
     status: LEAGUE_STATUS.PENDING, // skal godkendes af admin
     createdAt: serverTimestamp(),
   });
 
   return ref.id;
+}
+
+/**
+ * Sæt en ligas format (liga-ejer/-admin). Styres af sikkerhedsreglerne.
+ * @param {string} leagueId
+ * @param {string} format
+ */
+export async function setLeagueFormat(leagueId, format) {
+  if (!VALID_FORMATS.includes(format)) throw new Error('Ukendt liga-format.');
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { format });
 }
 
 /**

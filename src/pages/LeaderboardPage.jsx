@@ -12,6 +12,8 @@ import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
+import { leagueScore, formatLabel } from '../features/leagues/leagueFormat';
+import { LEAGUE_FORMAT } from '../lib/constants';
 
 // ── Fane-konstanter ──────────────────────────────────────────────────────────
 const TAB_OVERALL = 'overall';
@@ -36,6 +38,14 @@ export default function LeaderboardPage() {
     (uid) => pointsByUid[uid] ?? 0,
     [pointsByUid],
   );
+
+  // Når en liga er valgt med et særligt format, rangeres efter dens point-udvalg
+  const leagueFormat = selectedLeague?.format ?? LEAGUE_FORMAT.FULL;
+  const getLeaguePoints = useCallback(
+    (uid) => leagueScore(standings.find((u) => u.uid === uid), leagueFormat),
+    [standings, leagueFormat],
+  );
+  const useLeagueScoring = selectedLeagueId && leagueFormat !== LEAGUE_FORMAT.FULL;
 
   // Formatér dags dato til dansk visning
   const todayDanish = todayStr
@@ -113,10 +123,16 @@ export default function LeaderboardPage() {
             )}
           </div>
 
+          {useLeagueScoring && (
+            <p className="text-sm text-muted mb-2" style={{ color: 'var(--c-muted)' }}>
+              Rangeret efter ligaens format: <strong>{formatLabel(leagueFormat)}</strong>
+            </p>
+          )}
           <StandingsTable
             users={standings}
             meUid={user?.uid}
             memberUids={memberUids}
+            getPoints={useLeagueScoring ? getLeaguePoints : null}
             loading={loadingStandings}
             showMovement={!selectedLeagueId}
             emptyMsg="Ingen godkendte spillere endnu."

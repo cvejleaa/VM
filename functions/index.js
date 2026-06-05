@@ -37,6 +37,7 @@ const TZ = 'Europe/Copenhagen';
 
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
+const { computeBreakdown } = require('./breakdown');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -373,23 +374,28 @@ exports.pruneOrphanMatches = onCall({ region: REGION }, async (request) => {
 // Summer alle bets.points + bonusBets.points for brugeren
 // ---------------------------------------------------------------------------
 async function recalcUserTotal(db, uid) {
-  // Hent alle bets for brugeren
-  const [betsSnap, bonusBetsSnap] = await Promise.all([
+  // Hent brugerens bets/bonusBets samt alle kampe (til runde-opslag)
+  const [betsSnap, bonusBetsSnap, matchesSnap] = await Promise.all([
     db.collection('bets').where('uid', '==', uid).get(),
     db.collection('bonusBets').where('uid', '==', uid).get(),
+    db.collection('matches').get(),
   ]);
 
-  let total = 0;
-  for (const doc of betsSnap.docs) {
-    const pts = doc.data().points;
-    if (typeof pts === 'number') total += pts;
-  }
-  for (const doc of bonusBetsSnap.docs) {
-    const pts = doc.data().points;
-    if (typeof pts === 'number') total += pts;
-  }
+  const roundById = {};
+  for (const m of matchesSnap.docs) roundById[m.id] = m.data().round;
 
-  await db.collection('users').doc(uid).update({ totalPoints: total });
+  const { total, groupPoints, knockoutPoints, bonusPoints } = computeBreakdown(
+    betsSnap.docs.map((d) => d.data()),
+    bonusBetsSnap.docs.map((d) => d.data()),
+    roundById,
+  );
+
+  await db.collection('users').doc(uid).update({
+    totalPoints: total,
+    groupPoints,
+    knockoutPoints,
+    bonusPoints,
+  });
 }
 
 // ---------------------------------------------------------------------------

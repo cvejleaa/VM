@@ -57,7 +57,7 @@ export default [
 
   // Cloud Functions kildekode: CommonJS + Node
   {
-    files: ['functions/index.js', 'functions/scoring.js', 'functions/standings.js', 'functions/knockout.js'],
+    files: ['functions/index.js', 'functions/scoring.js', 'functions/standings.js', 'functions/knockout.js', 'functions/breakdown.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
