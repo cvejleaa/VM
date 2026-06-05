@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T10:30:36.365Z",
+  "generatedAt": "2026-06-05T10:38:52.331Z",
   "totals": {
-    "files": 50,
-    "tests": 990,
-    "passed": 990,
+    "files": 51,
+    "tests": 997,
+    "passed": 997,
     "failed": 0
   },
   "suites": [
@@ -4179,6 +4179,42 @@
         },
         {
           "name": "TournamentPage – Slutspil-fane › viser LIVE-badge for live-slutspilskamp",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "functions/knockout.test.js",
+      "area": "functions",
+      "passed": 7,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "R32_SPEC › definerer præcis 16 kampe med id ko_r32_1..16",
+          "status": "passed"
+        },
+        {
+          "name": "R32_SPEC › matcher de faktiske r32-id'er i data/group-stage.json",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › placerer gruppevindere og 2'ere korrekt",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › udfylder alle 16 kampe med hold når alle 3'ere kvalificerer",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › vælger 3'er fra en af de tilladte grupper",
+          "status": "passed"
+        },
+        {
+          "name": "buildR32FromGroupMatches › rapporterer manglende grupper når der ikke er nok kampe",
+          "status": "passed"
+        },
+        {
+          "name": "buildR32FromGroupMatches › bygger 16 r32-kampe uden manglende grupper når alle 12 er spillet",
           "status": "passed"
         }
       ]

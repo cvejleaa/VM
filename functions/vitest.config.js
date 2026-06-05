@@ -10,6 +10,7 @@ export default defineConfig({
     include: [
       'scoring.test.js',
       'standings.test.js',
+      'knockout.test.js',
     ],
     exclude: [
       'rules.test.js',

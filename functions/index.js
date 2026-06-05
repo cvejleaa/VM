@@ -36,7 +36,7 @@ const APP_URL = 'https://vm.vejleaa.dk';
 const TZ = 'Europe/Copenhagen';
 
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
-const { computeGroupStandings, pickBestThirds } = require('./standings');
+const { buildR32FromGroupMatches } = require('./knockout');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -290,119 +290,18 @@ exports.buildKnockout = onCall({ region: REGION }, async (request) => {
     .where('status', '==', 'finished')
     .get();
 
-  // Grupper kampe pr. gruppe
-  const matchesByGroup = {};
-  for (const doc of groupMatchesSnap.docs) {
-    const m = doc.data();
-    const g = m.groupName;
-    if (!matchesByGroup[g]) matchesByGroup[g] = [];
-    matchesByGroup[g].push(m);
-  }
+  const finishedGroupMatches = groupMatchesSnap.docs.map((d) => d.data());
 
-  // Tjek at alle 12 grupper har alle 6 kampe
-  const EXPECTED_GROUPS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
-  const missingGroups = EXPECTED_GROUPS.filter(
-    g => !matchesByGroup[g] || matchesByGroup[g].length < 6
-  );
+  // Byg r32 ud fra grupperesultaterne (ren, testet logik i knockout.js)
+  const { assignments: r32Assignments, best8ThirdsGroups, missingGroups } =
+    buildR32FromGroupMatches(finishedGroupMatches);
+
   if (missingGroups.length > 0) {
     throw new HttpsError(
       'failed-precondition',
       `Følgende grupper har ikke alle 6 finished kampe: ${missingGroups.join(', ')}`
     );
   }
-
-  // Beregn grupperangering for alle grupper
-  const groupStandings = {};
-  const allThirds = [];
-
-  for (const groupName of EXPECTED_GROUPS) {
-    const groupMatches = matchesByGroup[groupName];
-    // Udled hold fra kampene
-    const teamSet = new Set();
-    for (const m of groupMatches) {
-      teamSet.add(m.homeTeam);
-      teamSet.add(m.awayTeam);
-    }
-    const teams = [...teamSet];
-    const standings = computeGroupStandings(teams, groupMatches);
-    groupStandings[groupName] = standings;
-
-    // Gem 3'eren til best-thirds-udvælgelse
-    const third = standings[2];
-    if (third) {
-      allThirds.push({ ...third, groupName });
-    }
-  }
-
-  // Udvælg de 8 bedste 3'ere
-  const best8Thirds = pickBestThirds(allThirds);
-  const best8ThirdsGroups = best8Thirds.map(t => t.groupName);
-
-  // ---------------------------------------------------------------------------
-  // VM 2026 Bracket-mapping (r32 / 1/16-finale):
-  // 48 hold: 12 gruppevindesre (1'ere), 12 toere + 8 bedste 3'ere = 32 hold
-  //
-  // FIFA VM 2026 placering i r32 (officielt bracket):
-  // Kamp 1:  1A vs 2B
-  // Kamp 2:  1C vs 3D/E/F (bedste 3'er fra gruppe D, E, eller F)
-  // Kamp 3:  1B vs 3A/D/E/F
-  // Kamp 4:  1D vs 2C
-  // Kamp 5:  1E vs 3A/B/C/D
-  // Kamp 6:  1G vs 2H
-  // Kamp 7:  1F vs 3A/B/C
-  // Kamp 8:  1H vs 2G
-  // Kamp 9:  1I vs 2J
-  // Kamp 10: 1K vs 3L/I/J (bedste 3'er fra L, I, J)
-  // Kamp 11: 1J vs 3H/I/K
-  // Kamp 12: 1L vs 2K
-  // Kamp 13: 1M (ubrugt — VM 2026 har kun 12 grupper)
-  //
-  // Simplificeret mapping (FIFA bruger lodtrækning for 3'ernes placering
-  // baseret på hvilke grupper der kvalificerer 3'ere):
-  // Vi bruger en fast bracket baseret på gruppenavne A-L.
-  //
-  // R32 kampe (32 hold → 16 hold):
-  //  M1:  1A vs 2B    M2:  1C vs 3DEF
-  //  M3:  1B vs 3ADE  M4:  1D vs 2C
-  //  M5:  1E vs 3ABC  M6:  1G vs 2H
-  //  M7:  1F vs 3ABD  M8:  1H vs 2G
-  //  M9:  1I vs 2J    M10: 1K vs 3IJL
-  //  M11: 1J vs 3HIK  M12: 1L vs 2K
-  //  M13: 2E vs 3FGH  M14: 2I vs 3GHL
-  //  M15: 2F vs 2L    M16: 2D vs 3CEF
-  // ---------------------------------------------------------------------------
-
-  // Hjælpefunktion: find team for en given gruppe + placering
-  const getTeam = (groupName, rank) => {
-    const s = groupStandings[groupName];
-    return s ? (s[rank - 1]?.team || null) : null;
-  };
-
-  // Hjælpefunktion: vælg bedste 3'er fra en liste af gruppenavne
-  const getBestThirdFrom = (groupNames) => {
-    const candidates = best8Thirds.filter(t => groupNames.includes(t.groupName));
-    return candidates.length > 0 ? candidates[0].team : null;
-  };
-
-  // Definer r32-kampe (matchId fra data/group-stage.json er ko_r32_1 osv.)
-  const r32Assignments = [
-    { id: 'ko_r32_1',  home: getTeam('A', 1), away: getTeam('B', 2) },
-    { id: 'ko_r32_2',  home: getTeam('C', 1), away: getBestThirdFrom(['D','E','F']) },
-    { id: 'ko_r32_3',  home: getTeam('B', 1), away: getBestThirdFrom(['A','D','E']) },
-    { id: 'ko_r32_4',  home: getTeam('D', 1), away: getTeam('C', 2) },
-    { id: 'ko_r32_5',  home: getTeam('E', 1), away: getBestThirdFrom(['A','B','C']) },
-    { id: 'ko_r32_6',  home: getTeam('G', 1), away: getTeam('H', 2) },
-    { id: 'ko_r32_7',  home: getTeam('F', 1), away: getBestThirdFrom(['A','B','D']) },
-    { id: 'ko_r32_8',  home: getTeam('H', 1), away: getTeam('G', 2) },
-    { id: 'ko_r32_9',  home: getTeam('I', 1), away: getTeam('J', 2) },
-    { id: 'ko_r32_10', home: getTeam('K', 1), away: getBestThirdFrom(['I','J','L']) },
-    { id: 'ko_r32_11', home: getTeam('J', 1), away: getBestThirdFrom(['H','I','K']) },
-    { id: 'ko_r32_12', home: getTeam('L', 1), away: getTeam('K', 2) },
-    { id: 'ko_r32_13', home: getTeam('E', 2), away: getBestThirdFrom(['F','G','H']) },
-    { id: 'ko_r32_14', home: getTeam('I', 2), away: getBestThirdFrom(['G','H','L']) },
-    { id: 'ko_r32_15', home: getTeam('F', 2), away: getTeam('L', 2) },
-    { id: 'ko_r32_16', home: getTeam('D', 2), away: getBestThirdFrom(['C','E','F']) },
-  ];
 
   // Opdater knockout-kampe med hold og sæt status til 'scheduled'
   const writeBatch = db.batch();
