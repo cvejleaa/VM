@@ -18,6 +18,7 @@ export default defineConfig({
     // Kun inkluder rules-tests (kræver emulator)
     include: [
       'functions/rules.test.js',
+      'functions/knockout.integration.test.js',
       'tests/rules.test.js',
     ],
     // Ekskluder scoring/standings (de har egen config)
