@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T10:44:32.463Z",
+  "generatedAt": "2026-06-05T10:50:54.963Z",
   "totals": {
-    "files": 50,
-    "tests": 986,
-    "passed": 986,
+    "files": 52,
+    "tests": 1003,
+    "passed": 1003,
     "failed": 0
   },
   "suites": [
@@ -2490,9 +2490,29 @@
     {
       "file": "src/features/matches/matchHelpers.test.js",
       "area": "frontend",
-      "passed": 47,
+      "passed": 52,
       "failed": 0,
       "tests": [
+        {
+          "name": "isTippable › er sand for en kommende kamp med kendte hold",
+          "status": "passed"
+        },
+        {
+          "name": "isTippable › er falsk når holdene ikke er kendt (knockout der venter)",
+          "status": "passed"
+        },
+        {
+          "name": "isTippable › er falsk for status pendingTeams selv med hold",
+          "status": "passed"
+        },
+        {
+          "name": "isTippable › er falsk når kampen er låst (kickoff passeret)",
+          "status": "passed"
+        },
+        {
+          "name": "isTippable › er falsk for null",
+          "status": "passed"
+        },
         {
           "name": "isMatchLocked › returnerer false hvis nu er FØR kickoff",
           "status": "passed"
@@ -3027,6 +3047,34 @@
         },
         {
           "name": "grupperEfterGruppe › håndterer mange grupper (A-L)",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/lib/matchData.test.js",
+      "area": "frontend",
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "group-stage.json — dataintegritet › har 104 kampe i alt",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › har unikke id'er",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › gruppekampe bruger grp_-præfiks, knockout bruger ko_-præfiks",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › indeholder præcis de 16 r32-kampe som buildKnockout forventer",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › har 72 gruppekampe og 32 knockout-kampe",
           "status": "passed"
         }
       ]
@@ -4163,6 +4211,42 @@
         },
         {
           "name": "TournamentPage – Slutspil-fane › viser LIVE-badge for live-slutspilskamp",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "functions/knockout.test.js",
+      "area": "functions",
+      "passed": 7,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "R32_SPEC › definerer præcis 16 kampe med id ko_r32_1..16",
+          "status": "passed"
+        },
+        {
+          "name": "R32_SPEC › matcher de faktiske r32-id'er i data/group-stage.json",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › placerer gruppevindere og 2'ere korrekt",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › udfylder alle 16 kampe med hold når alle 3'ere kvalificerer",
+          "status": "passed"
+        },
+        {
+          "name": "computeR32Assignments › vælger 3'er fra en af de tilladte grupper",
+          "status": "passed"
+        },
+        {
+          "name": "buildR32FromGroupMatches › rapporterer manglende grupper når der ikke er nok kampe",
+          "status": "passed"
+        },
+        {
+          "name": "buildR32FromGroupMatches › bygger 16 r32-kampe uden manglende grupper når alle 12 er spillet",
           "status": "passed"
         }
       ]

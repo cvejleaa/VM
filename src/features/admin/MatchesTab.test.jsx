@@ -35,10 +35,18 @@ const mockFormatTimestamp = vi.fn(() => '11.06.2026 18:00');
 vi.mock('./adminActions', () => ({
   callBuildKnockout: () => mockCallBuildKnockout(),
   callBackfillTipParticipation: () => mockCallBackfill(),
+  callSendTipRemindersNow: vi.fn().mockResolvedValue({ ok: true, data: { sent: 0 } }),
+  callSendTestReminderToMe: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  callPruneOrphanMatches: vi.fn().mockResolvedValue({ ok: true, data: { deleted: 0, remaining: 104 } }),
   formatTimestamp: (...args) => mockFormatTimestamp(...args),
   saveMatchResult: vi.fn().mockResolvedValue(undefined),
   createMatch: vi.fn().mockResolvedValue(undefined),
   datetimeToTimestamp: vi.fn((s) => ({ _ts: s })),
+}));
+
+// useAuth bruges til at vise ejer-knapper
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ isOwner: true }),
 }));
 
 import MatchesTab from './MatchesTab';

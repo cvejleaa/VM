@@ -10,6 +10,7 @@ import { useMyBets } from '../features/matches/useMyBets';
 import {
   groupMatchesByDay,
   isMatchLocked,
+  isTippable,
   dayKey,
   roundLabel,
 } from '../features/matches/matchHelpers';
@@ -64,7 +65,7 @@ export default function MatchesPage() {
 
       case FILTER_UNTIPPED:
         return matches.filter(
-          (m) => !isMatchLocked(m.kickoff) && !bets.has(m.id),
+          (m) => isTippable(m) && !bets.has(m.id),
         );
 
       default:
@@ -78,10 +79,10 @@ export default function MatchesPage() {
     [filteredMatches],
   );
 
-  // Tæl utippede kampe til filterlabel
+  // Tæl utippede kampe til filterlabel (kun kampe der faktisk kan tippes)
   const untippedCount = useMemo(
     () =>
-      matches.filter((m) => !isMatchLocked(m.kickoff) && !bets.has(m.id))
+      matches.filter((m) => isTippable(m) && !bets.has(m.id))
         .length,
     [matches, bets],
   );
