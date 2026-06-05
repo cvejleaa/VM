@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T10:38:52.331Z",
+  "generatedAt": "2026-06-05T10:50:54.963Z",
   "totals": {
-    "files": 51,
-    "tests": 997,
-    "passed": 997,
+    "files": 52,
+    "tests": 1003,
+    "passed": 1003,
     "failed": 0
   },
   "suites": [
@@ -1631,6 +1631,38 @@
         },
         {
           "name": "deleteLeagueComment › kalder deleteDoc",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/comments/dmRead.test.js",
+      "area": "frontend",
+      "passed": 6,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "computeUnread › tæller kun beskeder til mig, der er nyere end sidst set",
+          "status": "passed"
+        },
+        {
+          "name": "computeUnread › returnerer 0 når alt er set",
+          "status": "passed"
+        },
+        {
+          "name": "computeUnread › ignorerer beskeder sendt af mig selv",
+          "status": "passed"
+        },
+        {
+          "name": "markConversationSeen › gemmer seneste set-tidspunkt for en samtale",
+          "status": "passed"
+        },
+        {
+          "name": "markConversationSeen › overskriver ikke med et ældre tidspunkt",
+          "status": "passed"
+        },
+        {
+          "name": "markConversationSeen › opdaterer til et nyere tidspunkt",
           "status": "passed"
         }
       ]
