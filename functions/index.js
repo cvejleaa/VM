@@ -18,20 +18,20 @@
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { onSchedule }               = require('firebase-functions/v2/scheduler');
-const { defineSecret, defineString } = require('firebase-functions/params');
+const { defineSecret }             = require('firebase-functions/params');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 const nodemailer                   = require('nodemailer');
 
-// E-mail-udsendelse via SMTP (fx one.com med vm@vejleaa.dk).
-// Adgangskoden gemmes sikkert i Secret Manager:
+// E-mail-udsendelse via SMTP (one.com med vm@vejleaa.dk).
+// Kun adgangskoden er hemmelig (Secret Manager):
 //   firebase functions:secrets:set SMTP_PASSWORD
-// De øvrige indstillinger kan ændres som funktions-parametre (defaults nedenfor).
+// De øvrige SMTP-indstillinger er ikke følsomme og sættes som konstanter.
 const SMTP_PASSWORD = defineSecret('SMTP_PASSWORD');
-const SMTP_HOST = defineString('SMTP_HOST', { default: 'send.one.com' });
-const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
-const SMTP_USER = defineString('SMTP_USER', { default: 'vm@vejleaa.dk' });
-const EMAIL_FROM = defineString('EMAIL_FROM', { default: 'VM 2026 Tip <vm@vejleaa.dk>' });
+const SMTP_HOST = 'send.one.com';
+const SMTP_PORT = 465; // implicit TLS
+const SMTP_USER = 'vm@vejleaa.dk';
+const EMAIL_FROM = 'VM 2026 Tip <vm@vejleaa.dk>';
 const APP_URL = 'https://vm.vejleaa.dk';
 const TZ = 'Europe/Copenhagen';
 
@@ -500,17 +500,16 @@ function cphDateStr(d) {
 // ikke er sat en adgangskode (så mail-udsendelse blot springes over).
 function buildTransport(password) {
   if (!password) return null;
-  const port = parseInt(SMTP_PORT.value() || '465', 10);
   return nodemailer.createTransport({
-    host: SMTP_HOST.value(),
-    port,
-    secure: port === 465, // 465 = implicit TLS; 587 = STARTTLS
-    auth: { user: SMTP_USER.value(), pass: password },
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465, // 465 = implicit TLS; 587 = STARTTLS
+    auth: { user: SMTP_USER, pass: password },
   });
 }
 
 async function sendEmail(transporter, { to, subject, html }) {
-  await transporter.sendMail({ from: EMAIL_FROM.value(), to, subject, html });
+  await transporter.sendMail({ from: EMAIL_FROM, to, subject, html });
 }
 
 // Kerne-logik: send påmindelser om dagens utippede kampe. Returnerer antal sendte.
