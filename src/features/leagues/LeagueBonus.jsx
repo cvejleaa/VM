@@ -2,30 +2,38 @@
  * LeagueBonus — ligaens egne bonusspørgsmål: opret (manager), besvar (medlem),
  * sæt facit (manager) og se point. Point tæller kun i denne liga.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { LEAGUE_BONUS_TYPE } from '../../lib/constants';
 import { createLeagueBonus, setLeagueBonusFacit, deleteLeagueBonus, saveLeagueBonusAnswer } from './leagueBonusActions';
 import { scoreLeagueBonus } from './leagueBonusScoring';
-import { formatTimestamp } from '../comments/formatTimestamp';
+import { isBonusLocked, formatDeadline } from '../bonus/bonusHelpers';
 
-const TYPE_LABEL = {
-  [LEAGUE_BONUS_TYPE.TEXT]: 'Fritekst',
-  [LEAGUE_BONUS_TYPE.CHOICE]: 'Valg',
-  [LEAGUE_BONUS_TYPE.TOPLIST]: 'Top-liste',
-  [LEAGUE_BONUS_TYPE.YESNO]: 'Ja/Nej',
+const TYPE_BADGE = {
+  [LEAGUE_BONUS_TYPE.TEXT]: '✍️ Fritekst',
+  [LEAGUE_BONUS_TYPE.CHOICE]: '🔘 Valg',
+  [LEAGUE_BONUS_TYPE.TOPLIST]: '🔢 Top-liste',
+  [LEAGUE_BONUS_TYPE.YESNO]: '🔀 Ja/Nej',
 };
 
-function isPast(ts) {
-  const ms = ts?.toMillis ? ts.toMillis() : new Date(ts).getTime();
-  return Number.isFinite(ms) && ms <= Date.now();
+const YESNO_LABEL = { yes: 'Ja', no: 'Nej' };
+
+function hasAnswer(value) {
+  if (Array.isArray(value)) return value.some((v) => (v ?? '').trim());
+  return !!(value ?? '').trim();
+}
+
+function displayAnswer(value) {
+  if (Array.isArray(value)) return value.filter((v) => (v ?? '').trim()).join(', ') || '—';
+  if (value === 'yes' || value === 'no') return YESNO_LABEL[value];
+  return value || '—';
 }
 
 // ── Svar-/facit-input pr. type ────────────────────────────────────────────────
 function AnswerInput({ q, value, onChange, disabled }) {
   if (q.type === LEAGUE_BONUS_TYPE.CHOICE) {
     return (
-      <select className="select" value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select className="select" style={{ maxWidth: 300 }} value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         <option value="">– Vælg –</option>
         {(q.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -33,7 +41,7 @@ function AnswerInput({ q, value, onChange, disabled }) {
   }
   if (q.type === LEAGUE_BONUS_TYPE.YESNO) {
     return (
-      <select className="select" value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+      <select className="select" style={{ maxWidth: 300 }} value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
         <option value="">– Vælg –</option>
         <option value="yes">Ja</option>
         <option value="no">Nej</option>
@@ -44,7 +52,7 @@ function AnswerInput({ q, value, onChange, disabled }) {
     const arr = Array.isArray(value) ? value : [];
     const size = q.size ?? 5;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxWidth: 300 }}>
         {Array.from({ length: size }).map((_, i) => (
           <input
             key={i} className="input" disabled={disabled}
@@ -56,79 +64,121 @@ function AnswerInput({ q, value, onChange, disabled }) {
     );
   }
   return (
-    <input className="input" disabled={disabled} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder="Dit svar" />
+    <input className="input" style={{ maxWidth: 300 }} disabled={disabled} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder="Dit svar..." />
   );
 }
 
 // ── Ét spørgsmål ──────────────────────────────────────────────────────────────
 function QuestionCard({ q, meUid, isManager, initialAnswer }) {
-  const [answer, setAnswer] = useState(initialAnswer ?? (q.type === LEAGUE_BONUS_TYPE.TOPLIST ? [] : ''));
+  const locked = isBonusLocked(q.deadline);
+  const empty = q.type === LEAGUE_BONUS_TYPE.TOPLIST ? [] : '';
+  const [answer, setAnswer] = useState(initialAnswer ?? empty);
   const [facit, setFacit] = useState(q.facit ?? (q.type === LEAGUE_BONUS_TYPE.TOPLIST ? [] : ''));
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
-  const locked = isPast(q.deadline);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+  const [facitMsg, setFacitMsg] = useState('');
 
-  async function save() {
-    setBusy(true); setMsg('');
+  // Synkroniser eksternt svar (fx ved load)
+  useEffect(() => { setAnswer(initialAnswer ?? empty); }, [initialAnswer]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isFinished = q.facit != null && q.facit !== '';
+  const isAnswered = hasAnswer(initialAnswer);
+  const earnedPoints = isFinished ? scoreLeagueBonus(q, initialAnswer) : null;
+
+  async function handleSave() {
+    if (!hasAnswer(answer) || locked) return;
+    setSaving(true); setError('');
     try {
       await saveLeagueBonusAnswer({ questionId: q.id, leagueId: q.leagueId, uid: meUid, answer });
-      setMsg('Gemt ✔');
-    } catch (e) { setMsg('Fejl: ' + e.message); }
-    finally { setBusy(false); }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Kunne ikke gemme. Prøv igen.');
+    } finally { setSaving(false); }
   }
   async function saveFacit() {
-    setBusy(true); setMsg('');
-    try { await setLeagueBonusFacit(q.id, facit); setMsg('Facit gemt ✔'); }
-    catch (e) { setMsg('Fejl: ' + e.message); }
-    finally { setBusy(false); }
+    setSaving(true); setFacitMsg('');
+    try { await setLeagueBonusFacit(q.id, facit); setFacitMsg('✓ Facit gemt!'); setTimeout(() => setFacitMsg(''), 3000); }
+    catch (e) { setFacitMsg('Fejl: ' + e.message); }
+    finally { setSaving(false); }
   }
   async function remove() {
     if (!window.confirm('Slet spørgsmålet?')) return;
-    try { await deleteLeagueBonus(q.id); } catch (e) { alert(e.message); }
+    try { await deleteLeagueBonus(q.id); } catch (e) { window.alert(e.message); }
   }
 
-  const myPts = (q.facit != null && q.facit !== '') ? scoreLeagueBonus(q, initialAnswer) : null;
-
   return (
-    <li style={{ borderBottom: '1px solid var(--c-border)', padding: '0.6rem 0' }}>
-      <div className="flex items-center justify-between" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-        <strong style={{ fontSize: '0.95rem' }}>{q.label}</strong>
-        <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
-          <span className="badge badge--muted">{TYPE_LABEL[q.type]}</span>
-          <span className="badge badge--muted" title="Svarfrist">⏱ {formatTimestamp(q.deadline)}</span>
+    <li className="card" style={{ marginBottom: '0.75rem' }}>
+      {/* Spørgsmålstekst + status */}
+      <div style={{ marginBottom: '0.6rem' }}>
+        <span className="badge badge--blue" style={{ marginBottom: '0.4rem', display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+          {TYPE_BADGE[q.type]}
           {isManager && (
-            <button className="btn--icon" title="Slet" onClick={remove}
-              style={{ background: 'none', border: 'none', color: 'var(--c-err)', cursor: 'pointer' }}>✕</button>
+            <button type="button" title="Slet spørgsmål" onClick={remove}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
           )}
         </span>
+        <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem' }}>{q.label}</p>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--c-muted)' }}>
+          Deadline: {formatDeadline(q.deadline)}
+          <span className={`badge ${locked ? 'badge--red' : 'badge--blue'}`} style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>
+            {locked ? 'Låst' : 'Åben'}
+          </span>
+        </p>
       </div>
 
-      {/* Besvarelse (før deadline) eller dit svar + point (efter) */}
-      {!locked ? (
-        <div style={{ marginTop: '0.4rem' }}>
-          <AnswerInput q={q} value={answer} onChange={setAnswer} />
-          <button className="btn btn--sm mt-1" disabled={busy} onClick={save}>Gem svar</button>
-        </div>
-      ) : (
-        <div style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>
-          <div>Dit svar: <strong>{Array.isArray(initialAnswer) ? initialAnswer.join(', ') : (initialAnswer || '—')}</strong></div>
-          {q.facit != null && q.facit !== '' && (
-            <div>Facit: <strong>{Array.isArray(q.facit) ? q.facit.join(', ') : q.facit}</strong>
-              {myPts != null && <span className="badge badge--green" style={{ marginLeft: '0.4rem' }}>+{myPts} point</span>}
-            </div>
+      {/* Facit og point hvis afgjort */}
+      {isFinished && (
+        <div style={{ background: 'rgba(31,157,85,0.07)', borderRadius: 8, padding: '0.5rem 0.75rem', marginBottom: '0.5rem', fontSize: '0.88rem' }}>
+          <strong>Facit:</strong> {displayAnswer(q.facit)}
+          {earnedPoints !== null && (
+            <span className={`badge ${earnedPoints > 0 ? 'badge--green' : 'badge--muted'}`} style={{ marginLeft: '0.75rem' }}>
+              {earnedPoints > 0 ? `+${earnedPoints} point` : '0 point'}
+            </span>
           )}
         </div>
+      )}
+
+      {/* Svar-felt */}
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <AnswerInput q={q} value={answer} disabled={locked} onChange={(v) => { setAnswer(v); setSaved(false); }} />
+        {!locked && (
+          <button className="btn" onClick={handleSave} disabled={saving || !hasAnswer(answer)} style={{ whiteSpace: 'nowrap' }}>
+            {saving ? 'Gemmer…' : 'Gem svar'}
+          </button>
+        )}
+      </div>
+
+      {/* Feedback */}
+      {saved && <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: 'var(--c-ok)' }}>✓ Svar gemt!</p>}
+      {error && <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: 'var(--c-err)' }}>{error}</p>}
+
+      {/* Hjælpetekst for fritekst */}
+      {!locked && q.type === LEAGUE_BONUS_TYPE.TEXT && (
+        <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--c-muted)' }}>
+          Store/små bogstaver, accenter og ekstra mellemrum er ligegyldige.
+        </p>
+      )}
+
+      {/* Vis brugerens eget svar */}
+      {isAnswered && (
+        <p style={{ margin: '0.4rem 0 0', fontSize: '0.83rem', color: 'var(--c-muted)' }}>
+          Dit svar: <strong style={{ color: 'var(--c-text)' }}>{displayAnswer(initialAnswer)}</strong>
+        </p>
       )}
 
       {/* Manager: sæt facit */}
       {isManager && (
-        <div style={{ marginTop: '0.5rem', padding: '0.4rem', background: 'var(--c-surface-2, #f7f7f7)', borderRadius: 8 }}>
-          <div style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginBottom: '0.2rem' }}>Facit (kun manager):</div>
-          <AnswerInput q={q} value={facit} onChange={setFacit} />
-          <button className="btn btn--sm btn--ghost mt-1" disabled={busy} onClick={saveFacit}>Gem facit</button>
+        <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.75rem', background: 'var(--c-surface-2, rgba(0,0,0,0.04))', borderRadius: 8 }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginBottom: '0.3rem' }}>Facit (kun managere):</div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <AnswerInput q={q} value={facit} onChange={setFacit} />
+            <button className="btn btn--ghost" onClick={saveFacit} disabled={saving} style={{ whiteSpace: 'nowrap' }}>Gem facit</button>
+          </div>
+          {facitMsg && <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: facitMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)' }}>{facitMsg}</p>}
         </div>
       )}
-      {msg && <p style={{ fontSize: '0.8rem', color: 'var(--c-muted)', marginTop: '0.2rem' }}>{msg}</p>}
     </li>
   );
 }
