@@ -8,10 +8,17 @@ describe('scoreLeagueBonus', () => {
     expect(scoreLeagueBonus({ type: 'text', facit: 'x' }, '')).toBe(0);
   });
 
-  it('fritekst: case/whitespace-ufølsom', () => {
+  it('fritekst: case/whitespace/accent-ufølsom + lille stavefejl', () => {
     const q = { type: LEAGUE_BONUS_TYPE.TEXT, facit: 'Mbappé' };
-    expect(scoreLeagueBonus(q, '  mbappé ')).toBe(LB_POINTS.TEXT);
+    expect(scoreLeagueBonus(q, '  mbappe ')).toBe(LB_POINTS.TEXT); // accent ligegyldig
+    expect(scoreLeagueBonus(q, 'Mbappe')).toBe(LB_POINTS.TEXT);
     expect(scoreLeagueBonus(q, 'Haaland')).toBe(0);
+  });
+
+  it('fritekst: manuelt godkendt stavemåde tæller', () => {
+    const q = { type: LEAGUE_BONUS_TYPE.TEXT, facit: 'Gyökeres', acceptedAnswers: ['Gyokeres FC', 'Viktor G'] };
+    // helt anden, men godkendt variant
+    expect(scoreLeagueBonus(q, 'Viktor G')).toBe(LB_POINTS.TEXT);
   });
 
   it('valg og ja/nej', () => {
@@ -35,6 +42,16 @@ describe('scoreLeagueBonus', () => {
 
     it('helt forkert giver 0', () => {
       expect(scoreLeagueBonus(q, ['A', 'B', 'C'])).toBe(0);
+    });
+
+    it('dublet-navne tæller kun én gang', () => {
+      // Messi to gange: kun første tæller (2 navn + 1 plads = 3)
+      expect(scoreLeagueBonus(q, ['Messi', 'Messi'])).toBe(3);
+    });
+
+    it('fuzzy match på navne i top-liste', () => {
+      // 'Mbappe' (uden accent) matcher facit 'Mbappé' på plads 1
+      expect(scoreLeagueBonus(q, ['Messi', 'Mbappe'])).toBe(6);
     });
   });
 });

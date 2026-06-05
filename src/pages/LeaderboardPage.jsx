@@ -13,6 +13,7 @@ import { useLeagues } from '../features/leagues/useLeagues';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
 import { leagueScore, scoringLabel, normalizeScoring, isFullScoring } from '../features/leagues/leagueFormat';
+import { useLeagueBonus } from '../features/leagues/useLeagueBonus';
 
 // ── Fane-konstanter ──────────────────────────────────────────────────────────
 const TAB_OVERALL = 'overall';
@@ -38,14 +39,17 @@ export default function LeaderboardPage() {
     [pointsByUid],
   );
 
-  // Når en liga er valgt med et særligt scoring-valg, rangeres efter dens udvalg.
-  // (Liga-bonus afspejles på ligaens egen side; her vægtes de øvrige dele.)
+  // Når en liga er valgt, rangeres efter dens scoring-valg — inkl. liga-bonus,
+  // så forsidens filter matcher ligaens egen side præcist.
   const leagueScoring = normalizeScoring(selectedLeague);
+  const { pointsByUid: leagueBonusByUid } = useLeagueBonus(selectedLeagueId || null, user?.uid);
   const getLeaguePoints = useCallback(
-    (uid) => leagueScore(standings.find((u) => u.uid === uid), leagueScoring, 0),
-    [standings, leagueScoring],
+    (uid) => leagueScore(standings.find((u) => u.uid === uid), leagueScoring, leagueBonusByUid[uid] || 0),
+    [standings, leagueScoring, leagueBonusByUid],
   );
-  const useLeagueScoring = selectedLeagueId && !isFullScoring(leagueScoring);
+  // Brug liga-scoring når en liga er valgt (også ved fuld scoring, så liga-bonus tæller med)
+  const useLeagueScoring = !!selectedLeagueId;
+  const showScoringNote = selectedLeagueId && !isFullScoring(leagueScoring);
 
   // Formatér dags dato til dansk visning
   const todayDanish = todayStr
@@ -123,7 +127,7 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          {useLeagueScoring && (
+          {showScoringNote && (
             <p className="text-sm text-muted mb-2" style={{ color: 'var(--c-muted)' }}>
               Rangeret efter ligaens format: <strong>{scoringLabel(leagueScoring)}</strong>
             </p>

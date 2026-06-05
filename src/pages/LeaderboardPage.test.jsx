@@ -31,6 +31,11 @@ vi.mock('../features/leaderboard/useDailyStandings', () => ({
   }),
 }));
 
+// Liga-bonus rører Firebase — stub i page-testen
+vi.mock('../features/leagues/useLeagueBonus', () => ({
+  useLeagueBonus: () => ({ questions: [], myAnswers: {}, pointsByUid: {}, answersByQid: {}, loading: false }),
+}));
+
 vi.mock('../features/leagues/useLeagues', () => ({
   useLeagues: () => ({
     leagues: [

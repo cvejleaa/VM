@@ -5,9 +5,20 @@
 import { useState, useEffect } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { LEAGUE_BONUS_TYPE } from '../../lib/constants';
-import { createLeagueBonus, setLeagueBonusFacit, deleteLeagueBonus, saveLeagueBonusAnswer } from './leagueBonusActions';
+import {
+  createLeagueBonus, setLeagueBonusFacit, deleteLeagueBonus, saveLeagueBonusAnswer,
+  updateLeagueBonus, approveLeagueBonusAnswer, removeLeagueBonusAnswer,
+} from './leagueBonusActions';
 import { scoreLeagueBonus } from './leagueBonusScoring';
 import { isBonusLocked, formatDeadline } from '../bonus/bonusHelpers';
+
+/** Firestore Timestamp/Date → 'YYYY-MM-DDTHH:mm' til <input type="datetime-local">. */
+function tsToLocalInput(ts) {
+  const d = ts?.toDate ? ts.toDate() : (ts instanceof Date ? ts : null);
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const TYPE_BADGE = {
   [LEAGUE_BONUS_TYPE.TEXT]: '✍️ Fritekst',
@@ -68,8 +79,105 @@ function AnswerInput({ q, value, onChange, disabled }) {
   );
 }
 
+// ── Redigér-formular (manager) ───────────────────────────────────────────────
+function EditForm({ q, onDone }) {
+  const [label, setLabel] = useState(q.label ?? '');
+  const [deadline, setDeadline] = useState(tsToLocalInput(q.deadline));
+  const [optionsStr, setOptionsStr] = useState((q.options ?? []).join(', '));
+  const [size, setSize] = useState(q.size ?? 5);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setErr('');
+    try {
+      await updateLeagueBonus(q.id, {
+        type: q.type,
+        label,
+        deadline: deadline ? Timestamp.fromDate(new Date(deadline)) : null,
+        options: q.type === LEAGUE_BONUS_TYPE.CHOICE ? optionsStr.split(',') : undefined,
+        size: q.type === LEAGUE_BONUS_TYPE.TOPLIST ? size : undefined,
+      });
+      onDone();
+    } catch (e2) { setErr(e2.message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <form onSubmit={submit} style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      <input className="input" placeholder="Spørgsmål" value={label} maxLength={140} onChange={(e) => setLabel(e.target.value)} required />
+      {q.type === LEAGUE_BONUS_TYPE.CHOICE && (
+        <input className="input" placeholder="Svarmuligheder, adskilt med komma" value={optionsStr} onChange={(e) => setOptionsStr(e.target.value)} />
+      )}
+      {q.type === LEAGUE_BONUS_TYPE.TOPLIST && (
+        <label style={{ fontSize: '0.82rem' }}>Antal pladser:
+          <input className="input" type="number" min={1} max={10} value={size} onChange={(e) => setSize(e.target.value)} style={{ width: 70, marginLeft: 6 }} />
+        </label>
+      )}
+      <label style={{ fontSize: '0.82rem' }}>Svarfrist:
+        <input className="input" type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} required style={{ marginLeft: 6 }} />
+      </label>
+      {err && <p className="form-error">{err}</p>}
+      <div className="flex gap-1">
+        <button className="btn btn--sm" type="submit" disabled={busy}>Gem ændringer</button>
+        <button className="btn btn--ghost btn--sm" type="button" onClick={onDone}>Annullér</button>
+      </div>
+    </form>
+  );
+}
+
+// ── Manager: godkend indsendte stavemåder (fritekst, efter deadline) ──────────
+function ApprovalList({ q, submissions }) {
+  const [busy, setBusy] = useState('');
+  const accepted = q.acceptedAnswers ?? [];
+
+  // Distinct svar + antal
+  const counts = new Map();
+  for (const s of submissions) {
+    const a = (s.answer ?? '').trim();
+    if (a) counts.set(a, (counts.get(a) || 0) + 1);
+  }
+  const rows = [...counts.entries()].sort((x, y) => y[1] - x[1]);
+  if (rows.length === 0) return null;
+
+  async function toggle(answer, isApproved) {
+    setBusy(answer);
+    try {
+      if (isApproved) await removeLeagueBonusAnswer(q.id, answer);
+      else await approveLeagueBonusAnswer(q.id, answer);
+    } catch (e) { window.alert(e.message); }
+    finally { setBusy(''); }
+  }
+
+  return (
+    <div style={{ marginTop: '0.5rem' }}>
+      <div style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginBottom: '0.3rem' }}>Indsendte svar (godkend stavemåder):</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+        {rows.map(([answer, count]) => {
+          const ok = scoreLeagueBonus(q, answer) > 0;
+          const manual = accepted.includes(answer);
+          return (
+            <div key={answer} className="flex items-center" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span className="badge badge--muted">{count}×</span>
+              <span style={{ fontSize: '0.88rem' }}>{answer}</span>
+              <span className={`badge ${ok ? 'badge--green' : 'badge--muted'}`} style={{ fontSize: '0.7rem' }}>{ok ? '✓ Tæller' : 'Tæller ikke'}</span>
+              {manual ? (
+                <button className="btn btn--ghost btn--sm" disabled={busy === answer} onClick={() => toggle(answer, true)}>Fjern godkendelse</button>
+              ) : (!ok && (
+                <button className="btn btn--sm" disabled={busy === answer} onClick={() => toggle(answer, false)}>Godkend</button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Ét spørgsmål ──────────────────────────────────────────────────────────────
-function QuestionCard({ q, meUid, isManager, initialAnswer }) {
+function QuestionCard({ q, meUid, isManager, initialAnswer, submissions = [] }) {
+  const [editing, setEditing] = useState(false);
   const locked = isBonusLocked(q.deadline);
   const empty = q.type === LEAGUE_BONUS_TYPE.TOPLIST ? [] : '';
   const [answer, setAnswer] = useState(initialAnswer ?? empty);
@@ -115,8 +223,12 @@ function QuestionCard({ q, meUid, isManager, initialAnswer }) {
         <span className="badge badge--blue" style={{ marginBottom: '0.4rem', display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
           {TYPE_BADGE[q.type]}
           {isManager && (
-            <button type="button" title="Slet spørgsmål" onClick={remove}
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+            <>
+              <button type="button" title="Redigér spørgsmål" onClick={() => setEditing((v) => !v)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✎</button>
+              <button type="button" title="Slet spørgsmål" onClick={remove}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+            </>
           )}
         </span>
         <p style={{ margin: 0, fontWeight: 600, fontSize: '1rem' }}>{q.label}</p>
@@ -127,6 +239,9 @@ function QuestionCard({ q, meUid, isManager, initialAnswer }) {
           </span>
         </p>
       </div>
+
+      {/* Manager: redigér spørgsmål */}
+      {isManager && editing && <EditForm q={q} onDone={() => setEditing(false)} />}
 
       {/* Facit og point hvis afgjort */}
       {isFinished && (
@@ -177,6 +292,10 @@ function QuestionCard({ q, meUid, isManager, initialAnswer }) {
             <button className="btn btn--ghost" onClick={saveFacit} disabled={saving} style={{ whiteSpace: 'nowrap' }}>Gem facit</button>
           </div>
           {facitMsg && <p style={{ margin: '0.4rem 0 0', fontSize: '0.82rem', color: facitMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)' }}>{facitMsg}</p>}
+          {/* Godkend stavemåder (fritekst, når svar er synlige efter deadline) */}
+          {q.type === LEAGUE_BONUS_TYPE.TEXT && locked && isFinished && (
+            <ApprovalList q={q} submissions={submissions} />
+          )}
         </div>
       )}
     </li>
@@ -241,10 +360,22 @@ function CreateForm({ leagueId, meUid }) {
   );
 }
 
-export default function LeagueBonus({ leagueId, meUid, isManager, questions, myAnswers }) {
+export default function LeagueBonus({ leagueId, meUid, isManager, questions, myAnswers, answersByQid = {} }) {
+  // #6: hvor mange åbne spørgsmål mangler jeg at svare på?
+  const unanswered = questions.filter(
+    (q) => !isBonusLocked(q.deadline) && !hasAnswer(myAnswers[q.id]),
+  ).length;
+
   return (
     <div className="card mt-2">
-      <h3 className="card__title mb-2">🎲 Liga-bonus</h3>
+      <h3 className="card__title mb-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        🎲 Liga-bonus
+        {unanswered > 0 && (
+          <span className="badge badge--red" style={{ fontSize: '0.72rem' }}>
+            Du mangler at svare på {unanswered}
+          </span>
+        )}
+      </h3>
       <p style={{ fontSize: '0.8rem', color: 'var(--c-muted)', marginTop: '-0.3rem' }}>
         Ligaens egne bonusspørgsmål. Point tæller kun i denne liga.
       </p>
@@ -254,7 +385,10 @@ export default function LeagueBonus({ leagueId, meUid, isManager, questions, myA
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {questions.map((q) => (
-            <QuestionCard key={q.id} q={q} meUid={meUid} isManager={isManager} initialAnswer={myAnswers[q.id]} />
+            <QuestionCard
+              key={q.id} q={q} meUid={meUid} isManager={isManager}
+              initialAnswer={myAnswers[q.id]} submissions={answersByQid[q.id] ?? []}
+            />
           ))}
         </ul>
       )}
