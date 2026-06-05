@@ -19,6 +19,15 @@ export const LEAGUE_STATUS = {
   REJECTED: 'rejected',
 };
 
+// Liga-format: bestemmer hvilke point der tæller i ligaens stilling
+export const LEAGUE_FORMAT = {
+  FULL: 'full',                 // alt tæller (standard)
+  BONUS_ONLY: 'bonusOnly',      // kun bonus-spørgsmål
+  KNOCKOUT_ONLY: 'knockoutOnly',// kun slutspil
+  GROUP_ONLY: 'groupOnly',      // kun grundspil
+  DOUBLE_KNOCKOUT: 'doubleKnockout', // alt, men slutspil tæller dobbelt
+};
+
 export const MATCH_STATUS = {
   SCHEDULED: 'scheduled', // hold kendt, kan tippes indtil kickoff
   PENDING_TEAMS: 'pendingTeams', // knockout hvor hold endnu ikke kendes

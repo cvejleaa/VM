@@ -490,6 +490,16 @@ describe('leagues — liga-admins (adminUids)', () => {
     );
   });
 
+  it('en liga-admin KAN ændre format', async () => {
+    await createUser('admin2', 'player', 'approved');
+    await seedLeague('lgF', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'], format: 'full' });
+
+    const ctx = testEnv.authenticatedContext('admin2');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgF'), { format: 'bonusOnly' })
+    );
+  });
+
   it('et almindeligt medlem KAN IKKE tilføje andre medlemmer', async () => {
     await createUser('plain', 'player', 'approved');
     await seedLeague('lgE', { ownerUid: 'owner9', memberUids: ['owner9', 'plain'], adminUids: [] });
