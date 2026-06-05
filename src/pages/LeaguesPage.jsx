@@ -19,10 +19,13 @@ import {
   removeMember,
   adminAddMember,
   renameLeague,
-  setLeagueFormat,
+  setLeagueScoring,
 } from '../features/leagues/leagueActions';
-import { FORMAT_OPTIONS, formatLabel, leagueScore } from '../features/leagues/leagueFormat';
-import { LEAGUE_FORMAT } from '../lib/constants';
+import {
+  normalizeScoring, scoringLabel, isFullScoring, SCORING_COMPONENTS, DEFAULT_SCORING, leagueScore,
+} from '../features/leagues/leagueFormat';
+import { useLeagueBonus } from '../features/leagues/useLeagueBonus';
+import LeagueBonus from '../features/leagues/LeagueBonus';
 import { filterUsersByLeague } from '../features/leagues/leagueUtils';
 import { sortByPoints } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
@@ -88,7 +91,18 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const isLeagueAdmin = leagueAdminUids.includes(meUid);
   // "Manager" = liga-ejer eller udpeget liga-admin (eller global match-admin)
   const isManager = isOwner || isLeagueAdmin || isAdmin;
+  const scoring = normalizeScoring(league);
   const members = filterUsersByLeague(standings, league.memberUids);
+  // Ligaens egne bonusspørgsmål + point pr. spiller (liga-lokalt)
+  const { questions: bonusQuestions, myAnswers: bonusAnswers, pointsByUid: bonusPointsByUid } =
+    useLeagueBonus(league.id, meUid);
+
+  async function handleScoringToggle(nextScoring) {
+    setSavingFormat(true); setActionError('');
+    try { await setLeagueScoring(league.id, nextScoring); }
+    catch (e) { setActionError(e.message); }
+    finally { setSavingFormat(false); }
+  }
   // Spillere der kan tilføjes (godkendte, ikke allerede medlem)
   const addable = standings.filter((u) => !(league.memberUids ?? []).includes(u.uid));
 
@@ -197,32 +211,37 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
               Kode: <strong>{league.joinCode}</strong>
             </span>
             <span className="badge badge--blue">{league.memberUids?.length ?? 0} spillere</span>
-            <span className="badge badge--muted" title="Liga-format">⚙️ {formatLabel(league.format)}</span>
+            <span className="badge badge--muted" title="Liga-format">⚙️ {scoringLabel(scoring)}</span>
             {isLeagueAdmin && !isOwner && <span className="badge badge--green">du er liga-admin</span>}
           </div>
         </div>
 
-        {/* Format-valg (liga-ejer/-admin) */}
+        {/* Format-valg (liga-ejer/-admin) — kombinerbare dele */}
         {isManager && (
-          <div className="flex gap-1" style={{ flexWrap: 'wrap', marginTop: '0.5rem', alignItems: 'center' }}>
-            <label className="form-label" style={{ margin: 0 }} htmlFor={`fmt-${league.id}`}>Format:</label>
-            <select
-              id={`fmt-${league.id}`}
-              className="select"
-              style={{ maxWidth: 220 }}
-              value={league.format ?? LEAGUE_FORMAT.FULL}
-              disabled={savingFormat}
-              onChange={async (e) => {
-                setSavingFormat(true); setActionError('');
-                try { await setLeagueFormat(league.id, e.target.value); }
-                catch (e2) { setActionError(e2.message); }
-                finally { setSavingFormat(false); }
-              }}
-            >
-              {FORMAT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+          <div style={{ marginTop: '0.5rem' }}>
+            <div className="form-label" style={{ margin: '0 0 0.25rem' }}>Hvad tæller i ligaen?</div>
+            <div className="flex gap-1" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+              {SCORING_COMPONENTS.map((c) => (
+                <label key={c.key} style={{ display: 'inline-flex', gap: '0.3rem', alignItems: 'center', fontSize: '0.85rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!scoring[c.key]}
+                    disabled={savingFormat}
+                    onChange={(e) => handleScoringToggle({ ...scoring, [c.key]: e.target.checked })}
+                  />
+                  {c.label}
+                </label>
               ))}
-            </select>
+              <label style={{ display: 'inline-flex', gap: '0.3rem', alignItems: 'center', fontSize: '0.85rem' }}>
+                <input
+                  type="checkbox"
+                  checked={!!scoring.doubleKnockout}
+                  disabled={savingFormat || !scoring.knockout}
+                  onChange={(e) => handleScoringToggle({ ...scoring, doubleKnockout: e.target.checked })}
+                />
+                Slutspil tæller dobbelt
+              </label>
+            </div>
           </div>
         )}
 
@@ -253,13 +272,13 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
         )}
       </div>
 
-      {/* Rangering (efter ligaens format) */}
+      {/* Rangering (efter ligaens scoring-valg, inkl. liga-bonus) */}
       <div className="card card--flat">
         <h3 className="card__title mb-2">
           Ligaens stilling
-          {(league.format && league.format !== LEAGUE_FORMAT.FULL) && (
+          {!isFullScoring(scoring) && (
             <span className="badge badge--muted" style={{ marginLeft: '0.5rem', fontWeight: 500 }}>
-              {formatLabel(league.format)}
+              {scoringLabel(scoring)}
             </span>
           )}
         </h3>
@@ -267,10 +286,19 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
           users={standings}
           meUid={meUid}
           memberUids={league.memberUids}
-          getPoints={(uid) => leagueScore(standings.find((u) => u.uid === uid), league.format)}
+          getPoints={(uid) => leagueScore(standings.find((u) => u.uid === uid), scoring, bonusPointsByUid[uid] || 0)}
           emptyMsg="Ingen spillere i ligaen."
         />
       </div>
+
+      {/* Liga-bonus (ligaens egne spørgsmål) */}
+      <LeagueBonus
+        leagueId={league.id}
+        meUid={meUid}
+        isManager={isManager}
+        questions={bonusQuestions}
+        myAnswers={bonusAnswers}
+      />
 
       {/* Hvem har tippet på de kommende kampe */}
       <div className="card mt-2">
@@ -354,12 +382,10 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
 // ── Opret liga-formular ───────────────────────────────────────────────────────
 function CreateLeagueForm({ uid, meName, onCreated }) {
   const [name, setName] = useState('');
-  const [format, setFormat] = useState(LEAGUE_FORMAT.FULL);
+  const [scoring, setScoring] = useState({ ...DEFAULT_SCORING });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const formatDesc = FORMAT_OPTIONS.find((o) => o.value === format)?.desc;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -367,7 +393,7 @@ function CreateLeagueForm({ uid, meName, onCreated }) {
     setSuccess('');
     setLoading(true);
     try {
-      const newId = await createLeague(name, uid, format);
+      const newId = await createLeague(name, uid, scoring);
       tryLogActivity({ leagueId: newId, type: ACTIVITY.CREATED, actorUid: uid, actorName: meName, text: 'oprettede ligaen' });
       const msg = `Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`;
       setSuccess(msg);
@@ -396,20 +422,28 @@ function CreateLeagueForm({ uid, meName, onCreated }) {
         />
       </div>
       <div className="form-group">
-        <label className="form-label" htmlFor="league-format">Format</label>
-        <select
-          id="league-format"
-          className="select"
-          value={format}
-          onChange={(e) => setFormat(e.target.value)}
-        >
-          {FORMAT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+        <label className="form-label">Hvad skal tælle i ligaen? (kombinér frit)</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          {SCORING_COMPONENTS.map((c) => (
+            <label key={c.key} style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.88rem' }}>
+              <input
+                type="checkbox"
+                checked={!!scoring[c.key]}
+                onChange={(e) => setScoring((s) => ({ ...s, [c.key]: e.target.checked }))}
+              />
+              {c.label}
+            </label>
           ))}
-        </select>
-        {formatDesc && (
-          <p style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginTop: '0.25rem' }}>{formatDesc}</p>
-        )}
+          <label style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.88rem' }}>
+            <input
+              type="checkbox"
+              checked={!!scoring.doubleKnockout}
+              disabled={!scoring.knockout}
+              onChange={(e) => setScoring((s) => ({ ...s, doubleKnockout: e.target.checked }))}
+            />
+            Slutspil tæller dobbelt
+          </label>
+        </div>
       </div>
       {error && <p className="form-error mt-1">{error}</p>}
       {success && <p className="badge badge--green mt-1" style={{ display: 'block' }}>{success}</p>}

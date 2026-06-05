@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T11:50:45.152Z",
+  "generatedAt": "2026-06-05T12:15:58.459Z",
   "totals": {
-    "files": 54,
-    "tests": 1020,
-    "passed": 1020,
+    "files": 55,
+    "tests": 1031,
+    "passed": 1031,
     "failed": 0
   },
   "suites": [
@@ -2026,7 +2026,7 @@
     {
       "file": "src/features/leagues/leagueActions.test.js",
       "area": "frontend",
-      "passed": 38,
+      "passed": 40,
       "failed": 0,
       "tests": [
         {
@@ -2134,6 +2134,14 @@
           "status": "passed"
         },
         {
+          "name": "setLeagueScoring › afviser hvis ingen dele er valgt",
+          "status": "passed"
+        },
+        {
+          "name": "setLeagueScoring › gemmer et saniteret scoring-objekt",
+          "status": "passed"
+        },
+        {
           "name": "setLeagueAdmin › kaster fejl uden uid",
           "status": "passed"
         },
@@ -2184,49 +2192,93 @@
       ]
     },
     {
-      "file": "src/features/leagues/leagueFormat.test.js",
+      "file": "src/features/leagues/leagueBonusScoring.test.js",
       "area": "frontend",
-      "passed": 10,
+      "passed": 7,
       "failed": 0,
       "tests": [
         {
-          "name": "leagueScore › FULL bruger totalPoints",
+          "name": "scoreLeagueBonus › giver 0 uden facit eller svar",
           "status": "passed"
         },
         {
-          "name": "leagueScore › BONUS_ONLY bruger bonusPoints",
+          "name": "scoreLeagueBonus › fritekst: case/whitespace-ufølsom",
           "status": "passed"
         },
         {
-          "name": "leagueScore › KNOCKOUT_ONLY bruger knockoutPoints",
+          "name": "scoreLeagueBonus › valg og ja/nej",
           "status": "passed"
         },
         {
-          "name": "leagueScore › GROUP_ONLY bruger groupPoints",
+          "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › point pr. korrekt navn + bonus for rigtig plads",
           "status": "passed"
         },
         {
-          "name": "leagueScore › DOUBLE_KNOCKOUT vægter slutspil dobbelt",
+          "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › korrekt navn men forkert plads giver kun navn-point",
           "status": "passed"
         },
         {
-          "name": "leagueScore › ukendt format falder tilbage til total",
+          "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › helt forkert giver 0",
           "status": "passed"
         },
         {
-          "name": "leagueScore › håndterer manglende felter som 0",
+          "name": "sumLeagueBonus › summerer på tværs af spørgsmål",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/leagues/leagueFormat.test.js",
+      "area": "frontend",
+      "passed": 12,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "leagueScore (kombinerbar) › alt slået til = alle komponenter",
           "status": "passed"
         },
         {
-          "name": "formatLabel / FORMAT_OPTIONS › har 5 formater",
+          "name": "leagueScore (kombinerbar) › kun bonus + slutspil kombineret",
           "status": "passed"
         },
         {
-          "name": "formatLabel / FORMAT_OPTIONS › giver en label for hvert format",
+          "name": "leagueScore (kombinerbar) › dobbelt slutspil vægter knockout x2",
           "status": "passed"
         },
         {
-          "name": "formatLabel / FORMAT_OPTIONS › falder tilbage til Fuld-label ved ukendt",
+          "name": "leagueScore (kombinerbar) › lægger liga-bonus til når valgt",
+          "status": "passed"
+        },
+        {
+          "name": "leagueScore (kombinerbar) › liga-bonus ignoreres når fravalgt",
+          "status": "passed"
+        },
+        {
+          "name": "normalizeScoring › bruger scoring-objekt hvis til stede",
+          "status": "passed"
+        },
+        {
+          "name": "normalizeScoring › mapper gammelt bonusOnly-format",
+          "status": "passed"
+        },
+        {
+          "name": "normalizeScoring › mapper gammelt doubleKnockout-format",
+          "status": "passed"
+        },
+        {
+          "name": "normalizeScoring › falder tilbage til default uden format/scoring",
+          "status": "passed"
+        },
+        {
+          "name": "scoringLabel / isFullScoring › fuld scoring kaldes Fuld",
+          "status": "passed"
+        },
+        {
+          "name": "scoringLabel / isFullScoring › viser kombination",
+          "status": "passed"
+        },
+        {
+          "name": "scoringLabel / isFullScoring › intet valgt",
           "status": "passed"
         }
       ]

@@ -12,8 +12,7 @@ import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
-import { leagueScore, formatLabel } from '../features/leagues/leagueFormat';
-import { LEAGUE_FORMAT } from '../lib/constants';
+import { leagueScore, scoringLabel, normalizeScoring, isFullScoring } from '../features/leagues/leagueFormat';
 
 // ── Fane-konstanter ──────────────────────────────────────────────────────────
 const TAB_OVERALL = 'overall';
@@ -39,13 +38,14 @@ export default function LeaderboardPage() {
     [pointsByUid],
   );
 
-  // Når en liga er valgt med et særligt format, rangeres efter dens point-udvalg
-  const leagueFormat = selectedLeague?.format ?? LEAGUE_FORMAT.FULL;
+  // Når en liga er valgt med et særligt scoring-valg, rangeres efter dens udvalg.
+  // (Liga-bonus afspejles på ligaens egen side; her vægtes de øvrige dele.)
+  const leagueScoring = normalizeScoring(selectedLeague);
   const getLeaguePoints = useCallback(
-    (uid) => leagueScore(standings.find((u) => u.uid === uid), leagueFormat),
-    [standings, leagueFormat],
+    (uid) => leagueScore(standings.find((u) => u.uid === uid), leagueScoring, 0),
+    [standings, leagueScoring],
   );
-  const useLeagueScoring = selectedLeagueId && leagueFormat !== LEAGUE_FORMAT.FULL;
+  const useLeagueScoring = selectedLeagueId && !isFullScoring(leagueScoring);
 
   // Formatér dags dato til dansk visning
   const todayDanish = todayStr
@@ -125,7 +125,7 @@ export default function LeaderboardPage() {
 
           {useLeagueScoring && (
             <p className="text-sm text-muted mb-2" style={{ color: 'var(--c-muted)' }}>
-              Rangeret efter ligaens format: <strong>{formatLabel(leagueFormat)}</strong>
+              Rangeret efter ligaens format: <strong>{scoringLabel(leagueScoring)}</strong>
             </p>
           )}
           <StandingsTable

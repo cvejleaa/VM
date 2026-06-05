@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T11:50:45.208Z",
+  "generatedAt": "2026-06-05T12:15:58.510Z",
   "nodes": [
     {
       "id": "firebase",
@@ -54,7 +54,7 @@
     {
       "id": "features/leagues",
       "layer": 2,
-      "files": 10
+      "files": 14
     },
     {
       "id": "features/matches",
@@ -246,7 +246,12 @@
     {
       "from": "features/leagues",
       "to": "features/comments",
-      "count": 1
+      "count": 2
+    },
+    {
+      "from": "features/leagues",
+      "to": "lib (kerne)",
+      "count": 12
     },
     {
       "from": "features/leagues",
@@ -255,13 +260,8 @@
     },
     {
       "from": "features/leagues",
-      "to": "lib (kerne)",
-      "count": 8
-    },
-    {
-      "from": "features/leagues",
       "to": "firebase",
-      "count": 6
+      "count": 8
     },
     {
       "from": "features/matches",
@@ -341,7 +341,7 @@
     {
       "from": "pages",
       "to": "lib (kerne)",
-      "count": 13
+      "count": 11
     },
     {
       "from": "pages",
@@ -351,7 +351,7 @@
     {
       "from": "pages",
       "to": "features/leagues",
-      "count": 9
+      "count": 11
     },
     {
       "from": "pages",
