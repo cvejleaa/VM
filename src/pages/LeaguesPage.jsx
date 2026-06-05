@@ -94,8 +94,10 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const scoring = normalizeScoring(league);
   const members = filterUsersByLeague(standings, league.memberUids);
   // Ligaens egne bonusspørgsmål + point pr. spiller (liga-lokalt)
-  const { questions: bonusQuestions, myAnswers: bonusAnswers, pointsByUid: bonusPointsByUid } =
-    useLeagueBonus(league.id, meUid);
+  const {
+    questions: bonusQuestions, myAnswers: bonusAnswers,
+    pointsByUid: bonusPointsByUid, answersByQid: bonusAnswersByQid,
+  } = useLeagueBonus(league.id, meUid);
 
   async function handleScoringToggle(nextScoring) {
     setSavingFormat(true); setActionError('');
@@ -298,6 +300,7 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
         isManager={isManager}
         questions={bonusQuestions}
         myAnswers={bonusAnswers}
+        answersByQid={bonusAnswersByQid}
       />
 
       {/* Hvem har tippet på de kommende kampe */}

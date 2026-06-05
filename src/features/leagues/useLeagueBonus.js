@@ -97,5 +97,5 @@ export function useLeagueBonus(leagueId, meUid) {
     return totals;
   }, [othersByQid, questions]);
 
-  return { questions, myAnswers, pointsByUid, loading };
+  return { questions, myAnswers, pointsByUid, answersByQid: othersByQid, loading };
 }

@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T12:50:53.838Z",
+  "generatedAt": "2026-06-05T16:33:27.597Z",
   "totals": {
-    "files": 55,
-    "tests": 1031,
-    "passed": 1031,
+    "files": 57,
+    "tests": 1046,
+    "passed": 1046,
     "failed": 0
   },
   "suites": [
@@ -2192,9 +2192,73 @@
       ]
     },
     {
+      "file": "src/features/leagues/LeagueBonus.test.jsx",
+      "area": "frontend",
+      "passed": 6,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "LeagueBonus › viser spørgsmål med Åben/Låst status",
+          "status": "passed"
+        },
+        {
+          "name": "LeagueBonus › viser \"mangler at svare\"-indikator for ubesvarede åbne spørgsmål",
+          "status": "passed"
+        },
+        {
+          "name": "LeagueBonus › viser \"Gem svar\"-knap på åbne spørgsmål",
+          "status": "passed"
+        },
+        {
+          "name": "LeagueBonus › viser facit, dit svar og point på låst, afgjort spørgsmål",
+          "status": "passed"
+        },
+        {
+          "name": "LeagueBonus › viser tom-tilstand uden spørgsmål",
+          "status": "passed"
+        },
+        {
+          "name": "LeagueBonus › viser opret-knap for managere",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/leagues/leagueBonusActions.test.js",
+      "area": "frontend",
+      "passed": 6,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "createLeagueBonus › afviser en deadline i fortiden",
+          "status": "passed"
+        },
+        {
+          "name": "createLeagueBonus › opretter med en gyldig fremtidig deadline",
+          "status": "passed"
+        },
+        {
+          "name": "createLeagueBonus › kræver mindst to svarmuligheder ved valg",
+          "status": "passed"
+        },
+        {
+          "name": "updateLeagueBonus › afviser ny deadline i fortiden",
+          "status": "passed"
+        },
+        {
+          "name": "updateLeagueBonus › opdaterer label",
+          "status": "passed"
+        },
+        {
+          "name": "updateLeagueBonus › gør intet uden felter",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/leagues/leagueBonusScoring.test.js",
       "area": "frontend",
-      "passed": 7,
+      "passed": 10,
       "failed": 0,
       "tests": [
         {
@@ -2202,7 +2266,11 @@
           "status": "passed"
         },
         {
-          "name": "scoreLeagueBonus › fritekst: case/whitespace-ufølsom",
+          "name": "scoreLeagueBonus › fritekst: case/whitespace/accent-ufølsom + lille stavefejl",
+          "status": "passed"
+        },
+        {
+          "name": "scoreLeagueBonus › fritekst: manuelt godkendt stavemåde tæller",
           "status": "passed"
         },
         {
@@ -2219,6 +2287,14 @@
         },
         {
           "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › helt forkert giver 0",
+          "status": "passed"
+        },
+        {
+          "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › dublet-navne tæller kun én gang",
+          "status": "passed"
+        },
+        {
+          "name": "scoreLeagueBonus › top-liste med rækkefølge-bonus › fuzzy match på navne i top-liste",
           "status": "passed"
         },
         {
