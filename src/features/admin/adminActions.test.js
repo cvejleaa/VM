@@ -242,12 +242,12 @@ describe('adminActions', () => {
     });
 
     it('returnerer ok:false ved fejl', async () => {
-      const mockFn = vi.fn().mockRejectedValue({ message: 'RESEND_API_KEY er ikke sat endnu.' });
+      const mockFn = vi.fn().mockRejectedValue({ message: 'SMTP_PASSWORD er ikke sat endnu.' });
       mockHttpsCallable.mockReturnValue(mockFn);
 
       const result = await callSendTipRemindersNow();
       expect(result.ok).toBe(false);
-      expect(result.error).toContain('RESEND_API_KEY');
+      expect(result.error).toContain('SMTP_PASSWORD');
     });
 
     it('kalder httpsCallable med sendTipRemindersNow', async () => {

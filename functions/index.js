@@ -18,15 +18,20 @@
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { onSchedule }               = require('firebase-functions/v2/scheduler');
-const { defineSecret }             = require('firebase-functions/params');
+const { defineSecret, defineString } = require('firebase-functions/params');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
+const nodemailer                   = require('nodemailer');
 
-// API-nøgle til e-mail-udsendelse (Resend), gemt sikkert i Secret Manager.
-// Sættes med:  firebase functions:secrets:set RESEND_API_KEY
-// Funktionen springer mail-udsendelse over, hvis nøglen er tom.
-const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
-const EMAIL_FROM = process.env.EMAIL_FROM || 'VM 2026 Tip <noreply@vejleaa.dk>';
+// E-mail-udsendelse via SMTP (fx one.com med vm@vejleaa.dk).
+// Adgangskoden gemmes sikkert i Secret Manager:
+//   firebase functions:secrets:set SMTP_PASSWORD
+// De øvrige indstillinger kan ændres som funktions-parametre (defaults nedenfor).
+const SMTP_PASSWORD = defineSecret('SMTP_PASSWORD');
+const SMTP_HOST = defineString('SMTP_HOST', { default: 'send.one.com' });
+const SMTP_PORT = defineString('SMTP_PORT', { default: '465' });
+const SMTP_USER = defineString('SMTP_USER', { default: 'vm@vejleaa.dk' });
+const EMAIL_FROM = defineString('EMAIL_FROM', { default: 'VM 2026 Tip <vm@vejleaa.dk>' });
 const APP_URL = 'https://vm.vejleaa.dk';
 const TZ = 'Europe/Copenhagen';
 
@@ -491,21 +496,26 @@ function cphDateStr(d) {
   }).format(d);
 }
 
-async function sendEmail(apiKey, { to, subject, html }) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
+// Byg en SMTP-transporter ud fra parametre/secret. Returnerer null hvis der
+// ikke er sat en adgangskode (så mail-udsendelse blot springes over).
+function buildTransport(password) {
+  if (!password) return null;
+  const port = parseInt(SMTP_PORT.value() || '465', 10);
+  return nodemailer.createTransport({
+    host: SMTP_HOST.value(),
+    port,
+    secure: port === 465, // 465 = implicit TLS; 587 = STARTTLS
+    auth: { user: SMTP_USER.value(), pass: password },
   });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    throw new Error(`Resend ${res.status}: ${txt}`);
-  }
+}
+
+async function sendEmail(transporter, { to, subject, html }) {
+  await transporter.sendMail({ from: EMAIL_FROM.value(), to, subject, html });
 }
 
 // Kerne-logik: send påmindelser om dagens utippede kampe. Returnerer antal sendte.
-async function runTipReminders(db, apiKey) {
-  if (!apiKey) { console.log('tipReminders: ingen RESEND_API_KEY — springer over.'); return { sent: 0, reason: 'no-api-key' }; }
+async function runTipReminders(db, transporter) {
+  if (!transporter) { console.log('tipReminders: ingen SMTP_PASSWORD — springer over.'); return { sent: 0, reason: 'no-smtp-password' }; }
 
   const now = new Date();
   const todayStr = cphDateStr(now);
@@ -555,7 +565,7 @@ async function runTipReminders(db, apiKey) {
       <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
 
     try {
-      await sendEmail(apiKey, {
+      await sendEmail(transporter, {
         to: u.email,
         subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
         html,
@@ -570,13 +580,13 @@ async function runTipReminders(db, apiKey) {
 }
 
 exports.tipReminders = onSchedule(
-  { schedule: '0 9 * * *', timeZone: TZ, region: REGION, secrets: [RESEND_API_KEY] },
-  async () => { await runTipReminders(getFirestore(), RESEND_API_KEY.value()); }
+  { schedule: '0 9 * * *', timeZone: TZ, region: REGION, secrets: [SMTP_PASSWORD] },
+  async () => { await runTipReminders(getFirestore(), buildTransport(SMTP_PASSWORD.value())); }
 );
 
 // Callable: admin kan udløse påmindelserne manuelt (til test).
 exports.sendTipRemindersNow = onCall(
-  { region: REGION, secrets: [RESEND_API_KEY] },
+  { region: REGION, secrets: [SMTP_PASSWORD] },
   async (request) => {
     const db = getFirestore();
     if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
@@ -585,9 +595,9 @@ exports.sendTipRemindersNow = onCall(
     if (role !== 'owner' && role !== 'matchAdmin') {
       throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan sende påmindelser.');
     }
-    const apiKey = RESEND_API_KEY.value();
-    if (!apiKey) throw new HttpsError('failed-precondition', 'RESEND_API_KEY er ikke sat endnu.');
-    const result = await runTipReminders(db, apiKey);
+    const transporter = buildTransport(SMTP_PASSWORD.value());
+    if (!transporter) throw new HttpsError('failed-precondition', 'SMTP_PASSWORD er ikke sat endnu.');
+    const result = await runTipReminders(db, transporter);
     return { success: true, ...result };
   }
 );
