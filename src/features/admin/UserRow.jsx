@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ROLES, USER_STATUS } from '../../lib/constants';
 import { setUserStatus, toggleMatchAdminRole } from './adminActions';
+import Avatar from '../../components/Avatar';
+import { teamName } from '../../lib/teams';
 
 // Oversæt status til dansk
 const statusLabel = {
@@ -82,41 +84,56 @@ export default function UserRow({ user, currentUserIsOwner }) {
       }}
     >
       {/* Info */}
-      <div>
-        <div style={{ fontWeight: 600 }}>
-          {user.displayName || '(ingen navn)'}
-          {isOwner && (
-            <span
-              style={{
-                marginLeft: 6,
-                fontSize: '0.7rem',
-                background: 'var(--c-pitch)',
-                color: '#fff',
-                borderRadius: 4,
-                padding: '1px 5px',
-              }}
-            >
-              EJER
+      <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
+        <Avatar uid={user.id} name={user.displayName} emoji={user.avatarEmoji}
+          favoriteTeam={user.favoriteTeam} size={40} />
+        <div>
+          <div style={{ fontWeight: 600 }}>
+            {user.displayName || '(ingen navn)'}
+            {isOwner && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  fontSize: '0.7rem',
+                  background: 'var(--c-pitch)',
+                  color: '#fff',
+                  borderRadius: 4,
+                  padding: '1px 5px',
+                }}
+              >
+                EJER
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+            {user.email}
+          </div>
+          <div style={{ marginTop: 2, fontSize: '0.82rem' }}>
+            <span style={{ color: statusColor[user.status] ?? 'var(--c-muted)' }}>
+              {statusLabel[user.status] ?? user.status}
             </span>
+            {' · '}
+            <span style={{ color: 'var(--c-muted)' }}>
+              {roleLabel[user.role] ?? user.role}
+            </span>
+            {' · '}
+            <span style={{ color: 'var(--c-muted)' }}>
+              {user.totalPoints ?? 0} point
+            </span>
+          </div>
+          <div style={{ marginTop: 2, fontSize: '0.8rem', color: 'var(--c-muted)' }}>
+            Yndlingshold: {user.favoriteTeam ? teamName(user.favoriteTeam) : '–'}
+            {' · '}
+            Avatar: {user.avatarEmoji || '–'}
+            {' · '}
+            Påmindelser: {user.emailOptOut ? 'Fra' : 'Til'}
+          </div>
+          {localError && (
+            <div style={{ color: 'var(--c-err)', fontSize: '0.8rem', marginTop: 4 }}>
+              {localError}
+            </div>
           )}
         </div>
-        <div style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
-          {user.email}
-        </div>
-        <div style={{ marginTop: 2, fontSize: '0.82rem' }}>
-          <span style={{ color: statusColor[user.status] ?? 'var(--c-muted)' }}>
-            {statusLabel[user.status] ?? user.status}
-          </span>
-          {' · '}
-          <span style={{ color: 'var(--c-muted)' }}>
-            {roleLabel[user.role] ?? user.role}
-          </span>
-        </div>
-        {localError && (
-          <div style={{ color: 'var(--c-err)', fontSize: '0.8rem', marginTop: 4 }}>
-            {localError}
-          </div>
-        )}
       </div>
 
       {/* Handlingsknapper — skjules for owner */}

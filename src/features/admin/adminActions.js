@@ -140,6 +140,24 @@ export async function callSendTipRemindersNow() {
   }
 }
 
+/**
+ * Kald Cloud Function 'sendTestReminderToMe' — sender en testmail KUN til
+ * admin selv med alle kampe for de første 3 spilledage.
+ */
+export async function callSendTestReminderToMe() {
+  try {
+    const fn = httpsCallable(functions, 'sendTestReminderToMe');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "sendTestReminderToMe" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af sendTestReminderToMe.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
 
 /**

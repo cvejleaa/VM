@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -52,6 +52,16 @@ export default function MatchesTab() {
     setReminderBusy(false);
     setReminderMsg(res.ok
       ? `Påmindelser sendt: ${res.data?.sent ?? 0}`
+      : `Fejl: ${res.error}`);
+  }
+
+  async function handleTestToMe() {
+    setReminderBusy(true);
+    setReminderMsg('');
+    const res = await callSendTestReminderToMe();
+    setReminderBusy(false);
+    setReminderMsg(res.ok
+      ? `Testmail sendt til ${res.data?.sentTo} (${res.data?.matches} kampe / ${res.data?.days} spilledage)`
       : `Fejl: ${res.error}`);
   }
 
@@ -139,6 +149,15 @@ export default function MatchesTab() {
           title="Send e-mail-påmindelser nu (test)"
         >
           {reminderBusy ? 'Sender…' : '✉️ Send påmindelser nu'}
+        </button>
+
+        <button
+          className="btn btn--ghost"
+          onClick={handleTestToMe}
+          disabled={reminderBusy}
+          title="Send en testmail kun til dig selv med de første 3 spilledage"
+        >
+          {reminderBusy ? 'Sender…' : '🧪 Testmail til mig'}
         </button>
       </div>
 
