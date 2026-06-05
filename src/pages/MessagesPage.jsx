@@ -4,18 +4,21 @@
  *  - Start en ny samtale ved at vælge en spiller
  *  - Trådvisning med beskeder + skrivefelt
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useStandings } from '../features/leaderboard/useStandings';
-import { useMyMessages, groupConversations, useConversation } from '../features/comments/useMessages';
+import { useMyMessages, groupConversations } from '../features/comments/useMessages';
 import { sendMessage, deleteMessage } from '../features/comments/commentActions';
 import { formatTimestamp } from '../features/comments/formatTimestamp';
+import { markConversationSeen } from '../features/comments/dmRead';
 import EmojiPicker from '../features/comments/EmojiPicker';
 import Avatar from '../components/Avatar';
 
 // ── Trådvisning ───────────────────────────────────────────────────────────────
-function Thread({ meUid, otherUid, nameOf, otherUser }) {
-  const { messages, loading } = useConversation(meUid, otherUid);
+// Beskederne kommer fra forælderens samlede abonnement (useMyMessages) og
+// filtreres til denne samtale — det undgår en separat query, som ellers ville
+// blive afvist af sikkerhedsreglerne (de tillader læsning via participants).
+function Thread({ meUid, otherUid, nameOf, otherUser, messages, loading }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -128,6 +131,18 @@ export default function MessagesPage() {
     [messages, meUid],
   );
 
+  // Beskeder i den aktive samtale (udledt af mine beskeder)
+  const threadMessages = useMemo(
+    () => (activeUid ? messages.filter((m) => m.participants?.includes(activeUid)) : []),
+    [messages, activeUid],
+  );
+
+  // Markér aktiv samtale som læst (når den åbnes, og når nye beskeder kommer ind)
+  useEffect(() => {
+    if (!activeUid) return;
+    markConversationSeen(activeUid);
+  }, [activeUid, threadMessages.length]);
+
   // Spillere man kan skrive til (alle godkendte undtagen én selv)
   const others = standings.filter((u) => u.uid !== meUid);
 
@@ -208,7 +223,8 @@ export default function MessagesPage() {
 
         {/* Højre: aktiv tråd */}
         {activeUid ? (
-          <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} otherUser={userOf(activeUid)} />
+          <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} otherUser={userOf(activeUid)}
+            messages={threadMessages} loading={loading} />
         ) : (
           <div className="card" style={{ color: 'var(--c-muted)' }}>
             Vælg en samtale eller start en ny for at skrive beskeder.

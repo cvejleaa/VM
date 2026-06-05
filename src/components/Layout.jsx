@@ -4,7 +4,26 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { usePendingApprovals } from '../features/admin/usePendingApprovals';
+import { useUnreadMessages } from '../features/comments/useUnreadMessages';
 import Avatar from './Avatar';
+
+// Lille rødt tal-badge (genbruges til godkendelser og beskeder)
+function CountBadge({ count, title, testid }) {
+  if (!count) return null;
+  return (
+    <span
+      data-testid={testid}
+      title={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        minWidth: 18, height: 18, padding: '0 5px', borderRadius: 99,
+        background: 'var(--c-err)', color: '#fff', fontSize: '0.7rem', fontWeight: 800,
+      }}
+    >
+      {count}
+    </span>
+  );
+}
 
 const linkStyle = ({ isActive }) => ({
   padding: '0.5rem 0.75rem',
@@ -20,6 +39,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   // Antal ventende godkendelser (brugere for ejer + ligaer for alle admins)
   const { total: pendingCount } = usePendingApprovals({ enabled: isMatchAdmin, includeUsers: isOwner });
+  // Ulæste private beskeder (badge på Beskeder)
+  const { total: unreadCount } = useUnreadMessages(isApproved ? user?.uid : null);
 
   return (
     <div>
@@ -35,24 +56,17 @@ export default function Layout({ children }) {
               <NavLink to="/stilling" style={linkStyle}>Stilling</NavLink>
               <NavLink to="/statistik" style={linkStyle}>Statistik</NavLink>
               <NavLink to="/ligaer" style={linkStyle}>Ligaer</NavLink>
-              <NavLink to="/beskeder" style={linkStyle}>Beskeder</NavLink>
+              <NavLink to="/beskeder" style={linkStyle}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  Beskeder
+                  <CountBadge count={unreadCount} title={`${unreadCount} ulæste beskeder`} testid="unread-messages-count" />
+                </span>
+              </NavLink>
               {isMatchAdmin && (
                 <NavLink to="/admin" style={linkStyle}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                     Admin
-                    {pendingCount > 0 && (
-                      <span
-                        data-testid="admin-pending-count"
-                        title={`${pendingCount} venter på godkendelse`}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          minWidth: 18, height: 18, padding: '0 5px', borderRadius: 99,
-                          background: 'var(--c-err)', color: '#fff', fontSize: '0.7rem', fontWeight: 800,
-                        }}
-                      >
-                        {pendingCount}
-                      </span>
-                    )}
+                    <CountBadge count={pendingCount} title={`${pendingCount} venter på godkendelse`} testid="admin-pending-count" />
                   </span>
                 </NavLink>
               )}
