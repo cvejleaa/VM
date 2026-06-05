@@ -11,9 +11,10 @@ import { useMyMessages, groupConversations, useConversation } from '../features/
 import { sendMessage, deleteMessage } from '../features/comments/commentActions';
 import { formatTimestamp } from '../features/comments/formatTimestamp';
 import EmojiPicker from '../features/comments/EmojiPicker';
+import Avatar from '../components/Avatar';
 
 // ── Trådvisning ───────────────────────────────────────────────────────────────
-function Thread({ meUid, otherUid, nameOf }) {
+function Thread({ meUid, otherUid, nameOf, otherUser }) {
   const { messages, loading } = useConversation(meUid, otherUid);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,7 +37,10 @@ function Thread({ meUid, otherUid, nameOf }) {
 
   return (
     <div className="card">
-      <h3 className="card__title mb-2">Samtale med {nameOf(otherUid)}</h3>
+      <h3 className="card__title mb-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <Avatar uid={otherUid} name={nameOf(otherUid)} emoji={otherUser?.avatarEmoji} favoriteTeam={otherUser?.favoriteTeam} size={28} />
+        Samtale med {nameOf(otherUid)}
+      </h3>
 
       {loading ? (
         <div className="spinner" role="status" aria-label="Indlæser" />
@@ -116,7 +120,8 @@ export default function MessagesPage() {
   const [activeUid, setActiveUid] = useState(null);
   const [pick, setPick] = useState('');
 
-  const nameOf = (uid) => standings.find((u) => u.uid === uid)?.displayName || '(ukendt)';
+  const userOf = (uid) => standings.find((u) => u.uid === uid) || null;
+  const nameOf = (uid) => userOf(uid)?.displayName || '(ukendt)';
 
   const conversations = useMemo(
     () => groupConversations(messages, meUid),
@@ -184,7 +189,10 @@ export default function MessagesPage() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <strong style={{ fontSize: '0.9rem' }}>{nameOf(c.otherUid)}</strong>
+                        <strong style={{ fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Avatar uid={c.otherUid} name={nameOf(c.otherUid)} emoji={userOf(c.otherUid)?.avatarEmoji} favoriteTeam={userOf(c.otherUid)?.favoriteTeam} size={22} />
+                          {nameOf(c.otherUid)}
+                        </strong>
                         <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>{formatTimestamp(c.last?.createdAt)}</span>
                       </div>
                       <div style={{ fontSize: '0.8rem', opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -200,7 +208,7 @@ export default function MessagesPage() {
 
         {/* Højre: aktiv tråd */}
         {activeUid ? (
-          <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} />
+          <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} otherUser={userOf(activeUid)} />
         ) : (
           <div className="card" style={{ color: 'var(--c-muted)' }}>
             Vælg en samtale eller start en ny for at skrive beskeder.

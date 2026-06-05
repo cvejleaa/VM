@@ -609,3 +609,133 @@ describe('tipParticipation/{matchId} — sikkerhedsregler', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// TESTS: reaktioner på liga-kommentarer
+// ---------------------------------------------------------------------------
+describe('leagueComments — reaktioner', () => {
+  async function seedComment(authorUid) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueComments').doc('rc1').set({
+        leagueId: 'rlg', uid: authorUid, displayName: 'X', text: 'hej', createdAt: Timestamp.now(),
+      });
+    });
+  }
+
+  it('et medlem KAN reagere (kun reactions-feltet)', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await createLeague('rlg', 'm1', ['m1', 'm2']);
+    await seedComment('m1');
+
+    const ctx = testEnv.authenticatedContext('m2');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagueComments', 'rc1'), { reactions: { '👍': ['m2'] } })
+    );
+  });
+
+  it('et medlem KAN IKKE ændre teksten via reaktions-reglen', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await createLeague('rlg', 'm1', ['m1', 'm2']);
+    await seedComment('m1');
+
+    const ctx = testEnv.authenticatedContext('m2');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagueComments', 'rc1'), { reactions: { '👍': ['m2'] }, text: 'hacket' })
+    );
+  });
+
+  it('en udenforstående KAN IKKE reagere', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('outsider', 'player', 'approved');
+    await createLeague('rlg', 'm1', ['m1']);
+    await seedComment('m1');
+
+    const ctx = testEnv.authenticatedContext('outsider');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagueComments', 'rc1'), { reactions: { '👍': ['outsider'] } })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: reaktioner på tips (bets) efter kickoff
+// ---------------------------------------------------------------------------
+describe('bets — reaktioner efter kickoff', () => {
+  async function seedBet(uid, matchId) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('bets').doc(`${uid}_${matchId}`).set({
+        uid, matchId, home: 1, away: 0,
+      });
+    });
+  }
+
+  it('en anden bruger KAN reagere EFTER kickoff', async () => {
+    await createUser('u1', 'player', 'approved');
+    await createUser('u2', 'player', 'approved');
+    await createMatch('rb_past', new Date(Date.now() - 3600000));
+    await seedBet('u1', 'rb_past');
+
+    const ctx = testEnv.authenticatedContext('u2');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'bets', 'u1_rb_past'), { reactions: { '🔥': ['u2'] } })
+    );
+  });
+
+  it('en anden bruger KAN IKKE reagere FØR kickoff', async () => {
+    await createUser('u1', 'player', 'approved');
+    await createUser('u2', 'player', 'approved');
+    await createMatch('rb_future', new Date(Date.now() + 3600000));
+    await seedBet('u1', 'rb_future');
+
+    const ctx = testEnv.authenticatedContext('u2');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'bets', 'u1_rb_future'), { reactions: { '🔥': ['u2'] } })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: leagueActivity-collection
+// ---------------------------------------------------------------------------
+describe('leagueActivity/{id} — sikkerhedsregler', () => {
+  it('et medlem KAN logge aktivitet som sig selv', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createLeague('alg', 'm1', ['m1']);
+
+    const ctx = testEnv.authenticatedContext('m1');
+    await assertSucceeds(
+      setDoc(doc(ctx.firestore(), 'leagueActivity', 'a1'), {
+        leagueId: 'alg', type: 'comment', text: 'skrev noget', actorUid: 'm1', actorName: 'M1', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('en udenforstående KAN IKKE logge aktivitet', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('outsider', 'player', 'approved');
+    await createLeague('alg', 'm1', ['m1']);
+
+    const ctx = testEnv.authenticatedContext('outsider');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'leagueActivity', 'a2'), {
+        leagueId: 'alg', type: 'comment', text: 'snyd', actorUid: 'outsider', actorName: 'O', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('et medlem KAN læse feedet, en udenforstående KAN IKKE', async () => {
+    await createUser('m1', 'player', 'approved');
+    await createUser('outsider', 'player', 'approved');
+    await createLeague('alg', 'm1', ['m1']);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueActivity').doc('a3').set({
+        leagueId: 'alg', type: 'join', text: 'kom med', actorUid: 'm1', actorName: 'M1', createdAt: Timestamp.now(),
+      });
+    });
+
+    await assertSucceeds(getDoc(doc(testEnv.authenticatedContext('m1').firestore(), 'leagueActivity', 'a3')));
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('outsider').firestore(), 'leagueActivity', 'a3')));
+  });
+});

@@ -121,6 +121,12 @@ service cloud.firestore {
         && !writingPointsField()
         && request.time < get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.kickoff;
 
+      // Reaktioner: enhver godkendt bruger må ændre KUN 'reactions'-feltet, og
+      // kun EFTER kickoff (hvor andres tips alligevel er synlige).
+      allow update: if isApproved()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        && request.time >= get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.kickoff;
+
       // Ingen sletter bets fra klienten
       allow delete: if false;
     }
@@ -210,8 +216,9 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(['edited'])
         && isMemberOfLeague(request.resource.data.leagueId);
 
-      // Ingen redigering af eksisterende kommentarer
-      allow update: if false;
+      // Reaktioner: medlemmer må ændre KUN 'reactions'-feltet (ingen anden redigering)
+      allow update: if isMemberOfLeague(resource.data.leagueId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
 
       // Slet: forfatteren selv, ligaens ejer eller en admin
       allow delete: if isMatchAdmin()
@@ -252,6 +259,27 @@ service cloud.firestore {
 
       // Kun server (Cloud Functions via admin-SDK) kan skrive
       allow write: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // leagueActivity/{id} — aktivitets-feed pr. liga
+    // -----------------------------------------------------------------------
+    match /leagueActivity/{actId} {
+      // Medlemmer (og admins) kan læse feedet
+      allow read: if isMemberOfLeague(resource.data.leagueId) || isMatchAdmin();
+
+      // Opret: som sig selv, og enten medlem af ligaen eller admin
+      allow create: if isApproved()
+        && request.auth.uid == request.resource.data.actorUid
+        && (isMemberOfLeague(request.resource.data.leagueId) || isMatchAdmin());
+
+      // Ingen redigering
+      allow update: if false;
+
+      // Slet: ligaens ejer eller admin
+      allow delete: if isMatchAdmin()
+        || (isSignedIn() && request.auth.uid ==
+            get(/databases/$(database)/documents/leagues/$(resource.data.leagueId)).data.ownerUid);
     }
 
     // -----------------------------------------------------------------------

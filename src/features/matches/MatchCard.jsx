@@ -16,6 +16,7 @@ import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
 import ScoreInput from './ScoreInput';
 import Countdown from './Countdown';
+import MatchTips from './MatchTips';
 
 // Maksimale mulige point pr. kamp (til info-tekst)
 const MAX_MATCH_POINTS = POINTS.EXACT; // 5
@@ -28,7 +29,7 @@ const MAX_KNOCKOUT_POINTS = POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE; // 7
  *   bet: object|null,
  * }} props
  */
-export default function MatchCard({ match, uid, bet }) {
+export default function MatchCard({ match, uid, bet, usersByUid = {} }) {
   const locked = isMatchLocked(match.kickoff);
   const isKnockout = match.round !== ROUNDS.GROUP;
   const isPendingTeams = match.status === MATCH_STATUS.PENDING_TEAMS;
@@ -341,6 +342,11 @@ export default function MatchCard({ match, uid, bet }) {
         >
           Intet tip afgivet
         </div>
+      )}
+
+      {/* Alles tips + reaktioner (kun efter kickoff, og kun for kampe med kendte hold) */}
+      {locked && !isPendingTeams && (
+        <MatchTips match={match} meUid={uid} usersByUid={usersByUid} />
       )}
     </div>
   );

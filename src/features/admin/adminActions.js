@@ -122,6 +122,24 @@ export async function callBackfillTipParticipation() {
   }
 }
 
+/**
+ * Kald Cloud Function 'sendTipRemindersNow' for at sende e-mail-påmindelser
+ * med det samme (til test).
+ */
+export async function callSendTipRemindersNow() {
+  try {
+    const fn = httpsCallable(functions, 'sendTipRemindersNow');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "sendTipRemindersNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af sendTipRemindersNow.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
 
 /**

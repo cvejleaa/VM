@@ -118,6 +118,7 @@ export default function LeaderboardPage() {
             meUid={user?.uid}
             memberUids={memberUids}
             loading={loadingStandings}
+            showMovement={!selectedLeagueId}
             emptyMsg="Ingen godkendte spillere endnu."
           />
         </div>

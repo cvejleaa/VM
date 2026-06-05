@@ -5,6 +5,19 @@
  */
 import { useMemo } from 'react';
 import { filterByMembers } from './standingsUtils';
+import Avatar from '../../components/Avatar';
+
+/** Lille pil der viser bevægelse i stillingen siden i går. */
+function MovementArrow({ delta }) {
+  if (delta === null || delta === undefined) return null;
+  if (delta > 0) {
+    return <span title={`Op ${delta}`} style={{ color: 'var(--c-pitch, #16a34a)', fontWeight: 700, fontSize: '0.8rem' }}>▲{delta}</span>;
+  }
+  if (delta < 0) {
+    return <span title={`Ned ${-delta}`} style={{ color: 'var(--c-err, #dc2626)', fontWeight: 700, fontSize: '0.8rem' }}>▼{-delta}</span>;
+  }
+  return <span title="Uændret" style={{ color: 'var(--c-muted)', fontSize: '0.8rem' }}>–</span>;
+}
 
 /**
  * @param {object}   props
@@ -22,6 +35,7 @@ export default function StandingsTable({
   getPoints = null,
   loading = false,
   emptyMsg = 'Ingen spillere at vise.',
+  showMovement = false,
 }) {
   // Filtrer og sorter brugerene
   const rows = useMemo(() => {
@@ -57,6 +71,7 @@ export default function StandingsTable({
         <thead>
           <tr>
             <th style={{ width: '2.5rem' }}>#</th>
+            {showMovement && <th style={{ width: '2.5rem' }} title="Bevægelse siden i går">±</th>}
             <th>Spiller</th>
             <th style={{ textAlign: 'right' }}>Point</th>
           </tr>
@@ -65,6 +80,9 @@ export default function StandingsTable({
           {rows.map((u, idx) => {
             const isMe = u.uid === meUid;
             const rank = idx + 1;
+            const delta = showMovement && typeof u.previousRank === 'number'
+              ? u.previousRank - rank
+              : null;
 
             return (
               <tr key={u.uid} className={isMe ? 'is-me' : ''}>
@@ -79,16 +97,24 @@ export default function StandingsTable({
                   )}
                 </td>
 
-                {/* Spillernavn + evt. "dig"-badge */}
+                {showMovement && (
+                  <td><MovementArrow delta={delta} /></td>
+                )}
+
+                {/* Avatar + spillernavn + evt. "dig"-badge */}
                 <td>
-                  <span className="text-bold" style={{ fontSize: '0.95rem' }}>
-                    {u.displayName || '(ukendt)'}
-                  </span>
-                  {isMe && (
-                    <span className="badge badge--blue" style={{ marginLeft: '0.5rem', verticalAlign: 'middle' }}>
-                      dig
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Avatar uid={u.uid} name={u.displayName} emoji={u.avatarEmoji}
+                      favoriteTeam={u.favoriteTeam} size={28} />
+                    <span className="text-bold" style={{ fontSize: '0.95rem' }}>
+                      {u.displayName || '(ukendt)'}
                     </span>
-                  )}
+                    {isMe && (
+                      <span className="badge badge--blue" style={{ verticalAlign: 'middle' }}>
+                        dig
+                      </span>
+                    )}
+                  </span>
                 </td>
 
                 {/* Point */}
