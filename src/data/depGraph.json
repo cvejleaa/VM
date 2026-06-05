@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T12:15:58.510Z",
+  "generatedAt": "2026-06-05T12:50:53.891Z",
   "nodes": [
     {
       "id": "firebase",
@@ -246,12 +246,17 @@
     {
       "from": "features/leagues",
       "to": "features/comments",
-      "count": 2
+      "count": 1
     },
     {
       "from": "features/leagues",
       "to": "lib (kerne)",
       "count": 12
+    },
+    {
+      "from": "features/leagues",
+      "to": "features/bonus",
+      "count": 1
     },
     {
       "from": "features/leagues",
