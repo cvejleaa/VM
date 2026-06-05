@@ -20,6 +20,22 @@ export function isMatchLocked(kickoff, now = new Date()) {
 }
 
 /**
+ * Afgør om en kamp faktisk kan tippes lige nu:
+ *  - holdene skal være kendt (ikke en knockout der venter på hold)
+ *  - status må ikke være 'pendingTeams'
+ *  - kampen må ikke være låst (kickoff passeret)
+ * @param {object} match
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isTippable(match, now = new Date()) {
+  if (!match) return false;
+  if (!match.homeTeam || !match.awayTeam) return false;
+  if (match.status === 'pendingTeams') return false;
+  return !isMatchLocked(match.kickoff, now);
+}
+
+/**
  * Formaterer en dato til dansk dagsnøgle, fx "onsdag 11. juni".
  * Bruges som grupperings-nøgle (og vises som overskrift).
  * @param {Date|{toDate:()=>Date}|null} kickoff

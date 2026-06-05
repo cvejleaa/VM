@@ -2,12 +2,41 @@
 import { describe, it, expect } from 'vitest';
 import {
   isMatchLocked,
+  isTippable,
   groupMatchesByDay,
   dayKey,
   formatKickoffTime,
   roundLabel,
   flagEmoji,
 } from './matchHelpers';
+
+// ---------------------------------------------------------------------------
+// isTippable
+// ---------------------------------------------------------------------------
+describe('isTippable', () => {
+  const future = new Date(Date.now() + 3600000);
+  const past = new Date(Date.now() - 3600000);
+
+  it('er sand for en kommende kamp med kendte hold', () => {
+    expect(isTippable({ homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled', kickoff: future })).toBe(true);
+  });
+
+  it('er falsk når holdene ikke er kendt (knockout der venter)', () => {
+    expect(isTippable({ homeTeam: null, awayTeam: null, status: 'pendingTeams', kickoff: future })).toBe(false);
+  });
+
+  it('er falsk for status pendingTeams selv med hold', () => {
+    expect(isTippable({ homeTeam: 'BRA', awayTeam: 'ARG', status: 'pendingTeams', kickoff: future })).toBe(false);
+  });
+
+  it('er falsk når kampen er låst (kickoff passeret)', () => {
+    expect(isTippable({ homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled', kickoff: past })).toBe(false);
+  });
+
+  it('er falsk for null', () => {
+    expect(isTippable(null)).toBe(false);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // isMatchLocked

@@ -384,24 +384,24 @@ exports.buildKnockout = onCall({ region: REGION }, async (request) => {
     return candidates.length > 0 ? candidates[0].team : null;
   };
 
-  // Definer r32-kampe (matchId fra data/group-stage.json er r32_m01 osv.)
+  // Definer r32-kampe (matchId fra data/group-stage.json er ko_r32_1 osv.)
   const r32Assignments = [
-    { id: 'r32_m01', home: getTeam('A', 1), away: getTeam('B', 2) },
-    { id: 'r32_m02', home: getTeam('C', 1), away: getBestThirdFrom(['D','E','F']) },
-    { id: 'r32_m03', home: getTeam('B', 1), away: getBestThirdFrom(['A','D','E']) },
-    { id: 'r32_m04', home: getTeam('D', 1), away: getTeam('C', 2) },
-    { id: 'r32_m05', home: getTeam('E', 1), away: getBestThirdFrom(['A','B','C']) },
-    { id: 'r32_m06', home: getTeam('G', 1), away: getTeam('H', 2) },
-    { id: 'r32_m07', home: getTeam('F', 1), away: getBestThirdFrom(['A','B','D']) },
-    { id: 'r32_m08', home: getTeam('H', 1), away: getTeam('G', 2) },
-    { id: 'r32_m09', home: getTeam('I', 1), away: getTeam('J', 2) },
-    { id: 'r32_m10', home: getTeam('K', 1), away: getBestThirdFrom(['I','J','L']) },
-    { id: 'r32_m11', home: getTeam('J', 1), away: getBestThirdFrom(['H','I','K']) },
-    { id: 'r32_m12', home: getTeam('L', 1), away: getTeam('K', 2) },
-    { id: 'r32_m13', home: getTeam('E', 2), away: getBestThirdFrom(['F','G','H']) },
-    { id: 'r32_m14', home: getTeam('I', 2), away: getBestThirdFrom(['G','H','L']) },
-    { id: 'r32_m15', home: getTeam('F', 2), away: getTeam('L', 2) },
-    { id: 'r32_m16', home: getTeam('D', 2), away: getBestThirdFrom(['C','E','F']) },
+    { id: 'ko_r32_1',  home: getTeam('A', 1), away: getTeam('B', 2) },
+    { id: 'ko_r32_2',  home: getTeam('C', 1), away: getBestThirdFrom(['D','E','F']) },
+    { id: 'ko_r32_3',  home: getTeam('B', 1), away: getBestThirdFrom(['A','D','E']) },
+    { id: 'ko_r32_4',  home: getTeam('D', 1), away: getTeam('C', 2) },
+    { id: 'ko_r32_5',  home: getTeam('E', 1), away: getBestThirdFrom(['A','B','C']) },
+    { id: 'ko_r32_6',  home: getTeam('G', 1), away: getTeam('H', 2) },
+    { id: 'ko_r32_7',  home: getTeam('F', 1), away: getBestThirdFrom(['A','B','D']) },
+    { id: 'ko_r32_8',  home: getTeam('H', 1), away: getTeam('G', 2) },
+    { id: 'ko_r32_9',  home: getTeam('I', 1), away: getTeam('J', 2) },
+    { id: 'ko_r32_10', home: getTeam('K', 1), away: getBestThirdFrom(['I','J','L']) },
+    { id: 'ko_r32_11', home: getTeam('J', 1), away: getBestThirdFrom(['H','I','K']) },
+    { id: 'ko_r32_12', home: getTeam('L', 1), away: getTeam('K', 2) },
+    { id: 'ko_r32_13', home: getTeam('E', 2), away: getBestThirdFrom(['F','G','H']) },
+    { id: 'ko_r32_14', home: getTeam('I', 2), away: getBestThirdFrom(['G','H','L']) },
+    { id: 'ko_r32_15', home: getTeam('F', 2), away: getTeam('L', 2) },
+    { id: 'ko_r32_16', home: getTeam('D', 2), away: getBestThirdFrom(['C','E','F']) },
   ];
 
   // Opdater knockout-kampe med hold og sæt status til 'scheduled'
@@ -428,6 +428,44 @@ exports.buildKnockout = onCall({ region: REGION }, async (request) => {
     success: true,
     message: `Knockout-bracket bygget. ${updatedCount} r32-kampe opdateret.`,
     best8ThirdsGroups,
+  };
+});
+
+// ---------------------------------------------------------------------------
+// pruneOrphanMatches — callable (kun owner): sletter forældede knockout-kampe.
+// Tidligere blev knockout seedet med id'er som 'r32_m01'; efter opdateringen
+// hedder de 'ko_r32_1' osv. De gamle dokumenter blev aldrig slettet og fik
+// kamp-tællere til at vise for mange kampe. Her fjernes alle knockout-kampe
+// (round != 'group') hvis id IKKE starter med 'ko_'.
+// ---------------------------------------------------------------------------
+exports.pruneOrphanMatches = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (userDoc.data()?.role !== 'owner') {
+    throw new HttpsError('permission-denied', 'Kun ejeren kan rydde forældede kampe.');
+  }
+
+  const snap = await db.collection('matches').get();
+  const orphans = snap.docs.filter((d) => {
+    const m = d.data();
+    return m.round && m.round !== 'group' && !d.id.startsWith('ko_');
+  });
+
+  let batch = db.batch();
+  let ops = 0;
+  const batches = [batch];
+  for (const d of orphans) {
+    batch.delete(d.ref);
+    if (++ops >= 400) { batch = db.batch(); batches.push(batch); ops = 0; }
+  }
+  for (const b of batches) await b.commit();
+
+  return {
+    success: true,
+    deleted: orphans.length,
+    ids: orphans.map((d) => d.id),
+    remaining: snap.size - orphans.length,
   };
 });
 

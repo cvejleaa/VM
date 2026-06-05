@@ -158,6 +158,24 @@ export async function callSendTestReminderToMe() {
   }
 }
 
+/**
+ * Kald Cloud Function 'pruneOrphanMatches' — sletter forældede knockout-kampe
+ * (gamle id'er der ikke længere bruges). Kun owner.
+ */
+export async function callPruneOrphanMatches() {
+  try {
+    const fn = httpsCallable(functions, 'pruneOrphanMatches');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "pruneOrphanMatches" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af pruneOrphanMatches.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
 
 /**

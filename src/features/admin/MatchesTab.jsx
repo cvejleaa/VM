@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
+import { useAuth } from '../../context/AuthContext';
 
 // Oversæt runde til dansk
 const ROUND_LABELS = {
@@ -43,6 +44,20 @@ export default function MatchesTab() {
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [reminderMsg, setReminderMsg] = useState('');
   const [reminderBusy, setReminderBusy] = useState(false);
+  const [pruneMsg, setPruneMsg] = useState('');
+  const [pruneBusy, setPruneBusy] = useState(false);
+  const { isOwner } = useAuth();
+
+  async function handlePrune() {
+    if (!window.confirm('Slet forældede knockout-kampe (gamle id\'er)? Dette kan ikke fortrydes.')) return;
+    setPruneBusy(true);
+    setPruneMsg('');
+    const res = await callPruneOrphanMatches();
+    setPruneBusy(false);
+    setPruneMsg(res.ok
+      ? `Slettet ${res.data?.deleted ?? 0} forældede kampe (${res.data?.remaining ?? '?'} tilbage)`
+      : `Fejl: ${res.error}`);
+  }
 
   async function handleSendReminders() {
     if (!window.confirm('Send e-mail-påmindelser til alle der mangler at tippe på dagens kampe?')) return;
@@ -159,7 +174,24 @@ export default function MatchesTab() {
         >
           {reminderBusy ? 'Sender…' : '🧪 Testmail til mig'}
         </button>
+
+        {isOwner && (
+          <button
+            className="btn btn--ghost"
+            onClick={handlePrune}
+            disabled={pruneBusy}
+            title="Slet forældede knockout-kampe med gamle id'er"
+          >
+            {pruneBusy ? 'Rydder…' : '🧹 Ryd forældede kampe'}
+          </button>
+        )}
       </div>
+
+      {pruneMsg && (
+        <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, background: 'var(--c-surface-2, #f0f0f0)', fontSize: '0.88rem' }}>
+          {pruneMsg}
+        </div>
+      )}
 
       {/* Feedback fra påmindelser */}
       {reminderMsg && (
