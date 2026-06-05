@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T10:27:24.275Z",
+  "generatedAt": "2026-06-05T10:30:36.365Z",
   "totals": {
-    "files": 49,
-    "tests": 985,
-    "passed": 985,
+    "files": 50,
+    "tests": 990,
+    "passed": 990,
     "failed": 0
   },
   "suites": [
@@ -3015,6 +3015,34 @@
         },
         {
           "name": "grupperEfterGruppe › håndterer mange grupper (A-L)",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/lib/matchData.test.js",
+      "area": "frontend",
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "group-stage.json — dataintegritet › har 104 kampe i alt",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › har unikke id'er",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › gruppekampe bruger grp_-præfiks, knockout bruger ko_-præfiks",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › indeholder præcis de 16 r32-kampe som buildKnockout forventer",
+          "status": "passed"
+        },
+        {
+          "name": "group-stage.json — dataintegritet › har 72 gruppekampe og 32 knockout-kampe",
           "status": "passed"
         }
       ]
