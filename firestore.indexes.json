@@ -113,6 +113,14 @@
         { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
         { "fieldPath": "createdAt",    "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "leagueActivity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "leagueId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

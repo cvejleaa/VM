@@ -7,8 +7,12 @@ import { useLeagueComments } from './useLeagueComments';
 import { postLeagueComment, deleteLeagueComment } from './commentActions';
 import { formatTimestamp } from './formatTimestamp';
 import EmojiPicker from './EmojiPicker';
+import Avatar from '../../components/Avatar';
+import Reactions from '../reactions/Reactions';
+import { COL } from '../../lib/constants';
+import { tryLogActivity, ACTIVITY } from '../leagues/activityActions';
 
-export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, isAdmin = false }) {
+export default function LeagueWall({ leagueId, meUid, myName, myEmoji = null, myTeam = null, isOwner = false, isAdmin = false }) {
   const { comments, loading, error } = useLeagueComments(leagueId);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +24,12 @@ export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, i
     setBusy(true);
     setPostError('');
     try {
-      await postLeagueComment({ leagueId, uid: meUid, displayName: myName, text });
+      await postLeagueComment({ leagueId, uid: meUid, displayName: myName, text, avatarEmoji: myEmoji, favoriteTeam: myTeam });
+      const snippet = text.trim().slice(0, 60);
+      tryLogActivity({
+        leagueId, type: ACTIVITY.COMMENT, actorUid: meUid, actorName: myName,
+        text: `skrev: "${snippet}${text.trim().length > 60 ? '…' : ''}"`,
+      });
       setText('');
     } catch (err) {
       setPostError(err.message);
@@ -67,9 +76,10 @@ export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, i
                 }}
               >
                 <div className="flex items-center justify-between" style={{ gap: '0.5rem' }}>
-                  <strong style={{ fontSize: '0.86rem' }}>
+                  <strong style={{ fontSize: '0.86rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Avatar uid={c.uid} name={c.displayName} emoji={c.avatarEmoji} favoriteTeam={c.favoriteTeam} size={24} />
                     {c.displayName || 'Spiller'}
-                    {mine && <span className="badge badge--blue" style={{ marginLeft: '0.4rem' }}>dig</span>}
+                    {mine && <span className="badge badge--blue">dig</span>}
                   </strong>
                   <span style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
                     <time style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>
@@ -89,6 +99,9 @@ export default function LeagueWall({ leagueId, meUid, myName, isOwner = false, i
                 </div>
                 <div style={{ fontSize: '0.92rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: '0.15rem' }}>
                   {c.text}
+                </div>
+                <div style={{ marginTop: '0.3rem' }}>
+                  <Reactions collectionName={COL.LEAGUE_COMMENTS} docId={c.id} reactions={c.reactions} meUid={meUid} />
                 </div>
               </li>
             );

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-04T20:39:43.687Z",
+  "generatedAt": "2026-06-05T06:31:13.410Z",
   "nodes": [
     {
       "id": "firebase",
@@ -24,7 +24,7 @@
     {
       "id": "components",
       "layer": 2,
-      "files": 5
+      "files": 6
     },
     {
       "id": "features/admin",
@@ -54,12 +54,22 @@
     {
       "id": "features/leagues",
       "layer": 2,
-      "files": 6
+      "files": 9
     },
     {
       "id": "features/matches",
       "layer": 2,
-      "files": 6
+      "files": 10
+    },
+    {
+      "id": "features/profile",
+      "layer": 2,
+      "files": 2
+    },
+    {
+      "id": "features/reactions",
+      "layer": 2,
+      "files": 2
     },
     {
       "id": "features/stats",
@@ -74,7 +84,7 @@
     {
       "id": "pages",
       "layer": 3,
-      "files": 12
+      "files": 13
     },
     {
       "id": "app-skal",
@@ -91,12 +101,17 @@
     {
       "from": "app-skal",
       "to": "pages",
-      "count": 12
+      "count": 13
+    },
+    {
+      "from": "components",
+      "to": "features/profile",
+      "count": 1
     },
     {
       "from": "components",
       "to": "lib (kerne)",
-      "count": 2
+      "count": 3
     },
     {
       "from": "components",
@@ -175,13 +190,33 @@
     },
     {
       "from": "features/comments",
-      "to": "firebase",
-      "count": 3
+      "to": "components",
+      "count": 1
+    },
+    {
+      "from": "features/comments",
+      "to": "features/reactions",
+      "count": 1
     },
     {
       "from": "features/comments",
       "to": "lib (kerne)",
-      "count": 4
+      "count": 5
+    },
+    {
+      "from": "features/comments",
+      "to": "features/leagues",
+      "count": 1
+    },
+    {
+      "from": "features/comments",
+      "to": "firebase",
+      "count": 3
+    },
+    {
+      "from": "features/leaderboard",
+      "to": "components",
+      "count": 1
     },
     {
       "from": "features/leaderboard",
@@ -192,6 +227,11 @@
       "from": "features/leaderboard",
       "to": "firebase",
       "count": 2
+    },
+    {
+      "from": "features/leagues",
+      "to": "features/comments",
+      "count": 1
     },
     {
       "from": "features/leagues",
@@ -201,26 +241,46 @@
     {
       "from": "features/leagues",
       "to": "lib (kerne)",
-      "count": 5
+      "count": 7
     },
     {
       "from": "features/leagues",
+      "to": "firebase",
+      "count": 6
+    },
+    {
+      "from": "features/matches",
+      "to": "lib (kerne)",
+      "count": 9
+    },
+    {
+      "from": "features/matches",
       "to": "firebase",
       "count": 4
     },
     {
       "from": "features/matches",
-      "to": "firebase",
-      "count": 3
-    },
-    {
-      "from": "features/matches",
-      "to": "lib (kerne)",
-      "count": 6
-    },
-    {
-      "from": "features/matches",
       "to": "components",
+      "count": 2
+    },
+    {
+      "from": "features/matches",
+      "to": "features/reactions",
+      "count": 1
+    },
+    {
+      "from": "features/profile",
+      "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "features/profile",
+      "to": "lib (kerne)",
+      "count": 2
+    },
+    {
+      "from": "features/reactions",
+      "to": "firebase",
       "count": 1
     },
     {
@@ -251,7 +311,7 @@
     {
       "from": "pages",
       "to": "context",
-      "count": 9
+      "count": 10
     },
     {
       "from": "pages",
@@ -266,22 +326,22 @@
     {
       "from": "pages",
       "to": "lib (kerne)",
-      "count": 10
+      "count": 11
     },
     {
       "from": "pages",
       "to": "features/leaderboard",
-      "count": 8
+      "count": 9
     },
     {
       "from": "pages",
       "to": "features/leagues",
-      "count": 5
+      "count": 7
     },
     {
       "from": "pages",
       "to": "features/comments",
-      "count": 5
+      "count": 6
     },
     {
       "from": "pages",
@@ -291,16 +351,21 @@
     {
       "from": "pages",
       "to": "features/matches",
-      "count": 9
+      "count": 10
     },
     {
       "from": "pages",
       "to": "components",
-      "count": 6
+      "count": 8
     },
     {
       "from": "pages",
       "to": "firebase",
+      "count": 1
+    },
+    {
+      "from": "pages",
+      "to": "features/profile",
       "count": 1
     },
     {

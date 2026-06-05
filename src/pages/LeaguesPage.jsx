@@ -23,6 +23,8 @@ import { sortByPoints } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import LeagueWall from '../features/comments/LeagueWall';
 import LeagueTipCounter from '../features/leagues/LeagueTipCounter';
+import LeagueActivity from '../features/leagues/LeagueActivity';
+import { tryLogActivity, ACTIVITY } from '../features/leagues/activityActions';
 
 // ── Liga-kort (listevisning) ─────────────────────────────────────────────────
 function LeagueCard({ league, standings, meUid, onOpen }) {
@@ -66,7 +68,7 @@ function LeagueCard({ league, standings, meUid, onOpen }) {
 }
 
 // ── Ligadetalje-panel ─────────────────────────────────────────────────────────
-function LeagueDetail({ league, standings, meUid, meName, isAdmin = false, onClose }) {
+function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam = null, isAdmin = false, onClose }) {
   const [removing, setRemoving] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -102,6 +104,7 @@ function LeagueDetail({ league, standings, meUid, meName, isAdmin = false, onClo
   async function handleLeave() {
     if (!window.confirm('Forlad ligaen?')) return;
     try {
+      await tryLogActivity({ leagueId: league.id, type: ACTIVITY.LEAVE, actorUid: meUid, actorName: meName, text: 'forlod ligaen' });
       await leaveLeague(league.id, meUid, league.ownerUid);
       onClose();
     } catch (e) {
@@ -172,11 +175,16 @@ function LeagueDetail({ league, standings, meUid, meName, isAdmin = false, onClo
         <LeagueTipCounter members={members} />
       </div>
 
+      {/* Aktivitets-feed */}
+      <LeagueActivity leagueId={league.id} />
+
       {/* Liga-væg (kommentarer) */}
       <LeagueWall
         leagueId={league.id}
         meUid={meUid}
         myName={meName}
+        myEmoji={meEmoji}
+        myTeam={meTeam}
         isOwner={isOwner}
         isAdmin={isAdmin}
       />
@@ -217,7 +225,7 @@ function LeagueDetail({ league, standings, meUid, meName, isAdmin = false, onClo
 }
 
 // ── Opret liga-formular ───────────────────────────────────────────────────────
-function CreateLeagueForm({ uid, onCreated }) {
+function CreateLeagueForm({ uid, meName, onCreated }) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -229,7 +237,8 @@ function CreateLeagueForm({ uid, onCreated }) {
     setSuccess('');
     setLoading(true);
     try {
-      await createLeague(name, uid);
+      const newId = await createLeague(name, uid);
+      tryLogActivity({ leagueId: newId, type: ACTIVITY.CREATED, actorUid: uid, actorName: meName, text: 'oprettede ligaen' });
       const msg = `Ligaen "${name}" er oprettet og afventer nu admin-godkendelse. Når den er godkendt, kan andre tilmelde sig med koden.`;
       setSuccess(msg);
       setName('');
@@ -266,7 +275,7 @@ function CreateLeagueForm({ uid, onCreated }) {
 }
 
 // ── Tilmeld via kode-formular ─────────────────────────────────────────────────
-function JoinLeagueForm({ uid }) {
+function JoinLeagueForm({ uid, meName }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -278,7 +287,8 @@ function JoinLeagueForm({ uid }) {
     setSuccess('');
     setLoading(true);
     try {
-      const { name } = await joinLeague(code, uid);
+      const { id, name } = await joinLeague(code, uid);
+      tryLogActivity({ leagueId: id, type: ACTIVITY.JOIN, actorUid: uid, actorName: meName, text: 'tilmeldte sig ligaen' });
       setSuccess(`Du er nu med i "${name}"! 🎉`);
       setCode('');
     } catch (err) {
@@ -316,6 +326,7 @@ function JoinLeagueForm({ uid }) {
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 export default function LeaguesPage() {
   const { user, profile, isMatchAdmin } = useAuth();
+  // (profil bruges til avatar i liga-væggen)
   const { leagues, loading: loadingLeagues, error: leagueError } = useLeagues(user?.uid);
   const { standings, loading: loadingStandings } = useStandings();
 
@@ -339,6 +350,8 @@ export default function LeaguesPage() {
           standings={standings}
           meUid={user?.uid}
           meName={profile?.displayName}
+          meEmoji={profile?.avatarEmoji}
+          meTeam={profile?.favoriteTeam}
           isAdmin={isMatchAdmin}
           onClose={() => setOpenLeagueId(null)}
         />
@@ -408,7 +421,7 @@ export default function LeaguesPage() {
       {showCreate && (
         <div className="card mb-2">
           <h2 className="card__title mb-2">Opret ny liga</h2>
-          <CreateLeagueForm uid={user?.uid} onCreated={(msg) => { setShowCreate(false); setPageMsg(msg); }} />
+          <CreateLeagueForm uid={user?.uid} meName={profile?.displayName} onCreated={(msg) => { setShowCreate(false); setPageMsg(msg); }} />
         </div>
       )}
 
@@ -416,7 +429,7 @@ export default function LeaguesPage() {
       {showJoin && (
         <div className="card mb-2">
           <h2 className="card__title mb-2">Tilmeld via kode</h2>
-          <JoinLeagueForm uid={user?.uid} />
+          <JoinLeagueForm uid={user?.uid} meName={profile?.displayName} />
         </div>
       )}
     </div>

@@ -52,6 +52,7 @@ export const COL = {
   LEAGUE_COMMENTS: 'leagueComments', // beskeder på en ligas væg
   MESSAGES: 'messages', // private 1:1-beskeder mellem brugere
   TIP_PARTICIPATION: 'tipParticipation', // hvem har tippet pr. kamp (uden at afsløre tips)
+  LEAGUE_ACTIVITY: 'leagueActivity', // aktivitets-feed pr. liga
   CONFIG: 'config',
 };
 

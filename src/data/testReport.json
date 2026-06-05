@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-04T20:39:43.636Z",
+  "generatedAt": "2026-06-05T06:31:13.346Z",
   "totals": {
-    "files": 45,
-    "tests": 953,
-    "passed": 953,
+    "files": 49,
+    "tests": 975,
+    "passed": 975,
     "failed": 0
   },
   "suites": [
@@ -2204,6 +2204,34 @@
       ]
     },
     {
+      "file": "src/features/matches/dashboardUtils.test.js",
+      "area": "frontend",
+      "passed": 5,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "computeDashboard › finder dagens kampe med kendte hold",
+          "status": "passed"
+        },
+        {
+          "name": "computeDashboard › viser kun utippede, ikke-låste kampe i dag som manglende",
+          "status": "passed"
+        },
+        {
+          "name": "computeDashboard › tæller alle manglende tips (også fremtidige dage)",
+          "status": "passed"
+        },
+        {
+          "name": "computeDashboard › vælger den tidligste kommende kamp som næste",
+          "status": "passed"
+        },
+        {
+          "name": "computeDashboard › håndterer tom kampliste",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/matches/MatchCard.test.jsx",
       "area": "frontend",
       "passed": 49,
@@ -2675,6 +2703,98 @@
         },
         {
           "name": "ScoreInput › afviser decimaltal (fx \"1.5\")",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/profile/avatarUtils.test.js",
+      "area": "frontend",
+      "passed": 7,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "avatarColor › er deterministisk for samme seed",
+          "status": "passed"
+        },
+        {
+          "name": "avatarColor › returnerer en hex-farve",
+          "status": "passed"
+        },
+        {
+          "name": "avatarColor › giver (typisk) forskellige farver for forskellige seeds",
+          "status": "passed"
+        },
+        {
+          "name": "initials › tager forbogstaver fra for- og efternavn",
+          "status": "passed"
+        },
+        {
+          "name": "initials › tager to bogstaver fra ét navn",
+          "status": "passed"
+        },
+        {
+          "name": "initials › håndterer tomt navn",
+          "status": "passed"
+        },
+        {
+          "name": "initials › bruger første og sidste ved flere navne",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/profile/profileActions.test.js",
+      "area": "frontend",
+      "passed": 6,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "updateProfile › kræver login",
+          "status": "passed"
+        },
+        {
+          "name": "updateProfile › afviser ukendt hold",
+          "status": "passed"
+        },
+        {
+          "name": "updateProfile › afviser for lang emoji",
+          "status": "passed"
+        },
+        {
+          "name": "updateProfile › gemmer gyldige felter",
+          "status": "passed"
+        },
+        {
+          "name": "updateProfile › konverterer tomt hold/emoji til null",
+          "status": "passed"
+        },
+        {
+          "name": "updateProfile › skriver intet ved tomt felt-objekt",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/reactions/reactionActions.test.js",
+      "area": "frontend",
+      "passed": 4,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "toggleReaction › tilføjer reaktion når brugeren ikke har reageret",
+          "status": "passed"
+        },
+        {
+          "name": "toggleReaction › fjerner reaktion når brugeren allerede har reageret",
+          "status": "passed"
+        },
+        {
+          "name": "toggleReaction › kræver login og emoji",
+          "status": "passed"
+        },
+        {
+          "name": "toggleReaction › har et sæt hurtig-reaktioner",
           "status": "passed"
         }
       ]

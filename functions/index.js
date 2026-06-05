@@ -17,8 +17,18 @@
 
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
+const { onSchedule }               = require('firebase-functions/v2/scheduler');
+const { defineString }             = require('firebase-functions/params');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
+
+// API-nøgle til e-mail-udsendelse (Resend). Sættes som funktions-parameter/env
+// (fx i functions/.env: RESEND_API_KEY=...). Er den tom, springes mail-udsendelse
+// blot over, så deploy aldrig fejler pga. manglende nøgle.
+const RESEND_API_KEY = defineString('RESEND_API_KEY', { default: '' });
+const EMAIL_FROM = process.env.EMAIL_FROM || 'VM 2026 Tip <noreply@vejleaa.dk>';
+const APP_URL = 'https://vm.vejleaa.dk';
+const TZ = 'Europe/Copenhagen';
 
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { computeGroupStandings, pickBestThirds } = require('./standings');
@@ -439,3 +449,125 @@ async function recalcUserTotal(db, uid) {
 
   await db.collection('users').doc(uid).update({ totalPoints: total });
 }
+
+// ---------------------------------------------------------------------------
+// snapshotRanks — scheduled: gemmer hver brugers nuværende placering som
+// previousRank, så frontenden kan vise bevægelse i stillingen "siden i går".
+// Kører tidligt om morgenen (CPH-tid).
+// ---------------------------------------------------------------------------
+exports.snapshotRanks = onSchedule(
+  { schedule: '5 4 * * *', timeZone: TZ, region: REGION },
+  async () => {
+    const db = getFirestore();
+    const snap = await db
+      .collection('users')
+      .where('status', '==', 'approved')
+      .get();
+
+    const users = snap.docs
+      .map((d) => ({ id: d.id, total: d.data().totalPoints ?? 0 }))
+      .sort((a, b) => b.total - a.total);
+
+    let batch = db.batch();
+    let ops = 0;
+    const batches = [batch];
+    users.forEach((u, idx) => {
+      batch.update(db.collection('users').doc(u.id), { previousRank: idx + 1 });
+      if (++ops >= 400) { batch = db.batch(); batches.push(batch); ops = 0; }
+    });
+    for (const b of batches) await b.commit();
+    console.log(`snapshotRanks: opdaterede ${users.length} brugere.`);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// tipReminders — scheduled: sender e-mail til spillere der mangler at tippe
+// på kampe der spilles i dag (CPH). Bruger Resend-API'et via fetch.
+// Sender intet hvis RESEND_API_KEY ikke er sat (graceful no-op).
+// ---------------------------------------------------------------------------
+function cphDateStr(d) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+}
+
+async function sendEmail(apiKey, { to, subject, html }) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`Resend ${res.status}: ${txt}`);
+  }
+}
+
+exports.tipReminders = onSchedule(
+  { schedule: '0 9 * * *', timeZone: TZ, region: REGION },
+  async () => {
+    const apiKey = RESEND_API_KEY.value();
+    if (!apiKey) { console.log('tipReminders: ingen RESEND_API_KEY — springer over.'); return; }
+
+    const db = getFirestore();
+    const now = new Date();
+    const todayStr = cphDateStr(now);
+
+    // Dagens kampe der stadig kan tippes (kendte hold, ikke kickoff endnu)
+    const matchesSnap = await db
+      .collection('matches')
+      .where('status', '==', 'scheduled')
+      .get();
+
+    const todayMatches = matchesSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((m) => m.homeTeam && m.awayTeam && m.kickoff?.toDate
+        && cphDateStr(m.kickoff.toDate()) === todayStr
+        && m.kickoff.toDate() > now);
+
+    if (todayMatches.length === 0) { console.log('tipReminders: ingen kampe i dag.'); return; }
+
+    // Hvem har tippet hver kamp (fra tipParticipation)
+    const tippedByMatch = {};
+    await Promise.all(todayMatches.map(async (m) => {
+      const p = await db.collection('tipParticipation').doc(m.id).get();
+      tippedByMatch[m.id] = new Set(p.exists ? (p.data().uids ?? []) : []);
+    }));
+
+    const usersSnap = await db
+      .collection('users')
+      .where('status', '==', 'approved')
+      .get();
+
+    let sent = 0;
+    for (const userDoc of usersSnap.docs) {
+      const u = userDoc.data();
+      if (u.emailOptOut || !u.email) continue;
+
+      const missing = todayMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
+      if (missing.length === 0) continue;
+
+      const list = missing
+        .map((m) => `<li>${m.homeTeam} – ${m.awayTeam}</li>`)
+        .join('');
+      const html = `
+        <p>Hej ${u.displayName || 'spiller'} 👋</p>
+        <p>Du mangler at tippe på <strong>${missing.length}</strong> af dagens kampe:</p>
+        <ul>${list}</ul>
+        <p><a href="${APP_URL}">Afgiv dine tips på vm.vejleaa.dk</a> inden kampstart.</p>
+        <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
+
+      try {
+        await sendEmail(apiKey, {
+          to: u.email,
+          subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
+          html,
+        });
+        sent++;
+      } catch (e) {
+        console.error(`tipReminders: kunne ikke sende til ${u.email}:`, e.message);
+      }
+    }
+    console.log(`tipReminders: sendte ${sent} påmindelser.`);
+  }
+);

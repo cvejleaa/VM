@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { usePendingApprovals } from '../features/admin/usePendingApprovals';
+import Avatar from './Avatar';
 
 const linkStyle = ({ isActive }) => ({
   padding: '0.5rem 0.75rem',
@@ -56,6 +57,13 @@ export default function Layout({ children }) {
                 </NavLink>
               )}
             </>
+          )}
+          {user && isApproved && (
+            <NavLink to="/profil" style={linkStyle} title="Min profil"
+              aria-label="Min profil">
+              <Avatar uid={user.uid} name={profile?.displayName} emoji={profile?.avatarEmoji}
+                favoriteTeam={profile?.favoriteTeam} size={26} />
+            </NavLink>
           )}
           {user ? (
             <button className="btn btn--ghost" onClick={() => signOut(auth).then(() => navigate('/login'))}>

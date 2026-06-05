@@ -14,8 +14,10 @@ import {
   roundLabel,
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
+import DashboardHub from '../features/matches/DashboardHub';
 import Hero from '../components/Hero';
 import PointRules from '../components/PointRules';
+import { useStandings } from '../features/leaderboard/useStandings';
 import { TIMEZONE } from '../lib/constants';
 
 // Filterkonstanter
@@ -38,7 +40,15 @@ export default function MatchesPage() {
   const { user } = useAuth();
   const { matches, loading, error } = useMatches();
   const { bets, loading: betsLoading } = useMyBets(user?.uid ?? null);
+  const { standings } = useStandings();
   const [filter, setFilter] = useState(FILTER_ALL);
+
+  // Opslag uid → profil (til avatar/navn i "se alles tips")
+  const usersByUid = useMemo(() => {
+    const m = {};
+    for (const u of standings) m[u.uid] = u;
+    return m;
+  }, [standings]);
 
   const uid = user?.uid ?? '';
   const today = todayKey();
@@ -85,6 +95,14 @@ export default function MatchesPage() {
         subtitle="Afgiv dine tips inden kampstart – point beregnes automatisk, og stillingen opdateres live."
         chips={['48 hold', '104 kampe', 'Dansk tid']}
       />
+
+      {!isLoading && !error && (
+        <DashboardHub
+          matches={matches}
+          bets={bets}
+          onJumpToUntipped={() => setFilter(FILTER_UNTIPPED)}
+        />
+      )}
 
       <PointRules />
 
@@ -194,6 +212,7 @@ export default function MatchesPage() {
                       match={match}
                       uid={uid}
                       bet={bets.get(match.id) ?? null}
+                      usersByUid={usersByUid}
                     />
                   ))}
                 </div>

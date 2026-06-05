@@ -31,13 +31,15 @@ function cleanText(text) {
  * @param {string} p.text
  * @returns {Promise<string>} det nye dokument-id
  */
-export async function postLeagueComment({ leagueId, uid, displayName, text }) {
+export async function postLeagueComment({ leagueId, uid, displayName, text, avatarEmoji = null, favoriteTeam = null }) {
   if (!leagueId) throw new Error('Mangler liga.');
   if (!uid) throw new Error('Du skal være logget ind.');
   const ref = await addDoc(collection(db, COL.LEAGUE_COMMENTS), {
     leagueId,
     uid,
     displayName: displayName || 'Spiller',
+    avatarEmoji: avatarEmoji || null,
+    favoriteTeam: favoriteTeam || null,
     text: cleanText(text),
     createdAt: serverTimestamp(),
   });
