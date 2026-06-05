@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T10:50:54.963Z",
+  "generatedAt": "2026-06-05T11:14:56.787Z",
   "totals": {
     "files": 52,
-    "tests": 1003,
-    "passed": 1003,
+    "tests": 1006,
+    "passed": 1006,
     "failed": 0
   },
   "suites": [
@@ -2026,7 +2026,7 @@
     {
       "file": "src/features/leagues/leagueActions.test.js",
       "area": "frontend",
-      "passed": 35,
+      "passed": 38,
       "failed": 0,
       "tests": [
         {
@@ -2131,6 +2131,18 @@
         },
         {
           "name": "adminAddMember › kalder updateDoc med arrayUnion",
+          "status": "passed"
+        },
+        {
+          "name": "setLeagueAdmin › kaster fejl uden uid",
+          "status": "passed"
+        },
+        {
+          "name": "setLeagueAdmin › tilføjer liga-admin med arrayUnion",
+          "status": "passed"
+        },
+        {
+          "name": "setLeagueAdmin › fjerner liga-admin med arrayRemove",
           "status": "passed"
         },
         {

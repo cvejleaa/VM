@@ -3,7 +3,7 @@
  * Mocker alle Firebase-hooks og context.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import LeaguesPage from './LeaguesPage';
 
 // ── Mock AuthContext ──────────────────────────────────────────────────────────
@@ -53,6 +53,8 @@ vi.mock('../features/leagues/leagueActions', () => ({
   leaveLeague: vi.fn().mockResolvedValue(undefined),
   deleteLeague: vi.fn().mockResolvedValue(undefined),
   removeMember: vi.fn().mockResolvedValue(undefined),
+  adminAddMember: vi.fn().mockResolvedValue(undefined),
+  renameLeague: vi.fn().mockResolvedValue(undefined),
 }));
 
 // window.confirm mock
@@ -149,11 +151,12 @@ describe('LeaguesPage – detaljevisning', () => {
   it('viser kun ligamedlemmer i rangering', () => {
     render(<LeaguesPage />);
     fireEvent.click(screen.getByRole('button', { name: /åbn liga: Testliga/i }));
-    // Alice (uid-1) og Mig (me-uid) er med i ligaen, Charlie er ikke
-    // Brug getAllByText da Alice kan optræde i tabel OG i admin-sektion (ejer)
-    const aliceElements = screen.getAllByText('Alice');
-    expect(aliceElements.length).toBeGreaterThan(0);
-    expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
+    // Alice (uid-1) og Mig (me-uid) er med i ligaen, Charlie er ikke.
+    // Charlie kan optræde som tilføj-mulighed i medlemsstyringen, så vi
+    // afgrænser til selve rangeringstabellen.
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('Alice').length).toBeGreaterThan(0);
+    expect(within(table).queryByText('Charlie')).not.toBeInTheDocument();
   });
 
   it('viser "Tilbage"-knap og lukker detaljevisning', () => {

@@ -35,11 +35,25 @@ export async function createLeague(name, ownerUid) {
     ownerUid,
     joinCode,
     memberUids: [ownerUid],
+    adminUids: [], // liga-admins udpeges af den globale ejer
     status: LEAGUE_STATUS.PENDING, // skal godkendes af admin
     createdAt: serverTimestamp(),
   });
 
   return ref.id;
+}
+
+/**
+ * Global ejer: udpeg eller fjern en liga-admin.
+ * @param {string} leagueId
+ * @param {string} uid       – medlemmet der gøres til/fjernes som liga-admin
+ * @param {boolean} makeAdmin
+ */
+export async function setLeagueAdmin(leagueId, uid, makeAdmin) {
+  if (!uid) throw new Error('Vælg en bruger.');
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), {
+    adminUids: makeAdmin ? arrayUnion(uid) : arrayRemove(uid),
+  });
 }
 
 /**

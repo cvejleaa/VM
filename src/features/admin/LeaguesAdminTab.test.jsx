@@ -26,12 +26,19 @@ const mockSetLeagueStatus = vi.fn();
 const mockAdminAddMember = vi.fn();
 const mockRemoveMember = vi.fn();
 const mockRenameLeague = vi.fn();
+const mockSetLeagueAdmin = vi.fn();
 
 vi.mock('../leagues/leagueActions', () => ({
   setLeagueStatus: (...args) => mockSetLeagueStatus(...args),
   adminAddMember: (...args) => mockAdminAddMember(...args),
   removeMember: (...args) => mockRemoveMember(...args),
   renameLeague: (...args) => mockRenameLeague(...args),
+  setLeagueAdmin: (...args) => mockSetLeagueAdmin(...args),
+}));
+
+// Som standard er testbrugeren global ejer (kan tildele liga-admins)
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ isOwner: true }),
 }));
 
 import LeaguesAdminTab from './LeaguesAdminTab';

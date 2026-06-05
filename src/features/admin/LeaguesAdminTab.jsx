@@ -2,8 +2,9 @@
 import { useState } from 'react';
 import { useAllLeagues } from '../leagues/useAllLeagues';
 import { useUsers } from './useUsers';
-import { setLeagueStatus, adminAddMember, removeMember, renameLeague } from '../leagues/leagueActions';
+import { setLeagueStatus, adminAddMember, removeMember, renameLeague, setLeagueAdmin } from '../leagues/leagueActions';
 import { LEAGUE_STATUS, USER_STATUS } from '../../lib/constants';
+import { useAuth } from '../../context/AuthContext';
 
 const STATUS_BADGE = {
   [LEAGUE_STATUS.PENDING]:  { cls: 'badge--yellow', label: 'Afventer' },
@@ -14,6 +15,7 @@ const STATUS_BADGE = {
 export default function LeaguesAdminTab() {
   const { leagues, loading, error } = useAllLeagues();
   const { users } = useUsers();
+  const { isOwner } = useAuth(); // kun den globale ejer kan tildele liga-admins
   const [busy, setBusy] = useState('');
   const [pick, setPick] = useState({}); // { [leagueId]: uid }
   const [editing, setEditing] = useState({}); // { [leagueId]: nyt navn (string) }
@@ -42,6 +44,7 @@ export default function LeaguesAdminTab() {
         const status = lg.status ?? LEAGUE_STATUS.PENDING;
         const badge = STATUS_BADGE[status] ?? STATUS_BADGE.pending;
         const members = lg.memberUids ?? [];
+        const admins = lg.adminUids ?? [];
         const candidates = addableUsers.filter((u) => !members.includes(u.id));
         return (
           <li key={lg.id} style={{ padding: '0.85rem 0', borderBottom: '1px solid var(--c-border)' }}>
@@ -148,25 +151,43 @@ export default function LeaguesAdminTab() {
               )}
             </div>
 
-            {/* Medlemsliste */}
+            {/* Medlemsliste med liga-admin-styring */}
             {members.length > 0 && (
               <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                {members.map((uid) => (
-                  <span key={uid} className="badge badge--muted" style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
-                    {nameOf(uid)}{uid === lg.ownerUid ? ' (ejer)' : ''}
-                    {uid !== lg.ownerUid && (
-                      <button
-                        className="btn--icon"
-                        title="Fjern medlem"
-                        style={{ background: 'none', border: 'none', color: 'var(--c-err)', cursor: 'pointer', padding: 0 }}
-                        disabled={busy === lg.id}
-                        onClick={() => run(lg.id, () => removeMember(lg.id, uid, lg.ownerUid))}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </span>
-                ))}
+                {members.map((uid) => {
+                  const isLeagueAdmin = admins.includes(uid);
+                  return (
+                    <span key={uid} className={`badge ${isLeagueAdmin ? 'badge--blue' : 'badge--muted'}`} style={{ display: 'inline-flex', gap: '0.35rem', alignItems: 'center' }}>
+                      {nameOf(uid)}
+                      {uid === lg.ownerUid ? ' (ejer)' : isLeagueAdmin ? ' (liga-admin)' : ''}
+                      {/* Kun den globale ejer kan tildele/fjerne liga-admin (ikke for liga-ejeren selv) */}
+                      {isOwner && uid !== lg.ownerUid && (
+                        <button
+                          className="btn--icon"
+                          title={isLeagueAdmin ? 'Fjern som liga-admin' : 'Gør til liga-admin'}
+                          aria-label={isLeagueAdmin ? `Fjern ${nameOf(uid)} som liga-admin` : `Gør ${nameOf(uid)} til liga-admin`}
+                          data-testid={`toggle-league-admin-${lg.id}-${uid}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          disabled={busy === lg.id}
+                          onClick={() => run(lg.id, () => setLeagueAdmin(lg.id, uid, !isLeagueAdmin))}
+                        >
+                          {isLeagueAdmin ? '★' : '☆'}
+                        </button>
+                      )}
+                      {uid !== lg.ownerUid && (
+                        <button
+                          className="btn--icon"
+                          title="Fjern medlem"
+                          style={{ background: 'none', border: 'none', color: 'var(--c-err)', cursor: 'pointer', padding: 0 }}
+                          disabled={busy === lg.id}
+                          onClick={() => run(lg.id, () => removeMember(lg.id, uid, lg.ownerUid))}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             )}
           </li>
