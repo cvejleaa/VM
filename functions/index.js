@@ -18,14 +18,14 @@
 const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { onSchedule }               = require('firebase-functions/v2/scheduler');
-const { defineString }             = require('firebase-functions/params');
+const { defineSecret }             = require('firebase-functions/params');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 
-// API-nøgle til e-mail-udsendelse (Resend). Sættes som funktions-parameter/env
-// (fx i functions/.env: RESEND_API_KEY=...). Er den tom, springes mail-udsendelse
-// blot over, så deploy aldrig fejler pga. manglende nøgle.
-const RESEND_API_KEY = defineString('RESEND_API_KEY', { default: '' });
+// API-nøgle til e-mail-udsendelse (Resend), gemt sikkert i Secret Manager.
+// Sættes med:  firebase functions:secrets:set RESEND_API_KEY
+// Funktionen springer mail-udsendelse over, hvis nøglen er tom.
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = process.env.EMAIL_FROM || 'VM 2026 Tip <noreply@vejleaa.dk>';
 const APP_URL = 'https://vm.vejleaa.dk';
 const TZ = 'Europe/Copenhagen';
@@ -504,7 +504,7 @@ async function sendEmail(apiKey, { to, subject, html }) {
 }
 
 exports.tipReminders = onSchedule(
-  { schedule: '0 9 * * *', timeZone: TZ, region: REGION },
+  { schedule: '0 9 * * *', timeZone: TZ, region: REGION, secrets: [RESEND_API_KEY] },
   async () => {
     const apiKey = RESEND_API_KEY.value();
     if (!apiKey) { console.log('tipReminders: ingen RESEND_API_KEY — springer over.'); return; }
