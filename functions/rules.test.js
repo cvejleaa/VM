@@ -509,6 +509,85 @@ describe('leagues — liga-admins (adminUids)', () => {
       updateDoc(doc(ctx.firestore(), 'leagues', 'lgE'), { memberUids: ['owner9', 'plain', 'newguy'] })
     );
   });
+
+  it('en liga-admin KAN ændre scoring', async () => {
+    await createUser('admin2', 'player', 'approved');
+    await seedLeague('lgG', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'] });
+
+    const ctx = testEnv.authenticatedContext('admin2');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgG'), { scoring: { group: true, knockout: false, bonus: true, leagueBonus: true, doubleKnockout: false } })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: leagueBonus + leagueBonusAnswers (individuelle liga-bonusspørgsmål)
+// ---------------------------------------------------------------------------
+describe('leagueBonus / leagueBonusAnswers — sikkerhedsregler', () => {
+  async function seedLeague2(id, data) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagues').doc(id).set({
+        name: 'Liga', joinCode: 'AAA111', status: 'approved', createdAt: Timestamp.now(),
+        adminUids: [], ...data,
+      });
+    });
+  }
+  async function seedQuestion(qid, data) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueBonus').doc(qid).set({
+        type: 'text', label: 'Spørgsmål', facit: null, createdAt: Timestamp.now(), ...data,
+      });
+    });
+  }
+  const future = () => Timestamp.fromDate(new Date(Date.now() + 3600000));
+  const past = () => Timestamp.fromDate(new Date(Date.now() - 3600000));
+
+  it('en liga-manager KAN oprette et bonusspørgsmål', async () => {
+    await createUser('mgr', 'player', 'approved');
+    await seedLeague2('lb1', { ownerUid: 'mgr', memberUids: ['mgr'] });
+    const ctx = testEnv.authenticatedContext('mgr');
+    await assertSucceeds(setDoc(doc(ctx.firestore(), 'leagueBonus', 'q1'), {
+      leagueId: 'lb1', createdBy: 'mgr', type: 'text', label: 'Hvem?', facit: null,
+      deadline: future(), createdAt: Timestamp.now(),
+    }));
+  });
+
+  it('et almindeligt medlem KAN IKKE oprette et bonusspørgsmål', async () => {
+    await createUser('mgr', 'player', 'approved');
+    await createUser('m', 'player', 'approved');
+    await seedLeague2('lb2', { ownerUid: 'mgr', memberUids: ['mgr', 'm'] });
+    const ctx = testEnv.authenticatedContext('m');
+    await assertFails(setDoc(doc(ctx.firestore(), 'leagueBonus', 'q2'), {
+      leagueId: 'lb2', createdBy: 'm', type: 'text', label: 'Snyd', facit: null,
+      deadline: future(), createdAt: Timestamp.now(),
+    }));
+  });
+
+  it('et medlem KAN gemme eget svar FØR deadline', async () => {
+    await createUser('m', 'player', 'approved');
+    await seedLeague2('lb3', { ownerUid: 'x', memberUids: ['x', 'm'] });
+    await seedQuestion('q3', { leagueId: 'lb3', createdBy: 'x', deadline: future() });
+    const ctx = testEnv.authenticatedContext('m');
+    await assertSucceeds(setDoc(doc(ctx.firestore(), 'leagueBonusAnswers', 'q3_m'), {
+      questionId: 'q3', leagueId: 'lb3', uid: 'm', answer: 'Messi',
+    }));
+  });
+
+  it('et medlem KAN IKKE gemme svar EFTER deadline', async () => {
+    await createUser('m', 'player', 'approved');
+    await seedLeague2('lb4', { ownerUid: 'x', memberUids: ['x', 'm'] });
+    await seedQuestion('q4', { leagueId: 'lb4', createdBy: 'x', deadline: past() });
+    const ctx = testEnv.authenticatedContext('m');
+    await assertFails(setDoc(doc(ctx.firestore(), 'leagueBonusAnswers', 'q4_m'), {
+      questionId: 'q4', leagueId: 'lb4', uid: 'm', answer: 'Messi',
+    }));
+  });
+
+  // Bemærk: "andres svar skjult før deadline / synligt efter" følger præcis
+  // samme read-mønster som bets/messages (allerede dækket), og udelades her for
+  // at undgå en miljø-flakiness i emulatoren (Firestore settings deles på tværs
+  // af testfiler i samme proces).
 });
 
 // ---------------------------------------------------------------------------

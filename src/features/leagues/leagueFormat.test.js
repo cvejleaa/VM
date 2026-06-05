@@ -1,45 +1,64 @@
 import { describe, it, expect } from 'vitest';
-import { leagueScore, formatLabel, FORMAT_OPTIONS } from './leagueFormat';
+import {
+  leagueScore, scoringLabel, isFullScoring, normalizeScoring, DEFAULT_SCORING,
+} from './leagueFormat';
 import { LEAGUE_FORMAT } from '../../lib/constants';
 
 const user = { totalPoints: 100, groupPoints: 60, knockoutPoints: 30, bonusPoints: 10 };
 
-describe('leagueScore', () => {
-  it('FULL bruger totalPoints', () => {
-    expect(leagueScore(user, LEAGUE_FORMAT.FULL)).toBe(100);
+describe('leagueScore (kombinerbar)', () => {
+  it('alt slået til = alle komponenter', () => {
+    expect(leagueScore(user, DEFAULT_SCORING)).toBe(100); // 60+30+10
   });
-  it('BONUS_ONLY bruger bonusPoints', () => {
-    expect(leagueScore(user, LEAGUE_FORMAT.BONUS_ONLY)).toBe(10);
+  it('kun bonus + slutspil kombineret', () => {
+    const s = { group: false, knockout: true, bonus: true, leagueBonus: false, doubleKnockout: false };
+    expect(leagueScore(user, s)).toBe(40); // 30+10
   });
-  it('KNOCKOUT_ONLY bruger knockoutPoints', () => {
-    expect(leagueScore(user, LEAGUE_FORMAT.KNOCKOUT_ONLY)).toBe(30);
+  it('dobbelt slutspil vægter knockout x2', () => {
+    const s = { group: true, knockout: true, bonus: true, leagueBonus: false, doubleKnockout: true };
+    expect(leagueScore(user, s)).toBe(130); // 60 + 30*2 + 10
   });
-  it('GROUP_ONLY bruger groupPoints', () => {
-    expect(leagueScore(user, LEAGUE_FORMAT.GROUP_ONLY)).toBe(60);
+  it('lægger liga-bonus til når valgt', () => {
+    const s = { group: false, knockout: false, bonus: false, leagueBonus: true, doubleKnockout: false };
+    expect(leagueScore(user, s, 7)).toBe(7);
   });
-  it('DOUBLE_KNOCKOUT vægter slutspil dobbelt', () => {
-    // group(60) + bonus(10) + 2*knockout(30) = 130
-    expect(leagueScore(user, LEAGUE_FORMAT.DOUBLE_KNOCKOUT)).toBe(130);
-  });
-  it('ukendt format falder tilbage til total', () => {
-    expect(leagueScore(user, 'noget-andet')).toBe(100);
-  });
-  it('håndterer manglende felter som 0', () => {
-    expect(leagueScore({}, LEAGUE_FORMAT.BONUS_ONLY)).toBe(0);
-    expect(leagueScore(undefined, LEAGUE_FORMAT.FULL)).toBe(0);
+  it('liga-bonus ignoreres når fravalgt', () => {
+    const s = { group: true, knockout: false, bonus: false, leagueBonus: false, doubleKnockout: false };
+    expect(leagueScore(user, s, 7)).toBe(60);
   });
 });
 
-describe('formatLabel / FORMAT_OPTIONS', () => {
-  it('har 5 formater', () => {
-    expect(FORMAT_OPTIONS).toHaveLength(5);
+describe('normalizeScoring', () => {
+  it('bruger scoring-objekt hvis til stede', () => {
+    const s = normalizeScoring({ scoring: { group: false } });
+    expect(s.group).toBe(false);
+    expect(s.knockout).toBe(true); // default udfyldt
   });
-  it('giver en label for hvert format', () => {
-    for (const o of FORMAT_OPTIONS) {
-      expect(formatLabel(o.value)).toBe(o.label);
-    }
+  it('mapper gammelt bonusOnly-format', () => {
+    const s = normalizeScoring({ format: LEAGUE_FORMAT.BONUS_ONLY });
+    expect(s).toMatchObject({ group: false, knockout: false, bonus: true });
   });
-  it('falder tilbage til Fuld-label ved ukendt', () => {
-    expect(formatLabel('xxx')).toBe(formatLabel(LEAGUE_FORMAT.FULL));
+  it('mapper gammelt doubleKnockout-format', () => {
+    const s = normalizeScoring({ format: LEAGUE_FORMAT.DOUBLE_KNOCKOUT });
+    expect(s.doubleKnockout).toBe(true);
+  });
+  it('falder tilbage til default uden format/scoring', () => {
+    expect(normalizeScoring({})).toEqual(DEFAULT_SCORING);
+  });
+});
+
+describe('scoringLabel / isFullScoring', () => {
+  it('fuld scoring kaldes Fuld', () => {
+    expect(isFullScoring(DEFAULT_SCORING)).toBe(true);
+    expect(scoringLabel(DEFAULT_SCORING)).toMatch(/Fuld/);
+  });
+  it('viser kombination', () => {
+    const s = { group: false, knockout: true, bonus: true, leagueBonus: false, doubleKnockout: true };
+    expect(isFullScoring(s)).toBe(false);
+    expect(scoringLabel(s)).toBe('Slutspil (×2) + Bonus');
+  });
+  it('intet valgt', () => {
+    const s = { group: false, knockout: false, bonus: false, leagueBonus: false, doubleKnockout: false };
+    expect(scoringLabel(s)).toBe('Intet valgt');
   });
 });

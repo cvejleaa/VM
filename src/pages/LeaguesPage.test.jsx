@@ -55,7 +55,14 @@ vi.mock('../features/leagues/leagueActions', () => ({
   removeMember: vi.fn().mockResolvedValue(undefined),
   adminAddMember: vi.fn().mockResolvedValue(undefined),
   renameLeague: vi.fn().mockResolvedValue(undefined),
+  setLeagueScoring: vi.fn().mockResolvedValue(undefined),
 }));
+
+// Liga-bonus rører Firebase — stub i page-testen
+vi.mock('../features/leagues/useLeagueBonus', () => ({
+  useLeagueBonus: () => ({ questions: [], myAnswers: {}, pointsByUid: {}, loading: false }),
+}));
+vi.mock('../features/leagues/LeagueBonus', () => ({ default: () => null }));
 
 // window.confirm mock
 global.confirm = vi.fn(() => true);
@@ -115,7 +122,7 @@ describe('LeaguesPage – opret liga', () => {
     fireEvent.click(screen.getByText('Opret liga'));
 
     await waitFor(() => {
-      expect(createLeague).toHaveBeenCalledWith('Min Liga', 'me-uid', 'full');
+      expect(createLeague).toHaveBeenCalledWith('Min Liga', 'me-uid', expect.objectContaining({ group: true, knockout: true, bonus: true }));
     });
   });
 });
@@ -276,7 +283,7 @@ describe('LeaguesPage – opret liga formular', () => {
     fireEvent.click(screen.getByText('Opret liga'));
     // onCreated() lukker formularen – Opret ny liga-overskriften forsvinder
     await waitFor(() => {
-      expect(createLeague).toHaveBeenCalledWith('SuperLiga', 'me-uid', 'full');
+      expect(createLeague).toHaveBeenCalledWith('SuperLiga', 'me-uid', expect.objectContaining({ group: true }));
     });
   });
 

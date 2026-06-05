@@ -11,6 +11,7 @@ import {
   deleteLeague,
   removeMember,
   setLeagueAdmin,
+  setLeagueScoring,
 } from './leagueActions';
 
 // ── Mock firebase/firestore ───────────────────────────────────────────────────
@@ -250,6 +251,22 @@ describe('adminAddMember', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+describe('setLeagueScoring', () => {
+  beforeEach(() => { mockUpdateDoc.mockResolvedValue(undefined); });
+
+  it('afviser hvis ingen dele er valgt', async () => {
+    await expect(setLeagueScoring('liga-1', {
+      group: false, knockout: false, bonus: false, leagueBonus: false,
+    })).rejects.toThrow('mindst én del');
+  });
+
+  it('gemmer et saniteret scoring-objekt', async () => {
+    await setLeagueScoring('liga-1', { group: true, knockout: false, bonus: true, doubleKnockout: true });
+    const [, payload] = mockUpdateDoc.mock.calls[0];
+    expect(payload.scoring).toMatchObject({ group: true, knockout: false, bonus: true, doubleKnockout: true });
+  });
+});
 
 describe('setLeagueAdmin', () => {
   beforeEach(() => {

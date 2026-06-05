@@ -187,10 +187,10 @@ service cloud.firestore {
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminUids']);
 
       // Liga-admin (udpeget pr. liga) kan styre medlemmer, omdøbe ligaen og
-      // ændre format, men ikke ændre status, ejer eller adminUids.
+      // ændre scoring/format, men ikke ændre status, ejer eller adminUids.
       allow update: if isApproved()
         && (request.auth.uid in resource.data.get('adminUids', []))
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'name', 'format']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'name', 'format', 'scoring']);
 
       // Tilmeld: godkendt bruger føjer sit eget uid til en GODKENDT liga
       allow update: if isApproved()
@@ -293,6 +293,52 @@ service cloud.firestore {
       allow delete: if isMatchAdmin()
         || (isSignedIn() && request.auth.uid ==
             get(/databases/$(database)/documents/leagues/$(resource.data.leagueId)).data.ownerUid);
+    }
+
+    // -----------------------------------------------------------------------
+    // leagueBonus/{qid} — individuelle bonusspørgsmål pr. liga
+    // -----------------------------------------------------------------------
+    // Liga-"manager" = ligaens ejer, en udpeget liga-admin, eller global admin.
+    function leagueDoc(leagueId) {
+      return get(/databases/$(database)/documents/leagues/$(leagueId)).data;
+    }
+    function isLeagueManager(leagueId) {
+      return isMatchAdmin() || (isSignedIn() && (
+        leagueDoc(leagueId).ownerUid == request.auth.uid
+        || (request.auth.uid in leagueDoc(leagueId).get('adminUids', []))
+      ));
+    }
+
+    match /leagueBonus/{qid} {
+      // Medlemmer (og admins) kan læse ligaens bonusspørgsmål
+      allow read: if isMemberOfLeague(resource.data.leagueId) || isMatchAdmin();
+
+      // Kun en liga-manager kan oprette/redigere/slette (inkl. sætte facit)
+      allow create: if isApproved()
+        && request.auth.uid == request.resource.data.createdBy
+        && isLeagueManager(request.resource.data.leagueId);
+      allow update: if isLeagueManager(resource.data.leagueId);
+      allow delete: if isLeagueManager(resource.data.leagueId);
+    }
+
+    // -----------------------------------------------------------------------
+    // leagueBonusAnswers/{id}  (id = qid_uid) — svar på liga-bonusspørgsmål
+    // -----------------------------------------------------------------------
+    match /leagueBonusAnswers/{ansId} {
+      // Eget svar kan altid læses; andres først EFTER spørgsmålets deadline.
+      allow read: if isMatchAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.uid)
+        || (isApproved()
+            && request.time >= get(/databases/$(database)/documents/leagueBonus/$(resource.data.questionId)).data.deadline);
+
+      // Opret/opdater eget svar, som medlem af ligaen, FØR deadline, uden points-felt
+      allow create, update: if isApproved()
+        && request.auth.uid == request.resource.data.uid
+        && !request.resource.data.keys().hasAny(['points'])
+        && isMemberOfLeague(request.resource.data.leagueId)
+        && request.time < get(/databases/$(database)/documents/leagueBonus/$(request.resource.data.questionId)).data.deadline;
+
+      allow delete: if false;
     }
 
     // -----------------------------------------------------------------------

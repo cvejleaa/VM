@@ -50,6 +50,14 @@ export const BONUS_TYPE = {
   GROUP_WINNER: 'groupWinner',
 };
 
+// Typer af individuelle liga-bonusspørgsmål
+export const LEAGUE_BONUS_TYPE = {
+  TEXT: 'text',     // fritekst
+  CHOICE: 'choice', // vælg én af flere
+  TOPLIST: 'toplist', // ordnet liste (fx top 5)
+  YESNO: 'yesno',   // ja/nej
+};
+
 // Firestore-collections
 export const COL = {
   USERS: 'users',
@@ -62,6 +70,8 @@ export const COL = {
   MESSAGES: 'messages', // private 1:1-beskeder mellem brugere
   TIP_PARTICIPATION: 'tipParticipation', // hvem har tippet pr. kamp (uden at afsløre tips)
   LEAGUE_ACTIVITY: 'leagueActivity', // aktivitets-feed pr. liga
+  LEAGUE_BONUS: 'leagueBonus', // individuelle bonus-spørgsmål pr. liga
+  LEAGUE_BONUS_ANSWERS: 'leagueBonusAnswers', // svar på liga-bonusspørgsmål
   CONFIG: 'config',
 };
 

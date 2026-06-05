@@ -121,6 +121,14 @@
         { "fieldPath": "leagueId",  "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "leagueBonus",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "leagueId",  "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

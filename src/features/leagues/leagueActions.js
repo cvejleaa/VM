@@ -15,10 +15,21 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { COL, LEAGUE_STATUS, LEAGUE_FORMAT } from '../../lib/constants';
+import { COL, LEAGUE_STATUS } from '../../lib/constants';
 import { generateJoinCode } from './leagueUtils';
+import { DEFAULT_SCORING } from './leagueFormat';
 
-const VALID_FORMATS = Object.values(LEAGUE_FORMAT);
+// Sanitér et scoring-objekt til de kendte boolean-nøgler
+function cleanScoring(scoring) {
+  const s = scoring || {};
+  return {
+    group: !!(s.group ?? true),
+    knockout: !!(s.knockout ?? true),
+    bonus: !!(s.bonus ?? true),
+    leagueBonus: !!(s.leagueBonus ?? true),
+    doubleKnockout: !!(s.doubleKnockout ?? false),
+  };
+}
 
 /**
  * Opret en ny liga.
@@ -26,10 +37,9 @@ const VALID_FORMATS = Object.values(LEAGUE_FORMAT);
  * @param {string} ownerUid  – opretterens uid
  * @returns {Promise<string>} – det nye dokument-id
  */
-export async function createLeague(name, ownerUid, format = LEAGUE_FORMAT.FULL) {
+export async function createLeague(name, ownerUid, scoring = DEFAULT_SCORING) {
   if (!name?.trim()) throw new Error('Ligaen skal have et navn.');
   if (!ownerUid) throw new Error('Mangler brugerId.');
-  const fmt = VALID_FORMATS.includes(format) ? format : LEAGUE_FORMAT.FULL;
 
   const joinCode = generateJoinCode();
 
@@ -39,7 +49,7 @@ export async function createLeague(name, ownerUid, format = LEAGUE_FORMAT.FULL) 
     joinCode,
     memberUids: [ownerUid],
     adminUids: [], // liga-admins udpeges af den globale ejer
-    format: fmt, // hvilke point der tæller i ligaen
+    scoring: cleanScoring(scoring), // kombinerbare dele der tæller i ligaen
     status: LEAGUE_STATUS.PENDING, // skal godkendes af admin
     createdAt: serverTimestamp(),
   });
@@ -48,13 +58,16 @@ export async function createLeague(name, ownerUid, format = LEAGUE_FORMAT.FULL) 
 }
 
 /**
- * Sæt en ligas format (liga-ejer/-admin). Styres af sikkerhedsreglerne.
+ * Sæt en ligas scoring-valg (liga-ejer/-admin). Styres af sikkerhedsreglerne.
  * @param {string} leagueId
- * @param {string} format
+ * @param {object} scoring – kombinerbart scoring-objekt
  */
-export async function setLeagueFormat(leagueId, format) {
-  if (!VALID_FORMATS.includes(format)) throw new Error('Ukendt liga-format.');
-  await updateDoc(doc(db, COL.LEAGUES, leagueId), { format });
+export async function setLeagueScoring(leagueId, scoring) {
+  const clean = cleanScoring(scoring);
+  if (!clean.group && !clean.knockout && !clean.bonus && !clean.leagueBonus) {
+    throw new Error('Vælg mindst én del der skal tælle.');
+  }
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { scoring: clean });
 }
 
 /**
