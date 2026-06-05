@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T07:52:53.044Z",
+  "generatedAt": "2026-06-05T10:27:24.330Z",
   "nodes": [
     {
       "id": "firebase",
@@ -157,6 +157,11 @@
       "from": "features/admin",
       "to": "features/leagues",
       "count": 2
+    },
+    {
+      "from": "features/admin",
+      "to": "context",
+      "count": 1
     },
     {
       "from": "features/admin",
