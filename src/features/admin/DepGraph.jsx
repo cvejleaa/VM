@@ -2,11 +2,13 @@
 // i koden (src/data/depGraph.json, genereret af scripts/build-dep-graph.mjs).
 import graph from '../../data/depGraph.json';
 
-const W = 1000;
-const ROW_H = 118;
-const TOP = 46;
-const NODE_W = 132;
-const NODE_H = 40;
+const W = 1120;
+const TOP = 40;
+const NODE_W = 116;
+const NODE_H = 44;
+const PER_ROW = 7;     // maks. noder pr. visuel under-række i et lag
+const SUB_GAP = 34;    // lodret afstand mellem under-rækker i samme lag
+const BAND_GAP = 78;   // lodret afstand mellem lag
 
 // Farve pr. kategori
 function colorFor(id, layer) {
@@ -24,31 +26,46 @@ function shortLabel(id) {
   return id.startsWith('features/') ? id.slice('features/'.length) : id;
 }
 
-export default function DepGraph() {
-  const layers = [...new Set(graph.nodes.map((n) => n.layer))].sort((a, b) => a - b);
-  const maxLayer = Math.max(...layers);
-  const H = TOP + (maxLayer + 1) * ROW_H;
-
-  // Positioner: y efter lag (højt lag = øverst), x jævnt fordelt i laget
+// Beregn positioner: lag stables lodret (højt lag øverst); brede lag ombrydes
+// til flere under-rækker, så etiketter ikke overlapper.
+function computeLayout(nodes) {
+  const layers = [...new Set(nodes.map((n) => n.layer))].sort((a, b) => b - a); // top → bund
   const pos = {};
+  let y = TOP;
+
   for (const layer of layers) {
-    const inLayer = graph.nodes.filter((n) => n.layer === layer);
+    const inLayer = nodes.filter((n) => n.layer === layer);
+    const rows = Math.ceil(inLayer.length / PER_ROW);
+    const perRow = Math.ceil(inLayer.length / rows);
+
     inLayer.forEach((n, i) => {
+      const r = Math.floor(i / perRow);
+      const idxInRow = i % perRow;
+      const isLastRow = r === rows - 1;
+      const countInRow = isLastRow ? inLayer.length - perRow * (rows - 1) : perRow;
       pos[n.id] = {
-        x: ((i + 1) / (inLayer.length + 1)) * W,
-        y: TOP + (maxLayer - layer) * ROW_H,
+        x: ((idxInRow + 1) / (countInRow + 1)) * W,
+        y: y + r * (NODE_H + SUB_GAP) + NODE_H / 2,
       };
     });
+
+    const bandHeight = rows * NODE_H + (rows - 1) * SUB_GAP;
+    y += bandHeight + BAND_GAP;
   }
 
+  return { pos, height: y - BAND_GAP + TOP };
+}
+
+export default function DepGraph() {
+  const { pos, height: H } = computeLayout(graph.nodes);
   const maxCount = Math.max(...graph.edges.map((e) => e.count), 1);
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 560, display: 'block' }} role="img"
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 760, display: 'block' }} role="img"
         aria-label="Afhængighedsdiagram over kodemodulerne">
         <defs>
-          <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="var(--c-muted)" />
           </marker>
         </defs>
@@ -61,10 +78,10 @@ export default function DepGraph() {
           const x2 = b.x, y2 = b.y - NODE_H / 2;        // top af importeret
           const my = (y1 + y2) / 2;
           const d = `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
-          const sw = Math.max(1, Math.min(4, e.count / (maxCount / 4)));
+          const sw = Math.max(0.8, Math.min(3.5, e.count / (maxCount / 4)));
           return (
             <path key={i} d={d} fill="none" stroke="var(--c-muted)"
-              strokeWidth={sw} strokeOpacity={0.35} markerEnd="url(#dep-arrow)" />
+              strokeWidth={sw} strokeOpacity={0.22} markerEnd="url(#dep-arrow)" />
           );
         })}
 
@@ -75,10 +92,10 @@ export default function DepGraph() {
           return (
             <g key={n.id} transform={`translate(${p.x - NODE_W / 2}, ${p.y - NODE_H / 2})`}>
               <rect width={NODE_W} height={NODE_H} rx="9" fill={c.fill} stroke={c.stroke} strokeWidth="1.5" />
-              <text x={NODE_W / 2} y={NODE_H / 2 - 2} textAnchor="middle" fontSize="13" fontWeight="700" fill={c.text}>
+              <text x={NODE_W / 2} y={NODE_H / 2 - 2} textAnchor="middle" fontSize="12.5" fontWeight="700" fill={c.text}>
                 {shortLabel(n.id)}
               </text>
-              <text x={NODE_W / 2} y={NODE_H / 2 + 12} textAnchor="middle" fontSize="9.5" fill="var(--c-muted)">
+              <text x={NODE_W / 2} y={NODE_H / 2 + 13} textAnchor="middle" fontSize="9.5" fill="var(--c-muted)">
                 {n.files} fil{n.files === 1 ? '' : 'er'}
               </text>
             </g>
@@ -87,7 +104,7 @@ export default function DepGraph() {
       </svg>
       <p style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginTop: '0.4rem' }}>
         Pilene viser hvilke moduler der importerer hvilke (nederst = fundament, øverst = app-skal).
-        Tykkere pile = flere imports.
+        Tykkere pile = flere imports. Brede lag er fordelt på flere rækker for læsbarhed.
       </p>
     </div>
   );
