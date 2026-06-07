@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getTodayInCPH,
   filterByMembers,
+  collectVisibleUids,
   sortByPoints,
   computeDailyPoints,
 } from './standingsUtils';
@@ -85,6 +86,37 @@ describe('filterByMembers', () => {
     const result = filterByMembers(users, ['a', 'z', 'w']);
     expect(result).toHaveLength(1);
     expect(result[0].uid).toBe('a');
+  });
+});
+
+// ── collectVisibleUids ────────────────────────────────────────────────────────
+describe('collectVisibleUids', () => {
+  it('samler unionen af medlemmer på tværs af ligaer + sig selv', () => {
+    const leagues = [
+      { memberUids: ['a', 'me'] },
+      { memberUids: ['b', 'c', 'me'] },
+    ];
+    const result = collectVisibleUids(leagues, 'me');
+    expect(new Set(result)).toEqual(new Set(['me', 'a', 'b', 'c']));
+  });
+
+  it('dublerer ikke UIDs der går igen i flere ligaer', () => {
+    const leagues = [{ memberUids: ['a', 'b'] }, { memberUids: ['b', 'a'] }];
+    expect(collectVisibleUids(leagues, 'me')).toHaveLength(3); // me, a, b
+  });
+
+  it('returnerer kun sig selv uden ligaer', () => {
+    expect(collectVisibleUids([], 'me')).toEqual(['me']);
+  });
+
+  it('inkluderer altid sig selv, også uden at stå i memberUids', () => {
+    expect(collectVisibleUids([{ memberUids: ['a'] }], 'me')).toContain('me');
+  });
+
+  it('håndterer tomme/manglende felter', () => {
+    expect(collectVisibleUids(null, 'me')).toEqual(['me']);
+    expect(collectVisibleUids([{}, { memberUids: null }], 'me')).toEqual(['me']);
+    expect(collectVisibleUids([], null)).toEqual([]);
   });
 });
 
