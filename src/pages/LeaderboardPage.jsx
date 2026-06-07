@@ -5,11 +5,12 @@
  *
  * Har en dropdown til at filtrere til én af brugerens egne ligaer.
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useStandings } from '../features/leaderboard/useStandings';
 import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
+import { collectVisibleUids } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
 import { leagueScore, scoringLabel, normalizeScoring, isFullScoring } from '../features/leagues/leagueFormat';
@@ -31,7 +32,14 @@ export default function LeaderboardPage() {
 
   // Find de valgte ligamedlemmer (til filter)
   const selectedLeague = leagues.find((l) => l.id === selectedLeagueId) ?? null;
-  const memberUids = selectedLeague?.memberUids ?? null;
+
+  // Man må kun se spillere, der deler mindst én liga med en selv (+ sig selv).
+  // Når en liga er valgt: kun den ligas medlemmer. Ellers: hele ens liga-netværk.
+  const visibleUids = useMemo(
+    () => collectVisibleUids(leagues, user?.uid),
+    [leagues, user?.uid],
+  );
+  const memberUids = selectedLeague ? selectedLeague.memberUids ?? [] : visibleUids;
 
   // getPoints-funktion til dagsfanen
   const getDailyPoints = useCallback(

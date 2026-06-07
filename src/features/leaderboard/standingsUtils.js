@@ -29,6 +29,24 @@ export function filterByMembers(users, memberUids) {
 }
 
 /**
+ * Samler de UIDs en spiller må se i stillingen: sig selv + alle medlemmer
+ * af de ligaer, spilleren selv er med i. Bruges til at begrænse den
+ * "samlede" stilling til ens egne liga-netværk.
+ *
+ * @param {Array<{memberUids?: string[]}>} leagues  – spillerens egne ligaer
+ * @param {string|null|undefined} selfUid           – den indloggede bruger
+ * @returns {string[]}  – unikke UIDs (mindst spilleren selv hvis kendt)
+ */
+export function collectVisibleUids(leagues, selfUid) {
+  const set = new Set();
+  if (selfUid) set.add(selfUid);
+  for (const l of leagues ?? []) {
+    for (const uid of l?.memberUids ?? []) set.add(uid);
+  }
+  return [...set];
+}
+
+/**
  * Sorterer brugere faldende efter totalPoints (allerede denormaliseret).
  * Giver en ny array – muterer ikke input.
  *

@@ -73,11 +73,12 @@ describe('LeaderboardPage', () => {
     expect(screen.getByRole('tab', { name: /samlet stilling/i })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('viser alle spillere i samlet stilling', () => {
+  it('viser kun spillere fra egne ligaer i samlet stilling', () => {
     render(<LeaderboardPage />);
+    // Alice og Mig deler liga med brugeren; Charlie gør ikke → skjules
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Mig')).toBeInTheDocument();
-    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
   });
 
   it('fremhæver den indloggede bruger med "dig"-badge', () => {
@@ -140,13 +141,14 @@ describe('LeaderboardPage', () => {
     expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
   });
 
-  it('nulstiller filter til alle spillere ved valg af tom option', () => {
+  it('nulstiller filter til eget liga-netværk ved valg af tom option', () => {
     render(<LeaderboardPage />);
     const select = screen.getByLabelText(/filtrer efter liga/i);
     fireEvent.change(select, { target: { value: 'league-1' } });
     fireEvent.change(select, { target: { value: '' } });
-    // Charlie bør nu vises igen
-    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    // Tilbage til netværket: Alice vises, men Charlie (ingen fælles liga) gør ikke
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
   });
 
   it('viser ThemeToggle-knap', () => {
