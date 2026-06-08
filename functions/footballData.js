@@ -61,7 +61,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {{token:string, fetchImpl?:Function, sleepImpl?:Function, minRemaining?:number}} opts
  */
 function createClient({ token, fetchImpl, sleepImpl = sleep, minRemaining = 3 } = {}) {
-  const doFetch = fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  const doFetch = fetchImpl || (typeof globalThis.fetch === 'function' ? globalThis.fetch : null);
   if (!doFetch) throw new Error('Ingen fetch tilgængelig (kræver Node 18+ eller injiceret fetch).');
 
   async function request(path) {

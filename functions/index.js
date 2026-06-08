@@ -673,8 +673,8 @@ async function runSyncResults(db, token, { now = new Date(), dryRun = false } = 
     if (!patchChangesDoc(m, patch)) continue;
     changes.push({ id: m.id, action, result: patch.result, status: patch.status, needsReview: !!patch.needsReview });
     if (!dryRun) {
-      const { autoUpdatedAt, ...rest } = patch; // erstat med servertid
-      await db.collection('matches').doc(m.id).update({ ...rest, autoUpdatedAt: FieldValue.serverTimestamp() });
+      // Spred patch og erstat klientens Date med servertid.
+      await db.collection('matches').doc(m.id).update({ ...patch, autoUpdatedAt: FieldValue.serverTimestamp() });
     }
     updated++;
   }
