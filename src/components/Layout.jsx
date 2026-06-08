@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useTasks } from '../context/TasksContext';
 import { usePendingApprovals } from '../features/admin/usePendingApprovals';
 import { useUnreadMessages } from '../features/comments/useUnreadMessages';
 import Avatar from './Avatar';
@@ -41,6 +42,8 @@ export default function Layout({ children }) {
   const { total: pendingCount } = usePendingApprovals({ enabled: isMatchAdmin, includeUsers: isOwner });
   // Ulæste private beskeder (badge på Beskeder)
   const { total: unreadCount } = useUnreadMessages(isApproved ? user?.uid : null);
+  // Samlede udestående opgaver (badge på Forside)
+  const { total: taskCount } = useTasks();
 
   return (
     <div>
@@ -49,13 +52,20 @@ export default function Layout({ children }) {
           <strong style={{ marginRight: 'auto', color: 'var(--c-pitch)' }}>⚽ VM 2026 Tip</strong>
           {user && isApproved && (
             <>
-              <NavLink to="/" style={linkStyle} end>Kampe</NavLink>
+              <NavLink to="/" style={linkStyle} end>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  Forside
+                  <CountBadge count={taskCount} title={`${taskCount} udestående opgaver`} testid="tasks-count" />
+                </span>
+              </NavLink>
+              <NavLink to="/kampe" style={linkStyle}>Kampe</NavLink>
               <NavLink to="/mine-tips" style={linkStyle}>Mine tips</NavLink>
               <NavLink to="/bonus" style={linkStyle}>Bonus</NavLink>
               <NavLink to="/turnering" style={linkStyle}>Turnering</NavLink>
               <NavLink to="/stilling" style={linkStyle}>Stilling</NavLink>
               <NavLink to="/statistik" style={linkStyle}>Statistik</NavLink>
               <NavLink to="/ligaer" style={linkStyle}>Ligaer</NavLink>
+              <NavLink to="/hjaelp" style={linkStyle} title="Sådan virker det" aria-label="Hjælp">❓</NavLink>
               <NavLink to="/beskeder" style={linkStyle}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                   Beskeder

@@ -127,7 +127,7 @@ export default function MyBetsPage() {
           </div>
         </div>
         <div style={{ marginLeft: 'auto' }}>
-          <Link to="/" className="btn btn--ghost btn--sm">
+          <Link to="/kampe" className="btn btn--ghost btn--sm">
             ⚽ Til kampsiden
           </Link>
         </div>
@@ -139,7 +139,7 @@ export default function MyBetsPage() {
           <div className="empty-state__icon">🎯</div>
           <div className="empty-state__title">Ingen tips endnu</div>
           <p>Gå til kampsiden for at afgive dine første tips.</p>
-          <Link to="/" className="btn" style={{ marginTop: '0.75rem' }}>
+          <Link to="/kampe" className="btn" style={{ marginTop: '0.75rem' }}>
             Gå til kampe
           </Link>
         </div>
@@ -249,7 +249,7 @@ export default function MyBetsPage() {
                       <td>
                         {!locked && (
                           <Link
-                            to="/"
+                            to="/kampe"
                             className="btn btn--ghost btn--sm"
                             title="Rediger tip"
                           >
