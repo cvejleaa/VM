@@ -67,7 +67,7 @@ export default function MatchesTab() {
     setSyncBusy(false);
     if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
     const d = res.data ?? {};
-    setSyncMsg(`Mapping: ${d.mapped ?? 0} nye, ${d.already ?? 0} allerede, ${(d.unmatched?.length ?? 0)} uden match.`);
+    setSyncMsg(`Mapping: ${d.mapped ?? 0} nye, ${d.already ?? 0} allerede, ${(d.unmatched?.length ?? 0)} uden match (af ${d.totalFixtures ?? '?'} fixtures hos football-data).`);
   }
 
   async function handleRestoreAuto(matchId) {
