@@ -2,7 +2,7 @@
 // Viser navn, e-mail, rolle, status og handlingsknapper.
 import { useState } from 'react';
 import { ROLES, USER_STATUS } from '../../lib/constants';
-import { setUserStatus, toggleMatchAdminRole } from './adminActions';
+import { setUserStatus, setGlobalAdminRole } from './adminActions';
 import Avatar from '../../components/Avatar';
 import { teamName } from '../../lib/teams';
 
@@ -22,15 +22,15 @@ const statusColor = {
 
 // Oversæt rolle til dansk
 const roleLabel = {
-  [ROLES.OWNER]:       'Ejer',
-  [ROLES.MATCH_ADMIN]: 'Kamp-admin',
-  [ROLES.PLAYER]:      'Spiller',
+  [ROLES.OWNER]:        'Ejer',
+  [ROLES.GLOBAL_ADMIN]: 'Global admin',
+  [ROLES.PLAYER]:       'Spiller',
 };
 
 /**
- * @param {{ user: object, currentUserIsOwner: boolean }} props
+ * @param {{ user: object, currentUserIsOwner: boolean, currentUserCanApprove: boolean }} props
  */
-export default function UserRow({ user, currentUserIsOwner }) {
+export default function UserRow({ user, currentUserIsOwner, currentUserCanApprove }) {
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
 
@@ -53,7 +53,7 @@ export default function UserRow({ user, currentUserIsOwner }) {
 
   async function handleRoleToggle() {
     const newRole =
-      user.role === ROLES.MATCH_ADMIN ? 'spiller' : 'kamp-admin';
+      user.role === ROLES.GLOBAL_ADMIN ? 'spiller' : 'global admin';
     if (
       !window.confirm(
         `Skift ${user.displayName} til ${newRole}?`
@@ -64,7 +64,7 @@ export default function UserRow({ user, currentUserIsOwner }) {
     setBusy(true);
     setLocalError('');
     try {
-      await toggleMatchAdminRole(user.id, user.role);
+      await setGlobalAdminRole(user.id, user.role);
     } catch (err) {
       setLocalError('Fejl: ' + (err.message ?? 'Ukendt fejl'));
     } finally {
@@ -136,10 +136,10 @@ export default function UserRow({ user, currentUserIsOwner }) {
         </div>
       </div>
 
-      {/* Handlingsknapper — skjules for owner */}
-      {!isOwner && currentUserIsOwner && (
+      {/* Handlingsknapper — skjules for owner-rækken */}
+      {!isOwner && (currentUserCanApprove || currentUserIsOwner) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-          {/* Godkend/afvis */}
+          {/* Godkend/afvis — globale admins (og ejer) */}
           {user.status !== USER_STATUS.APPROVED && (
             <button
               className="btn"
@@ -161,15 +161,17 @@ export default function UserRow({ user, currentUserIsOwner }) {
             </button>
           )}
 
-          {/* Skift matchAdmin-rolle */}
-          <button
-            className="btn btn--ghost"
-            style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
-            disabled={busy}
-            onClick={handleRoleToggle}
-          >
-            {user.role === ROLES.MATCH_ADMIN ? '↓ Til spiller' : '↑ Til kamp-admin'}
-          </button>
+          {/* Udpeg/fjern global admin — kun ejeren */}
+          {currentUserIsOwner && (
+            <button
+              className="btn btn--ghost"
+              style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
+              disabled={busy}
+              onClick={handleRoleToggle}
+            >
+              {user.role === ROLES.GLOBAL_ADMIN ? '↓ Til spiller' : '↑ Til global admin'}
+            </button>
+          )}
         </div>
       )}
     </li>

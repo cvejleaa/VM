@@ -110,8 +110,12 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const isOwner = league.ownerUid === meUid;
   const leagueAdminUids = league.adminUids ?? [];
   const isLeagueAdmin = leagueAdminUids.includes(meUid);
-  // "Manager" = liga-ejer eller udpeget liga-admin (eller global match-admin)
+  // "Manager" = liga-ejer eller udpeget liga-admin (eller global admin):
+  // styrer medlemmer, navn og liga-bonus.
   const isManager = isOwner || isLeagueAdmin || isAdmin;
+  // Scoring/format må KUN sættes af liga-ejeren eller en global admin —
+  // ikke af en liga-admin (liga-admin styrer kun bonus + medlemmer + navn).
+  const canSetScoring = isOwner || isAdmin;
   const scoring = normalizeScoring(league);
   const members = filterUsersByLeague(standings, league.memberUids);
   // Ligaens egne bonusspørgsmål + point pr. spiller (liga-lokalt)
@@ -250,8 +254,8 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
           </div>
         </div>
 
-        {/* Format-valg (liga-ejer/-admin) — kombinerbare dele */}
-        {isManager && (
+        {/* Format-valg (kun liga-ejer / global admin) — kombinerbare dele */}
+        {canSetScoring && (
           <div style={{ marginTop: '0.5rem' }}>
             <div className="form-label" style={{ margin: '0 0 0.25rem' }}>Hvad tæller i ligaen?</div>
             <div className="flex gap-1" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
@@ -540,7 +544,7 @@ function JoinLeagueForm({ uid, meName }) {
 
 // ── Hoved-komponent ───────────────────────────────────────────────────────────
 export default function LeaguesPage() {
-  const { user, profile, isMatchAdmin } = useAuth();
+  const { user, profile, isGlobalAdmin } = useAuth();
   // (profil bruges til avatar i liga-væggen)
   const { leagues, loading: loadingLeagues, error: leagueError } = useLeagues(user?.uid);
   const { standings, loading: loadingStandings } = useStandings();
@@ -567,7 +571,7 @@ export default function LeaguesPage() {
           meName={profile?.displayName}
           meEmoji={profile?.avatarEmoji}
           meTeam={profile?.favoriteTeam}
-          isAdmin={isMatchAdmin}
+          isAdmin={isGlobalAdmin}
           onClose={() => setOpenLeagueId(null)}
         />
       </div>

@@ -1,5 +1,5 @@
 // Bonus-fanen i admin-panelet.
-// Lader matchAdmin og owner sætte facit på bonusspørgsmål.
+// Lader global admin og owner sætte facit på bonusspørgsmål.
 import { useState } from 'react';
 import { useBonusQuestions } from './useBonusQuestions';
 import { saveBonusFacit, callSyncGroupWinners, formatTimestamp } from './adminActions';

@@ -3,15 +3,22 @@
 Daglig brug af tippekonkurrencen for administratorer.
 
 ## Roller
-| Rolle | Godkende brugere & tildele roller | Kampe, resultater, bonus-facit | Tippe som spiller |
-|---|:---:|:---:|:---:|
-| **Ejer** (dig) | ✅ | ✅ | ✅ |
-| **Kamp-admin** | ❌ | ✅ | ✅ |
-| **Spiller** | ❌ | ❌ | ✅ |
+| Rolle | Udpege/fjerne admins | Godkende brugere | Kampe, resultater, bonus, ligaer, config | Tippe som spiller |
+|---|:---:|:---:|:---:|:---:|
+| **Ejer** (dig) | ✅ | ✅ | ✅ | ✅ |
+| **Global admin** | ❌ | ✅ | ✅ | ✅ |
+| **Liga-admin** (pr. liga) | ❌ | ❌ | kun ligaens bonus + medlemmer/navn | ✅ |
+| **Spiller** | ❌ | ❌ | ❌ | ✅ |
 
-Du (ejer) kan udnævne flere **kamp-admins** under **Admin → Brugere**. De kan
-hjælpe med at indtaste resultater og oprette kampe, men kan hverken godkende
-nye brugere eller ændre roller — det forbliver kun hos dig.
+- **Global admin** har fuld daglig adgang (godkende brugere, kampe, resultater,
+  bonus-facit, ligaer, indstillinger) — men **kun du (ejer)** kan udpege/fjerne
+  admins. Udnævn dem under **Admin → Brugere** med **↑ Til global admin**.
+- **Liga-admin** udpeges pr. liga (på ligaens side) og kan kun styre den ligas
+  **bonusspørgsmål**, medlemmer og navn — ikke scoring/format.
+
+> Bemærk: Den tidligere **kamp-admin**-rolle er fjernet (resultater opdateres nu
+> automatisk). Evt. gamle kamp-admins mister automatisk deres rettigheder og kan
+> sættes til **spiller** eller **global admin** under **Admin → Brugere**.
 
 ## Godkend nye spillere
 1. Nye brugere lander i status **afventer**.

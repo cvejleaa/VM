@@ -1,8 +1,8 @@
 // Delte konstanter for datamodel, roller og status.
 
 export const ROLES = {
-  OWNER: 'owner', // super-admin (dig): alt, inkl. godkendelse + rolletildeling
-  MATCH_ADMIN: 'matchAdmin', // kampe + resultater + bonus-facit (IKKE brugergodkendelse)
+  OWNER: 'owner', // super-admin (dig): alt, inkl. brugergodkendelse + udpegning af admins
+  GLOBAL_ADMIN: 'globalAdmin', // fuld daglig drift, men kan IKKE udpege/fjerne admins
   PLAYER: 'player',
 };
 

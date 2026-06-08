@@ -174,7 +174,7 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 npm run seed
    - Hvis du seedede før du oprettede kontoen, kan du i stedet manuelt sætte
      `role: "owner"` og `status: "approved"` på dit `users/{uid}`-dokument i
      Firestore-konsollen.
-3. Herefter kan du i **Admin → Brugere** godkende andre og udnævne kamp-admins.
+3. Herefter kan du i **Admin → Brugere** godkende andre og udnævne globale admins.
 
 ---
 

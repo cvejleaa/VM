@@ -190,7 +190,7 @@ exports.recomputeBonus = onDocumentWritten(
 );
 
 // ---------------------------------------------------------------------------
-// backfillTipParticipation — callable (owner/matchAdmin)
+// backfillTipParticipation — callable (owner/global admin)
 // Engangs-/vedligeholdelsesfunktion: genopbygger tipParticipation ud fra ALLE
 // eksisterende bets, så tip-tælleren også dækker tips afgivet før
 // syncTipParticipation blev deployet.
@@ -260,8 +260,8 @@ exports.backfillTipParticipation = onCall({ region: REGION }, async (request) =>
   }
   const userDoc = await db.collection('users').doc(request.auth.uid).get();
   const role = userDoc.data()?.role;
-  if (role !== 'owner' && role !== 'matchAdmin') {
-    throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan køre backfill.');
+  if (role !== 'owner' && role !== 'globalAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/global admin kan køre backfill.');
   }
 
   // Saml uids pr. matchId fra alle bets
@@ -331,7 +331,7 @@ exports.syncTipParticipation = onDocumentWritten(
 );
 
 // ---------------------------------------------------------------------------
-// buildKnockout — callable funktion (kun owner/matchAdmin)
+// buildKnockout — callable funktion (kun owner/global admin)
 // Beregner grupperangering og udfylder holdnavne på knockout-kampe
 // ---------------------------------------------------------------------------
 exports.buildKnockout = onCall({ region: REGION }, async (request) => {
@@ -349,8 +349,8 @@ exports.buildKnockout = onCall({ region: REGION }, async (request) => {
   }
 
   const userRole = userDoc.data()?.role;
-  if (userRole !== 'owner' && userRole !== 'matchAdmin') {
-    throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan bygge knockout-bracket.');
+  if (userRole !== 'owner' && userRole !== 'globalAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/global admin kan bygge knockout-bracket.');
   }
 
   // Hent alle gruppekampe der er finished
@@ -603,8 +603,8 @@ exports.sendTipRemindersNow = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
     const userDoc = await db.collection('users').doc(request.auth.uid).get();
     const role = userDoc.data()?.role;
-    if (role !== 'owner' && role !== 'matchAdmin') {
-      throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan sende påmindelser.');
+    if (role !== 'owner' && role !== 'globalAdmin') {
+      throw new HttpsError('permission-denied', 'Kun owner/global admin kan sende påmindelser.');
     }
     const transporter = buildTransport(SMTP_PASSWORD.value());
     if (!transporter) throw new HttpsError('failed-precondition', 'SMTP_PASSWORD er ikke sat endnu.');
@@ -622,8 +622,8 @@ exports.sendTestReminderToMe = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
     const userDoc = await db.collection('users').doc(request.auth.uid).get();
     const u = userDoc.data();
-    if (!u || (u.role !== 'owner' && u.role !== 'matchAdmin')) {
-      throw new HttpsError('permission-denied', 'Kun owner/matchAdmin kan sende testmail.');
+    if (!u || (u.role !== 'owner' && u.role !== 'globalAdmin')) {
+      throw new HttpsError('permission-denied', 'Kun owner/global admin kan sende testmail.');
     }
     if (!u.email) throw new HttpsError('failed-precondition', 'Din profil har ingen e-mailadresse.');
 
@@ -694,8 +694,8 @@ async function requireAdmin(db, request) {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
   const snap = await db.collection('users').doc(request.auth.uid).get();
   const role = snap.data()?.role;
-  if (role !== 'owner' && role !== 'matchAdmin') {
-    throw new HttpsError('permission-denied', 'Kun owner/matchAdmin har adgang.');
+  if (role !== 'owner' && role !== 'globalAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/global admin har adgang.');
   }
 }
 

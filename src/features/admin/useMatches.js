@@ -1,5 +1,5 @@
 // Hook til live-lytning på alle kampe i Firestore.
-// Bruges af matchAdmin og owner til kampstyring.
+// Bruges af global admin og owner til kampstyring.
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../../firebase';

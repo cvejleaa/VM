@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/ligaer" element={<ProtectedRoute><LeaguesPage /></ProtectedRoute>} />
           <Route path="/beskeder" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
           <Route path="/profil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute require="matchAdmin"><AdminPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute require="admin"><AdminPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Layout>
