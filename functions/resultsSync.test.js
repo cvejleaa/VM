@@ -1,0 +1,121 @@
+import { describe, it, expect } from 'vitest';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const {
+  teamCodeMatches, matchFixture, winnerToCode, decideUpdate, patchChangesDoc,
+} = require('./resultsSync');
+
+const NOW = new Date('2026-06-11T21:00:00Z');
+
+describe('teamCodeMatches', () => {
+  it('matcher på tla', () => {
+    expect(teamCodeMatches('MEX', { tla: 'MEX', name: 'Mexico' })).toBe(true);
+  });
+  it('matcher når koden indleder navnet', () => {
+    expect(teamCodeMatches('POR', { tla: 'POR', name: 'Portugal' })).toBe(true);
+  });
+  it('afviser forskellige hold', () => {
+    expect(teamCodeMatches('MEX', { tla: 'RSA', name: 'South Africa' })).toBe(false);
+  });
+});
+
+describe('matchFixture', () => {
+  const fd = [
+    { id: 11, utcDate: '2026-06-11T19:00:00Z', homeTeam: { tla: 'MEX', name: 'Mexico' }, awayTeam: { tla: 'RSA', name: 'South Africa' } },
+    { id: 12, utcDate: '2026-06-12T19:00:00Z', homeTeam: { tla: 'CAN', name: 'Canada' }, awayTeam: { tla: 'BIH', name: 'Bosnia' } },
+  ];
+  it('finder kampen på samme dato + hold', () => {
+    const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-11T19:00:00Z' };
+    expect(matchFixture(our, fd)?.id).toBe(11);
+  });
+  it('returnerer null ved forkert dato', () => {
+    const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-13T19:00:00Z' };
+    expect(matchFixture(our, fd)).toBeNull();
+  });
+  it('returnerer null uden hold', () => {
+    expect(matchFixture({ kickoff: '2026-06-11T19:00:00Z' }, fd)).toBeNull();
+  });
+});
+
+describe('winnerToCode', () => {
+  const m = { homeTeam: 'BRA', awayTeam: 'ARG' };
+  it('oversætter vinder til holdkode', () => {
+    expect(winnerToCode('HOME_TEAM', m)).toBe('BRA');
+    expect(winnerToCode('AWAY_TEAM', m)).toBe('ARG');
+    expect(winnerToCode('DRAW', m)).toBeNull();
+  });
+});
+
+describe('decideUpdate', () => {
+  const group = { round: 'group', homeTeam: 'MEX', awayTeam: 'RSA', status: 'scheduled' };
+  const ko = { round: 'r16', homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled' };
+
+  it('springer låste kampe over', () => {
+    const res = decideUpdate({ ...group, manualLock: true }, { status: 'FINISHED', score: { fullTime: { home: 1, away: 0 } } }, NOW);
+    expect(res.action).toBe('skip');
+    expect(res.reason).toBe('manualLock');
+  });
+
+  it('flagger afbrudte kampe til review', () => {
+    const res = decideUpdate(group, { status: 'SUSPENDED' }, NOW);
+    expect(res.action).toBe('review');
+    expect(res.patch.needsReview).toBe(true);
+  });
+
+  it('springer ikke-startede over', () => {
+    expect(decideUpdate(group, { status: 'TIMED' }, NOW).action).toBe('skip');
+  });
+
+  it('skriver live foreløbig score', () => {
+    const res = decideUpdate(group, { status: 'IN_PLAY', score: { fullTime: { home: 1, away: 0 } } }, NOW);
+    expect(res.action).toBe('live');
+    expect(res.patch).toMatchObject({ status: 'live', result: { home: 1, away: 0 }, resultSource: 'auto' });
+  });
+
+  it('springer over live uden score endnu', () => {
+    expect(decideUpdate(group, { status: 'IN_PLAY', score: {} }, NOW).action).toBe('skip');
+  });
+
+  it('afslutter gruppekamp uden advance', () => {
+    const res = decideUpdate(group, { status: 'FINISHED', score: { winner: 'HOME_TEAM', fullTime: { home: 2, away: 1 } } }, NOW);
+    expect(res.action).toBe('finish');
+    expect(res.patch.result).toEqual({ home: 2, away: 1 });
+    expect(res.patch.needsReview).toBeUndefined();
+  });
+
+  it('afslutter knockout med advance fra vinder', () => {
+    const res = decideUpdate(ko, { status: 'FINISHED', score: { winner: 'AWAY_TEAM', fullTime: { home: 1, away: 1 } } }, NOW);
+    expect(res.patch.result).toEqual({ home: 1, away: 1, advance: 'ARG' });
+    expect(res.patch.needsReview).toBeUndefined();
+  });
+
+  it('beder om review når knockout-vinder er uklar', () => {
+    const res = decideUpdate(ko, { status: 'FINISHED', score: { winner: 'DRAW', fullTime: { home: 1, away: 1 } } }, NOW);
+    expect(res.patch.needsReview).toBe(true);
+  });
+
+  it('flagger AWARDED-resultater til review', () => {
+    const res = decideUpdate(group, { status: 'AWARDED', score: { winner: 'HOME_TEAM', fullTime: { home: 3, away: 0 } } }, NOW);
+    expect(res.action).toBe('finish');
+    expect(res.patch.needsReview).toBe(true);
+  });
+});
+
+describe('patchChangesDoc', () => {
+  it('false når intet ændrer sig', () => {
+    const m = { status: 'live', result: { home: 1, away: 0 } };
+    expect(patchChangesDoc(m, { status: 'live', result: { home: 1, away: 0 } })).toBe(false);
+  });
+  it('true når scoren ændrer sig', () => {
+    const m = { status: 'live', result: { home: 1, away: 0 } };
+    expect(patchChangesDoc(m, { status: 'live', result: { home: 1, away: 1 } })).toBe(true);
+  });
+  it('true når status skifter til finished', () => {
+    const m = { status: 'live', result: { home: 1, away: 0 } };
+    expect(patchChangesDoc(m, { status: 'finished', result: { home: 1, away: 0 } })).toBe(true);
+  });
+  it('true når advance tilføjes', () => {
+    const m = { status: 'finished', result: { home: 1, away: 1 } };
+    expect(patchChangesDoc(m, { status: 'finished', result: { home: 1, away: 1, advance: 'ARG' } })).toBe(true);
+  });
+});

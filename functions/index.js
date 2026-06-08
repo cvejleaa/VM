@@ -19,7 +19,7 @@ const { onCall, HttpsError }       = require('firebase-functions/v2/https');
 const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { onSchedule }               = require('firebase-functions/v2/scheduler');
 const { defineSecret }             = require('firebase-functions/params');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { initializeApp }            = require('firebase-admin/app');
 const nodemailer                   = require('nodemailer');
 
@@ -28,6 +28,9 @@ const nodemailer                   = require('nodemailer');
 //   firebase functions:secrets:set SMTP_PASSWORD
 // De øvrige SMTP-indstillinger er ikke følsomme og sættes som konstanter.
 const SMTP_PASSWORD = defineSecret('SMTP_PASSWORD');
+// football-data.org API-token (auto-resultater). Sættes med:
+//   firebase functions:secrets:set FOOTBALL_DATA_TOKEN
+const FOOTBALL_DATA_TOKEN = defineSecret('FOOTBALL_DATA_TOKEN');
 const SMTP_HOST = 'send.one.com';
 const SMTP_PORT = 465; // implicit TLS
 const SMTP_USER = 'vm@vejleaa.dk';
@@ -38,6 +41,8 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
+const { createClient } = require('./footballData');
+const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -57,13 +62,15 @@ exports.recomputeMatch = onDocumentWritten(
     const after = event.data?.after?.data();
     if (!after) return; // slettet kamp — intet at gøre
 
-    // Kun beregn point når status er 'finished' og result er sat
-    if (after.status !== 'finished' || !after.result) return;
+    // Beregn point når kampen er afsluttet ELLER live (foreløbige point),
+    // så stillingen også opdateres løbende under kampe.
+    const scored = after.status === 'finished' || after.status === 'live';
+    if (!scored || !after.result) return;
 
     const before = event.data?.before?.data();
-    // Undgå genberegning hvis result ikke har ændret sig
+    // Undgå genberegning hvis hverken status eller result har ændret sig
     if (
-      before?.status === 'finished' &&
+      before?.status === after.status &&
       JSON.stringify(before?.result) === JSON.stringify(after.result)
     ) return;
 
@@ -607,5 +614,122 @@ exports.sendTestReminderToMe = onCall(
     });
 
     return { success: true, sentTo: u.email, days: days.length, matches: total };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Auto-resultater fra football-data.org
+//   syncResults    — onSchedule (hvert minut): henter live/afsluttede resultater
+//   syncResultsNow — callable (admin): kør synk manuelt (evt. dry-run)
+//   syncFixtures   — callable (admin): map vores kampe → football-data-id'er
+//
+// Klæbende manuel override: når admin retter et resultat sættes manualLock=true,
+// og synken rører aldrig den kamp igen (før admin gendanner automatikken).
+// ---------------------------------------------------------------------------
+const utcDateStr = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+async function requireAdmin(db, request) {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const snap = await db.collection('users').doc(request.auth.uid).get();
+  const role = snap.data()?.role;
+  if (role !== 'owner' && role !== 'matchAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/matchAdmin har adgang.');
+  }
+}
+
+// Kerne: synk resultater for kampe i "vinduet" (lige startet / i gang).
+// Returnerer en oversigt. Laver kun ét football-data-kald, når der er kampe.
+async function runSyncResults(db, token, { now = new Date(), dryRun = false } = {}) {
+  const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
+  const toTs = Timestamp.fromMillis(now.getTime() + 15 * 60 * 1000);
+
+  const snap = await db.collection('matches')
+    .where('kickoff', '>=', fromTs)
+    .where('kickoff', '<=', toTs)
+    .get();
+
+  const candidates = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((m) => m.externalId && !m.manualLock && m.status !== 'finished');
+
+  if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-window-matches' };
+
+  // Datospan (UTC) der dækker kandidaterne — typisk samme dag.
+  const times = candidates.map((m) => m.kickoff.toMillis());
+  const dateFrom = utcDateStr(Math.min(...times));
+  const dateTo = utcDateStr(Math.max(...times) + 6 * 3600 * 1000); // dæk kampe der trækker ud
+
+  const client = createClient({ token });
+  const data = await client.getMatchesInRange(dateFrom, dateTo);
+  const fdById = new Map((data.matches || []).map((m) => [String(m.id), m]));
+
+  let updated = 0; const changes = []; let review = 0;
+  for (const m of candidates) {
+    const fd = fdById.get(String(m.externalId));
+    if (!fd) continue;
+    const { action, patch } = decideUpdate(m, fd, now);
+    if (action === 'skip' || !patch) continue;
+    if (action === 'review') review++;
+    if (!patchChangesDoc(m, patch)) continue;
+    changes.push({ id: m.id, action, result: patch.result, status: patch.status, needsReview: !!patch.needsReview });
+    if (!dryRun) {
+      const { autoUpdatedAt, ...rest } = patch; // erstat med servertid
+      await db.collection('matches').doc(m.id).update({ ...rest, autoUpdatedAt: FieldValue.serverTimestamp() });
+    }
+    updated++;
+  }
+  return { checked: candidates.length, updated, review, dryRun, changes };
+}
+
+exports.syncResults = onSchedule(
+  { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async () => {
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) { console.log('syncResults: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    const res = await runSyncResults(getFirestore(), token);
+    if (res.updated) console.log(`syncResults: opdaterede ${res.updated} kamp(e).`, res.changes);
+  }
+);
+
+exports.syncResultsNow = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    return runSyncResults(db, token, { dryRun: request.data?.dryRun === true });
+  }
+);
+
+// Map vores kampe til football-data-id'er (gemmes som externalId på kampen).
+exports.syncFixtures = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+
+    const season = Number(request.data?.season) || new Date().getUTCFullYear();
+    const client = createClient({ token });
+    const data = await client.getSeasonMatches(season);
+    const fdMatches = data.matches || [];
+
+    const snap = await db.collection('matches').get();
+    const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    let mapped = 0; let already = 0; const unmatched = [];
+    const batch = db.batch();
+    for (const m of ours) {
+      if (!m.homeTeam || !m.awayTeam) continue; // ukendte hold (knockout-pladsholdere)
+      const fd = matchFixture(m, fdMatches);
+      if (!fd) { unmatched.push(m.id); continue; }
+      if (String(m.externalId) === String(fd.id)) { already++; continue; }
+      batch.update(db.collection('matches').doc(m.id), { externalId: String(fd.id) });
+      mapped++;
+    }
+    if (mapped > 0) await batch.commit();
+    return { season, totalFixtures: fdMatches.length, mapped, already, unmatched };
   }
 );
