@@ -23,19 +23,19 @@ export default function DashboardPage() {
 
   const name = profile?.displayName || 'spiller';
 
-  // Min placering + point ud fra (allerede sorterede) standings
+  // Min placering + point ud fra samlet pointstilling.
+  // Ægte konkurrence-placering: deler man point, deler man plads
+  // (alle på 0 point → alle nr. 1).
   const { rank, points, playerCount } = useMemo(() => {
-    const idx = standings.findIndex((u) => u.uid === user?.uid);
-    return {
-      rank: idx >= 0 ? idx + 1 : null,
-      points: idx >= 0 ? (standings[idx].totalPoints ?? 0) : (profile?.totalPoints ?? 0),
-      playerCount: standings.length,
-    };
+    const mine = standings.find((u) => u.uid === user?.uid);
+    const myPoints = mine?.totalPoints ?? profile?.totalPoints ?? 0;
+    const ahead = standings.filter((u) => (u.totalPoints ?? 0) > myPoints).length;
+    return { rank: ahead + 1, points: myPoints, playerCount: standings.length };
   }, [standings, user?.uid, profile?.totalPoints]);
 
   const chips = [
-    rank ? `#${rank} af ${playerCount}` : 'Ny spiller',
-    `${points} point`,
+    playerCount > 0 ? `Placering: #${rank} af ${playerCount}` : 'Placering: –',
+    `Point: ${points}`,
   ];
 
   return (

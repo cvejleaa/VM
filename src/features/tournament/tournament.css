@@ -202,8 +202,29 @@
 /* Grupper-layout: grid med kortene */
 .groups-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 1rem;
+}
+
+/* Hvert gruppekort er en container, så holdnavne kan tilpasses kortets bredde
+   (ikke skærmens) — undgår klemt tabel + vandret scroll i to-kolonne-layout. */
+.groups-grid > .card {
+  container-type: inline-size;
+}
+
+/* Kompakt stillingstabel i gruppekort: mindre cellepadding så de 9 kolonner
+   får plads uden vandret scroll. To klasser = vinder over .table th/td-padding. */
+.table.table--compact th,
+.table.table--compact td {
+  padding: 0.3rem 0.4rem;
+}
+
+/* Holdnavn i gruppestilling: fuldt navn når kortet er bredt nok, ellers kode. */
+.gstand-name-short { display: none; }
+.gstand-name-long { display: inline; }
+@container (max-width: 430px) {
+  .gstand-name-long { display: none; }
+  .gstand-name-short { display: inline; }
 }
 
 /* Dato/tid over kampene i mellemrunde */
