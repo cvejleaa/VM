@@ -4,6 +4,7 @@
 // Filtre: Alle / I dag / Kommende / Mine utippede.
 // ---------------------------------------------------------------------------
 import { useState, useMemo } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMatches } from '../features/matches/useMatches';
 import { useMyBets } from '../features/matches/useMyBets';
@@ -15,9 +16,6 @@ import {
   roundLabel,
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
-import DashboardHub from '../features/matches/DashboardHub';
-import Hero from '../components/Hero';
-import PointRules from '../components/PointRules';
 import { useStandings } from '../features/leaderboard/useStandings';
 import { TIMEZONE } from '../lib/constants';
 
@@ -26,6 +24,7 @@ const FILTER_ALL = 'alle';
 const FILTER_TODAY = 'idag';
 const FILTER_UPCOMING = 'kommende';
 const FILTER_UNTIPPED = 'utippede';
+const VALID_FILTERS = [FILTER_ALL, FILTER_TODAY, FILTER_UPCOMING, FILTER_UNTIPPED];
 
 /** Returnerer dansk dagsnøgle for i dag (til sammenligning). */
 function todayKey() {
@@ -42,7 +41,12 @@ export default function MatchesPage() {
   const { matches, loading, error } = useMatches();
   const { bets, loading: betsLoading } = useMyBets(user?.uid ?? null);
   const { standings } = useStandings();
-  const [filter, setFilter] = useState(FILTER_ALL);
+  const [searchParams] = useSearchParams();
+  // Tillad dyb-link fra forsiden, fx /kampe?filter=utippede
+  const initialFilter = VALID_FILTERS.includes(searchParams.get('filter'))
+    ? searchParams.get('filter')
+    : FILTER_ALL;
+  const [filter, setFilter] = useState(initialFilter);
 
   // Opslag uid → profil (til avatar/navn i "se alles tips")
   const usersByUid = useMemo(() => {
@@ -91,21 +95,10 @@ export default function MatchesPage() {
 
   return (
     <div className="container">
-      <Hero
-        title="VM 2026 Tip"
-        subtitle="Afgiv dine tips inden kampstart – point beregnes automatisk, og stillingen opdateres live."
-        chips={['48 hold', '104 kampe', 'Dansk tid']}
-      />
-
-      {!isLoading && !error && (
-        <DashboardHub
-          matches={matches}
-          bets={bets}
-          onJumpToUntipped={() => setFilter(FILTER_UNTIPPED)}
-        />
-      )}
-
-      <PointRules />
+      <div className="flex items-center justify-between mb-2" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h1 style={{ margin: 0, fontSize: '1.4rem' }}>⚽ Kampe</h1>
+        <Link to="/hjaelp" className="badge badge--blue" style={{ textDecoration: 'none' }}>❓ Sådan får du point</Link>
+      </div>
 
       {/* Filtre */}
       <div className="tabs" style={{ marginBottom: '1rem' }}>

@@ -9,6 +9,7 @@
  */
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTasks } from '../context/TasksContext';
 import { useLeagues } from '../features/leagues/useLeagues';
 import { useStandings } from '../features/leaderboard/useStandings';
 import {
@@ -39,6 +40,9 @@ function LeagueCard({ league, standings, meUid, onOpen }) {
   // Top 3 spillere i ligaen
   const members = sortByPoints(filterUsersByLeague(standings, league.memberUids));
   const top3 = members.slice(0, 3);
+  // Mine ubesvarede liga-bonusspørgsmål i denne liga (samme kilde som forsiden)
+  const { leagueBonus } = useTasks();
+  const missing = leagueBonus.byLeague.find((r) => r.leagueId === league.id)?.count ?? 0;
 
   return (
     <div className="league-card" onClick={onOpen} role="button" tabIndex={0}
@@ -47,7 +51,14 @@ function LeagueCard({ league, standings, meUid, onOpen }) {
     >
       <div className="flex items-center justify-between">
         <div className="league-card__name">{league.name}</div>
-        <span className="badge badge--blue">{league.memberUids?.length ?? 0} 👤</span>
+        <span style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+          {missing > 0 && (
+            <span className="badge badge--red" title="Du mangler at svare på liga-spørgsmål">
+              {missing} mangler
+            </span>
+          )}
+          <span className="badge badge--blue">{league.memberUids?.length ?? 0} 👤</span>
+        </span>
       </div>
       <div className="league-card__meta">
         Kode: <strong>{league.joinCode}</strong>

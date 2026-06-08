@@ -123,12 +123,12 @@ describe('MatchesPage – visning af kampe', () => {
     expect(headings.length).toBeGreaterThan(0);
   });
 
-  it('viser Hero-komponent med titel', () => {
+  it('viser sideoverskrift "Kampe"', () => {
     renderPage();
-    expect(screen.getByText('VM 2026 Tip')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Kampe/ })).toBeInTheDocument();
   });
 
-  it('viser PointRules-komponent', () => {
+  it('linker til hjælp om point', () => {
     renderPage();
     expect(screen.getByText(/Sådan får du point/)).toBeInTheDocument();
   });

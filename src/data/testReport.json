@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-05T16:33:27.597Z",
+  "generatedAt": "2026-06-08T11:17:32.106Z",
   "totals": {
-    "files": 57,
-    "tests": 1046,
-    "passed": 1046,
+    "files": 62,
+    "tests": 1071,
+    "passed": 1071,
     "failed": 0
   },
   "suites": [
@@ -1740,6 +1740,70 @@
       ]
     },
     {
+      "file": "src/features/dashboard/dashboardTasks.test.js",
+      "area": "frontend",
+      "passed": 9,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "hasAnswerValue › genkender ikke-tomme strenge",
+          "status": "passed"
+        },
+        {
+          "name": "hasAnswerValue › genkender top-liste-arrays med mindst ét felt",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenUnansweredBonus › tæller åbne spørgsmål uden svar",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenUnansweredBonus › udelader besvarede",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenUnansweredBonus › udelader låste også selvom ubesvaret",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenUnansweredBonus › håndterer tom/manglende input",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenLeagueBonus › tæller åbne, ubesvarede",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenLeagueBonus › 0 når alt åbent er besvaret",
+          "status": "passed"
+        },
+        {
+          "name": "countOpenLeagueBonus › tom besvarelse tæller som mangler",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/features/dashboard/TodoCard.test.jsx",
+      "area": "frontend",
+      "passed": 3,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "TodoCard › viser hver kategori med antal når der mangler",
+          "status": "passed"
+        },
+        {
+          "name": "TodoCard › viser \"alt besvaret\" når total er 0",
+          "status": "passed"
+        },
+        {
+          "name": "TodoCard › skjuler kategorier uden mangler",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/leaderboard/StandingsTable.test.jsx",
       "area": "frontend",
       "passed": 20,
@@ -1830,7 +1894,7 @@
     {
       "file": "src/features/leaderboard/standingsUtils.test.js",
       "area": "frontend",
-      "passed": 31,
+      "passed": 36,
       "failed": 0,
       "tests": [
         {
@@ -1883,6 +1947,26 @@
         },
         {
           "name": "filterByMembers › ignorerer ukendte uid-er i listen",
+          "status": "passed"
+        },
+        {
+          "name": "collectVisibleUids › samler unionen af medlemmer på tværs af ligaer + sig selv",
+          "status": "passed"
+        },
+        {
+          "name": "collectVisibleUids › dublerer ikke UIDs der går igen i flere ligaer",
+          "status": "passed"
+        },
+        {
+          "name": "collectVisibleUids › returnerer kun sig selv uden ligaer",
+          "status": "passed"
+        },
+        {
+          "name": "collectVisibleUids › inkluderer altid sig selv, også uden at stå i memberUids",
+          "status": "passed"
+        },
+        {
+          "name": "collectVisibleUids › håndterer tomme/manglende felter",
           "status": "passed"
         },
         {
@@ -2968,6 +3052,26 @@
       ]
     },
     {
+      "file": "src/features/onboarding/OnboardingChecklist.test.jsx",
+      "area": "frontend",
+      "passed": 3,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "OnboardingChecklist › viser velkomst og de fire trin",
+          "status": "passed"
+        },
+        {
+          "name": "OnboardingChecklist › skjuler og husker valget i localStorage",
+          "status": "passed"
+        },
+        {
+          "name": "OnboardingChecklist › viser ikke noget hvis allerede skjult",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/features/profile/avatarUtils.test.js",
       "area": "frontend",
       "passed": 7,
@@ -3660,6 +3764,42 @@
       ]
     },
     {
+      "file": "src/pages/DashboardPage.test.jsx",
+      "area": "frontend",
+      "passed": 4,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "DashboardPage › hilser brugeren personligt",
+          "status": "passed"
+        },
+        {
+          "name": "DashboardPage › viser placering og point som chips",
+          "status": "passed"
+        },
+        {
+          "name": "DashboardPage › viser \"Mine opgaver\"-kortet",
+          "status": "passed"
+        },
+        {
+          "name": "DashboardPage › viser genvej til kampene",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "src/pages/HelpPage.test.jsx",
+      "area": "frontend",
+      "passed": 1,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "HelpPage › viser de centrale hjælpe-afsnit",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "src/pages/LeaderboardPage.test.jsx",
       "area": "frontend",
       "passed": 13,
@@ -3670,7 +3810,7 @@
           "status": "passed"
         },
         {
-          "name": "LeaderboardPage › viser alle spillere i samlet stilling",
+          "name": "LeaderboardPage › viser kun spillere fra egne ligaer i samlet stilling",
           "status": "passed"
         },
         {
@@ -3706,7 +3846,7 @@
           "status": "passed"
         },
         {
-          "name": "LeaderboardPage › nulstiller filter til alle spillere ved valg af tom option",
+          "name": "LeaderboardPage › nulstiller filter til eget liga-netværk ved valg af tom option",
           "status": "passed"
         },
         {
@@ -4022,11 +4162,11 @@
           "status": "passed"
         },
         {
-          "name": "MatchesPage – visning af kampe › viser Hero-komponent med titel",
+          "name": "MatchesPage – visning af kampe › viser sideoverskrift \"Kampe\"",
           "status": "passed"
         },
         {
-          "name": "MatchesPage – visning af kampe › viser PointRules-komponent",
+          "name": "MatchesPage – visning af kampe › linker til hjælp om point",
           "status": "passed"
         },
         {
