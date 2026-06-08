@@ -58,6 +58,19 @@ export async function createLeague(name, ownerUid, scoring = DEFAULT_SCORING) {
 }
 
 /**
+ * Generér en ny join-/invitationskode for en liga (liga-ejer).
+ * Brugbart hvis den gamle kode er lækket. Den gamle kode holder op med at virke.
+ * @param {string} leagueId
+ * @returns {Promise<string>} den nye kode
+ */
+export async function regenerateJoinCode(leagueId) {
+  if (!leagueId) throw new Error('Mangler liga-id.');
+  const code = generateJoinCode();
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { joinCode: code });
+  return code;
+}
+
+/**
  * Sæt en ligas scoring-valg (liga-ejer/-admin). Styres af sikkerhedsreglerne.
  * @param {string} leagueId
  * @param {object} scoring – kombinerbart scoring-objekt

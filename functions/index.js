@@ -47,6 +47,7 @@ const { computeBreakdown } = require('./breakdown');
 const { createClient } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
+const { redeemInviteCodeCore } = require('./invites');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -194,6 +195,63 @@ exports.recomputeBonus = onDocumentWritten(
 // eksisterende bets, så tip-tælleren også dækker tips afgivet før
 // syncTipParticipation blev deployet.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// redeemInviteCode — callable: selvbetjent godkendelse via en ligas join-kode.
+// En logget-ind (men endnu ikke godkendt) bruger indtaster en kode; matcher den
+// en ADMIN-GODKENDT liga, sættes status='approved' og brugeren tilmeldes ligaen.
+// Hele beslutningen sker server-side med admin-rettigheder — klienten kan aldrig
+// selv sætte 'approved'. Rate-limiting beskytter mod gæt af koder.
+// ---------------------------------------------------------------------------
+exports.redeemInviteCode = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  }
+  const db = getFirestore();
+  const uid = request.auth.uid;
+
+  const result = await redeemInviteCodeCore({
+    uid,
+    rawCode: request.data?.code,
+    now: Date.now(),
+
+    getAttempt: async (u) => {
+      const snap = await db.collection('inviteAttempts').doc(u).get();
+      return snap.exists ? snap.data() : null;
+    },
+    saveAttempt: (u, state) =>
+      db.collection('inviteAttempts').doc(u).set(state, { merge: true }),
+
+    findApprovedLeagueByCode: async (code) => {
+      const snap = await db.collection('leagues')
+        .where('joinCode', '==', code)
+        .where('status', '==', 'approved')
+        .limit(1)
+        .get();
+      if (snap.empty) return null;
+      const d = snap.docs[0];
+      return { id: d.id, name: d.data().name };
+    },
+
+    approveUserAndJoin: async ({ uid: u, leagueId }) => {
+      const batch = db.batch();
+      batch.set(db.collection('users').doc(u), {
+        status: 'approved',
+        approvedAt: FieldValue.serverTimestamp(),
+        approvedViaInvite: true,
+      }, { merge: true });
+      batch.update(db.collection('leagues').doc(leagueId), {
+        memberUids: FieldValue.arrayUnion(u),
+      });
+      await batch.commit();
+    },
+  });
+
+  if (!result.ok) {
+    throw new HttpsError(result.error, result.message);
+  }
+  return { leagueId: result.leagueId, leagueName: result.leagueName };
+});
+
 exports.backfillTipParticipation = onCall({ region: REGION }, async (request) => {
   const db = getFirestore();
 

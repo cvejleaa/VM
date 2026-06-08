@@ -30,6 +30,23 @@ til frontenden på `vm.vejleaa.dk`. Du behøver ikke kunne kode for at følge de
 3. Under **Settings → Authorized domains**: tilføj `vm.vejleaa.dk`
    (og behold `localhost`).
 
+### 2b. Selvbetjent godkendelse via invitationskode
+
+Nye brugere oprettes som `pending` og skal godkendes. Ud over manuel godkendelse
+i admin-panelet kan en bruger **godkende sig selv** ved at indtaste en ligas
+**invitationskode** (join-kode) på "Afventer godkendelse"-skærmen:
+
+- Hver liga har en 6-tegns kode (vises i ligaen; ejeren kan **regenerere** den
+  med 🔄 hvis den lækker).
+- Indtaster en pending bruger en kode, der matcher en **admin-godkendt** liga,
+  kører Cloud Function'en `redeemInviteCode` server-side og sætter brugeren til
+  `approved` + tilmelder ligaen. Klienten kan aldrig selv sætte `approved`.
+- Kun koder fra **godkendte** ligaer virker, og forsøg er rate-limited (gæt
+  blokeres). Ejeren beholder kontrollen ved at godkende ligaer.
+
+> Del kun koden med folk, du vil lukke ind — enhver med en gyldig kode bliver
+> godkendt automatisk.
+
 ---
 
 ## 3. Opret Firestore-database

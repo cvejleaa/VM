@@ -26,6 +26,12 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
+// ─── Mock invitationskode-indløsning ─────────────────────────────────────────
+const mockRedeem = vi.fn();
+vi.mock('../features/auth/inviteActions', () => ({
+  redeemInviteCode: (...args) => mockRedeem(...args),
+}));
+
 import PendingPage from './PendingPage';
 
 function renderPendingPage() {
@@ -183,5 +189,49 @@ describe('PendingPage', () => {
     await waitFor(() => {
       expect(signOut).toHaveBeenCalled();
     });
+  });
+
+  // ─── Invitationskode (selvbetjent godkendelse) ────────────────────────────
+
+  it('viser invitationskode-felt for pending bruger', () => {
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, status: 'pending', loading: false });
+    renderPendingPage();
+    expect(screen.getByLabelText(/invitationskode/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Indløs/i })).toBeInTheDocument();
+  });
+
+  it('viser IKKE invitationskode-felt for rejected bruger', () => {
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, status: 'rejected', loading: false });
+    renderPendingPage();
+    expect(screen.queryByRole('button', { name: /Indløs/i })).not.toBeInTheDocument();
+  });
+
+  it('indløser kode og navigerer til "/" ved succes', async () => {
+    vi.useFakeTimers();
+    mockRedeem.mockResolvedValue({ leagueId: 'lg1', leagueName: 'Vennernes liga' });
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, status: 'pending', loading: false });
+    renderPendingPage();
+
+    fireEvent.change(screen.getByLabelText(/invitationskode/i), { target: { value: 'abc123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Indløs/i }));
+
+    await vi.waitFor(() => expect(mockRedeem).toHaveBeenCalledWith('abc123'));
+    await vi.waitFor(() => expect(screen.getByText(/Godkendt!/i)).toBeInTheDocument());
+
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    vi.useRealTimers();
+  });
+
+  it('viser fejl når koden er ugyldig', async () => {
+    mockRedeem.mockRejectedValue(new Error('Ugyldig invitationskode — tjek den og prøv igen.'));
+    mockUseAuth.mockReturnValue({ user: { uid: 'abc' }, status: 'pending', loading: false });
+    renderPendingPage();
+
+    fireEvent.change(screen.getByLabelText(/invitationskode/i), { target: { value: 'WRONG1' } });
+    fireEvent.click(screen.getByRole('button', { name: /Indløs/i }));
+
+    await waitFor(() => expect(screen.getByText(/Ugyldig invitationskode/i)).toBeInTheDocument());
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

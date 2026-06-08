@@ -16,6 +16,7 @@ export default defineConfig({
       'resultsSync.test.js',
       'bonusResolve.test.js',
       'pipeline.integration.test.js',
+      'invites.test.js',
     ],
     exclude: [
       'rules.test.js',
