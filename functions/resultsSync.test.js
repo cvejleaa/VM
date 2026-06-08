@@ -28,9 +28,22 @@ describe('matchFixture', () => {
     const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-11T19:00:00Z' };
     expect(matchFixture(our, fd)?.id).toBe(11);
   });
-  it('returnerer null ved forkert dato', () => {
-    const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-13T19:00:00Z' };
+  it('matcher selv når seed-tidspunktet falder over UTC-midnat', () => {
+    // Vores gæt ligger få timer forskudt på den anden side af midnat (anden UTC-dato).
+    const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-12T01:00:00Z' };
+    expect(matchFixture(our, fd)?.id).toBe(11);
+  });
+  it('returnerer null når datoen er helt forkert', () => {
+    const our = { homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-20T19:00:00Z' };
     expect(matchFixture(our, fd)).toBeNull();
+  });
+  it('vælger den tidsmæssigt nærmeste ved flere holdpar-kandidater', () => {
+    const dup = [
+      { id: 21, utcDate: '2026-06-11T19:00:00Z', homeTeam: { tla: 'BRA' }, awayTeam: { tla: 'ARG' } },
+      { id: 22, utcDate: '2026-06-30T19:00:00Z', homeTeam: { tla: 'BRA' }, awayTeam: { tla: 'ARG' } },
+    ];
+    const our = { homeTeam: 'BRA', awayTeam: 'ARG', kickoff: '2026-06-30T18:00:00Z' };
+    expect(matchFixture(our, dup)?.id).toBe(22);
   });
   it('returnerer null uden hold', () => {
     expect(matchFixture({ kickoff: '2026-06-11T19:00:00Z' }, fd)).toBeNull();

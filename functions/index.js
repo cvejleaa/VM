@@ -719,17 +719,21 @@ exports.syncFixtures = onCall(
     const snap = await db.collection('matches').get();
     const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    let mapped = 0; let already = 0; const unmatched = [];
+    let mapped = 0; let already = 0; const unmatched = []; const unmatchedDetail = [];
     const batch = db.batch();
     for (const m of ours) {
       if (!m.homeTeam || !m.awayTeam) continue; // ukendte hold (knockout-pladsholdere)
       const fd = matchFixture(m, fdMatches);
-      if (!fd) { unmatched.push(m.id); continue; }
+      if (!fd) {
+        unmatched.push(m.id);
+        unmatchedDetail.push({ id: m.id, home: m.homeTeam, away: m.awayTeam });
+        continue;
+      }
       if (String(m.externalId) === String(fd.id)) { already++; continue; }
       batch.update(db.collection('matches').doc(m.id), { externalId: String(fd.id) });
       mapped++;
     }
     if (mapped > 0) await batch.commit();
-    return { season, totalFixtures: fdMatches.length, mapped, already, unmatched };
+    return { season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail };
   }
 );

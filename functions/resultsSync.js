@@ -37,20 +37,36 @@ function kickoffMs(kickoff) {
   return d.getTime();
 }
 
+// Hvor langt fra vores kickoff en football-data-kamp må ligge og stadig regnes
+// som "samme kamp". Et holdpar er entydigt i en VM-turnering, så vinduet skal
+// blot rumme upræcise seed-tidspunkter og kampe der falder over UTC-midnat
+// (et eksakt dato-match misser ellers kampe der starter sent UTC-tid).
+const MATCH_WINDOW_MS = 3 * 24 * 3600 * 1000;
+
 /**
- * Find football-data-kampen der svarer til en af vores kampe (samme UTC-dato +
- * begge hold matcher). Returnerer fd-kampen eller null.
+ * Find football-data-kampen der svarer til en af vores kampe: begge hold matcher
+ * og kickoff ligger inden for MATCH_WINDOW_MS. Ved flere kandidater vælges den
+ * tidsmæssigt nærmeste. Returnerer fd-kampen eller null.
  */
 function matchFixture(ourMatch, fdMatches) {
   if (!ourMatch || !ourMatch.homeTeam || !ourMatch.awayTeam) return null;
-  const ourDay = utcDate(kickoffMs(ourMatch.kickoff));
-  if (!ourDay) return null;
+  const ourMs = kickoffMs(ourMatch.kickoff);
+  if (Number.isNaN(ourMs)) return null;
+  let best = null;
+  let bestDelta = Infinity;
   for (const fd of fdMatches || []) {
-    if (utcDate(fd.utcDate) !== ourDay) continue;
-    const direct = teamCodeMatches(ourMatch.homeTeam, fd.homeTeam) && teamCodeMatches(ourMatch.awayTeam, fd.awayTeam);
-    if (direct) return fd;
+    const teamsMatch = teamCodeMatches(ourMatch.homeTeam, fd.homeTeam)
+      && teamCodeMatches(ourMatch.awayTeam, fd.awayTeam);
+    if (!teamsMatch) continue;
+    const fdMs = new Date(fd.utcDate).getTime();
+    if (Number.isNaN(fdMs)) continue;
+    const delta = Math.abs(fdMs - ourMs);
+    if (delta <= MATCH_WINDOW_MS && delta < bestDelta) {
+      best = fd;
+      bestDelta = delta;
+    }
   }
-  return null;
+  return best;
 }
 
 /** football-data-vinder ('HOME_TEAM'/'AWAY_TEAM') → vores holdkode. */
