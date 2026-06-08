@@ -38,6 +38,9 @@ import {
   setUserStatus,
   toggleMatchAdminRole,
   saveMatchResult,
+  clearManualLock,
+  callSyncResultsNow,
+  callSyncFixtures,
   createMatch,
   callBuildKnockout,
   callSendTipRemindersNow,
@@ -158,6 +161,53 @@ describe('adminActions', () => {
       const { db } = await import('../../firebase');
       await saveMatchResult('match-xyz', { home: 0, away: 0 });
       expect(mockDoc).toHaveBeenCalledWith(db, 'matches', 'match-xyz');
+    });
+
+    it('markerer manuel rettelse som klæbende (manualLock)', async () => {
+      await saveMatchResult('match-1', { home: 1, away: 1 });
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ resultSource: 'manual', manualLock: true, needsReview: false }),
+      );
+    });
+  });
+
+  describe('clearManualLock', () => {
+    it('fjerner låsen og gendanner automatik', async () => {
+      await clearManualLock('match-9');
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        { manualLock: false, resultSource: 'auto', needsReview: false },
+      );
+    });
+  });
+
+  describe('callSyncResultsNow', () => {
+    it('sender dryRun-flag og returnerer data', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { updated: 2 } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+      const res = await callSyncResultsNow({ dryRun: true });
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'syncResultsNow');
+      expect(mockFn).toHaveBeenCalledWith({ dryRun: true });
+      expect(res).toEqual({ ok: true, data: { updated: 2 } });
+    });
+    it('returnerer pæn fejl hvis funktionen ikke er deployet', async () => {
+      const mockFn = vi.fn().mockRejectedValue({ code: 'functions/not-found' });
+      mockHttpsCallable.mockReturnValue(mockFn);
+      const res = await callSyncResultsNow();
+      expect(res.ok).toBe(false);
+      expect(res.error).toMatch(/ikke deployet/);
+    });
+  });
+
+  describe('callSyncFixtures', () => {
+    it('sender season og returnerer data', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { mapped: 5 } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+      const res = await callSyncFixtures({ season: 2026 });
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'syncFixtures');
+      expect(mockFn).toHaveBeenCalledWith({ season: 2026 });
+      expect(res.data).toEqual({ mapped: 5 });
     });
   });
 
