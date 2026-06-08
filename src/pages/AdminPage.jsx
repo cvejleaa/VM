@@ -10,6 +10,7 @@ import MatchesTab from '../features/admin/MatchesTab';
 import BonusTab from '../features/admin/BonusTab';
 import LeaguesAdminTab from '../features/admin/LeaguesAdminTab';
 import TestsTab from '../features/admin/TestsTab';
+import RunbookTab from '../features/admin/RunbookTab';
 
 // Fane-id'er
 const TAB_USERS   = 'users';
@@ -17,6 +18,7 @@ const TAB_MATCHES = 'matches';
 const TAB_BONUS   = 'bonus';
 const TAB_LEAGUES = 'leagues';
 const TAB_TESTS   = 'tests';
+const TAB_RUNBOOK = 'runbook';
 
 export default function AdminPage() {
   const { isOwner } = useAuth();
@@ -34,6 +36,7 @@ export default function AdminPage() {
     { key: TAB_BONUS,   label: 'Bonus-facit' },
     { key: TAB_LEAGUES, label: 'Ligaer' },
     { key: TAB_TESTS,   label: 'Tests' },
+    { key: TAB_RUNBOOK, label: '📋 Køreplan' },
   ];
 
   return (
@@ -92,6 +95,7 @@ export default function AdminPage() {
         {tab === TAB_BONUS   && <BonusTab />}
         {tab === TAB_LEAGUES && <LeaguesAdminTab />}
         {tab === TAB_TESTS   && <TestsTab />}
+        {tab === TAB_RUNBOOK && <RunbookTab />}
       </div>
     </div>
   );

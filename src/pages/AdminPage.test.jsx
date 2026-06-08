@@ -84,11 +84,12 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser alle fem faner for owner', () => {
+    it('viser alle seks faner for owner', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(5);
+      expect(tabs).toHaveLength(6);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
     });
 
     it('viser tekst om fuld adgang som ejer', () => {
@@ -171,11 +172,12 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 4 faner for matchAdmin (Kampe, Bonus, Ligaer, Tests)', () => {
+    it('viser præcis 5 faner for matchAdmin (Kampe, Bonus, Ligaer, Tests, Køreplan)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(4);
+      expect(tabs).toHaveLength(5);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
     });
 
     it('viser tekst om kamp-administrator adgang', () => {

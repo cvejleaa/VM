@@ -102,6 +102,16 @@ describe('decideUpdate', () => {
     expect(res.patch.needsReview).toBeUndefined();
   });
 
+  it('afgør knockout på straffespark: uafgjort fuldtid + winner → advance, ingen review', () => {
+    // football-data: fullTime er uafgjort (straffene tæller ikke med),
+    // duration=PENALTY_SHOOTOUT, og winner peger på den der gik videre.
+    const fd = { status: 'FINISHED', score: { winner: 'HOME_TEAM', duration: 'PENALTY_SHOOTOUT', fullTime: { home: 1, away: 1 } } };
+    const res = decideUpdate(ko, fd, NOW);
+    expect(res.action).toBe('finish');
+    expect(res.patch.result).toEqual({ home: 1, away: 1, advance: 'BRA' });
+    expect(res.patch.needsReview).toBeUndefined();
+  });
+
   it('beder om review når knockout-vinder er uklar', () => {
     const res = decideUpdate(ko, { status: 'FINISHED', score: { winner: 'DRAW', fullTime: { home: 1, away: 1 } } }, NOW);
     expect(res.patch.needsReview).toBe(true);
