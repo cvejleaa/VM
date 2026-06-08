@@ -49,7 +49,7 @@ service cloud.firestore {
     /** Forsøger klienten at skrive til et beskyttet felt? */
     function writingProtectedUserFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['role', 'status']);
+        .hasAny(['role', 'status', 'approvedViaInvite', 'approvedAt']);
     }
 
     /** Forsøger klienten at skrive til points-feltet? */
@@ -209,6 +209,15 @@ service cloud.firestore {
 
       // Sletning: ejeren af ligaen eller en super-admin (owner)
       allow delete: if isOwner() || isOwnerOfDoc(resource.data);
+    }
+
+    // -----------------------------------------------------------------------
+    // inviteAttempts/{uid} — rate-limit-tæller for indløsning af invitationskoder.
+    // Skrives og læses KUN af Cloud Functions (admin SDK). Ingen klientadgang,
+    // så brugere ikke kan nulstille deres egen forsøgstæller.
+    // -----------------------------------------------------------------------
+    match /inviteAttempts/{uid} {
+      allow read, write: if false;
     }
 
     // -----------------------------------------------------------------------

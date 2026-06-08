@@ -21,6 +21,7 @@ import {
   adminAddMember,
   renameLeague,
   setLeagueScoring,
+  regenerateJoinCode,
 } from '../features/leagues/leagueActions';
 import {
   normalizeScoring, scoringLabel, isFullScoring, SCORING_COMPONENTS, DEFAULT_SCORING, leagueScore,
@@ -96,6 +97,15 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const [renameVal, setRenameVal] = useState(null); // null = ikke i gang
   const [renaming, setRenaming] = useState(false);
   const [savingFormat, setSavingFormat] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+
+  async function handleRegenerateCode() {
+    if (!window.confirm('Generér en ny invitationskode? Den nuværende kode holder op med at virke.')) return;
+    setRegenerating(true); setActionError('');
+    try { await regenerateJoinCode(league.id); }
+    catch (e) { setActionError(e.message); }
+    finally { setRegenerating(false); }
+  }
 
   const isOwner = league.ownerUid === meUid;
   const leagueAdminUids = league.adminUids ?? [];
@@ -223,6 +233,17 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
             <span className="badge badge--muted">
               Kode: <strong>{league.joinCode}</strong>
             </span>
+            {isOwner && (
+              <button
+                className="btn--icon" title="Generér ny invitationskode"
+                aria-label="Generér ny invitationskode"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.9rem' }}
+                disabled={regenerating}
+                onClick={handleRegenerateCode}
+              >
+                🔄
+              </button>
+            )}
             <span className="badge badge--blue">{league.memberUids?.length ?? 0} spillere</span>
             <span className="badge badge--muted" title="Liga-format">⚙️ {scoringLabel(scoring)}</span>
             {isLeagueAdmin && !isOwner && <span className="badge badge--green">du er liga-admin</span>}

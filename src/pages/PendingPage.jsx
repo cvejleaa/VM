@@ -1,15 +1,40 @@
 // Afventeside — vises til brugere der ikke er godkendt endnu.
 // Håndterer status: pending og rejected. Redirecter til "/" hvis godkendt.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { USER_STATUS } from '../lib/constants';
+import { redeemInviteCode } from '../features/auth/inviteActions';
 
 export default function PendingPage() {
   const { user, status, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Selvbetjent godkendelse via invitationskode
+  const [code, setCode] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState('');
+  const [redeemOk, setRedeemOk] = useState('');
+
+  async function handleRedeem(e) {
+    e.preventDefault();
+    setRedeemError('');
+    setRedeemOk('');
+    setRedeeming(true);
+    try {
+      const { leagueName } = await redeemInviteCode(code);
+      setRedeemOk(`Godkendt! Du er tilmeldt "${leagueName}". Sender dig videre…`);
+      // Statusskiftet (pending→approved) opdaterer automatisk via AuthContext,
+      // men vi navigerer også eksplicit for en hurtig oplevelse.
+      setTimeout(() => navigate('/', { replace: true }), 1200);
+    } catch (err) {
+      setRedeemError(err?.message || 'Kunne ikke indløse koden. Prøv igen.');
+    } finally {
+      setRedeeming(false);
+    }
+  }
 
   // Redirect til forsiden hvis brugeren allerede er godkendt
   useEffect(() => {
@@ -143,6 +168,49 @@ export default function PendingPage() {
             <li>Du kan prøve at logge ind igen om lidt — siden opdaterer automatisk.</li>
           </ul>
         </div>
+
+        {/* Selvbetjening: indløs invitationskode for at få adgang med det samme */}
+        <form onSubmit={handleRedeem} style={{ marginBottom: '1.25rem', textAlign: 'left' }}>
+          <label htmlFor="invite-code" style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+            Har du en invitationskode?
+          </label>
+          <p style={{ color: 'var(--c-muted)', fontSize: '0.82rem', margin: '0.25rem 0 0.6rem' }}>
+            Indtast koden fra din liga for at blive godkendt og tilmeldt med det samme.
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input
+              id="invite-code"
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="fx ABC123"
+              autoCapitalize="characters"
+              disabled={redeeming || !!redeemOk}
+              style={{
+                flex: 1, padding: '0.5rem 0.75rem', borderRadius: 8,
+                border: '1px solid var(--c-border)', textTransform: 'uppercase',
+                fontSize: '1rem', letterSpacing: '0.1em',
+              }}
+            />
+            <button
+              className="btn"
+              type="submit"
+              disabled={redeeming || !code.trim() || !!redeemOk}
+            >
+              {redeeming ? '…' : 'Indløs'}
+            </button>
+          </div>
+          {redeemError && (
+            <div style={{ color: 'var(--c-err)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              {redeemError}
+            </div>
+          )}
+          {redeemOk && (
+            <div style={{ color: 'var(--c-ok)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+              {redeemOk}
+            </div>
+          )}
+        </form>
 
         <button
           className="btn btn--ghost"
