@@ -227,6 +227,26 @@ export async function callSyncFixtures({ season } = {}) {
   }
 }
 
+/**
+ * Kald Cloud Function 'syncGroupWinnersNow' — afgør gruppevindere ud fra
+ * grupperesultaterne (sætter facit på færdigspillede grupper). dryRun=true
+ * viser kun hvad der ville ske.
+ * @param {{dryRun?: boolean}} [opts]
+ */
+export async function callSyncGroupWinners({ dryRun = false } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'syncGroupWinnersNow');
+    const result = await fn({ dryRun });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncGroupWinnersNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncGroupWinnersNow.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
 
 /**

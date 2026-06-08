@@ -6,6 +6,9 @@
 //   recomputeMatch    — Firestore onWrite: beregner point når kampresultat sættes
 //   recomputeBonus    — Firestore onWrite: beregner point når bonus-facit sættes
 //   buildKnockout     — callable: bygger knockout-bracket fra grupperesultater
+//   resolveGroupWinnerOnFinish — Firestore onWrite: sætter gruppevinder-facit
+//                       automatisk når en gruppes sidste kamp er færdig
+//   syncGroupWinnersNow — callable (admin): afgør gruppevindere manuelt/dry-run
 //
 // Bemærk: bruger-oprettelse (users/{uid} med role:'player', status:'pending')
 // håndteres på klienten ved registrering + Security Rules. Owner sættes manuelt
@@ -43,6 +46,7 @@ const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
+const { resolveGroupWinners } = require('./bonusResolve');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -735,5 +739,63 @@ exports.syncFixtures = onCall(
     }
     if (mapped > 0) await batch.commit();
     return { season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Gruppevindere — afgøres automatisk ud fra grupperesultaterne, på samme måde
+// som auto-resultater. Når en gruppe er færdigspillet (6 finished kampe),
+// sættes facit på det tilsvarende groupWinner-bonusspørgsmål; recomputeBonus
+// giver så automatisk point. Allerede satte facit (fx manuelt) røres aldrig.
+// ---------------------------------------------------------------------------
+async function runResolveGroupWinners(db, { dryRun = false } = {}) {
+  const qSnap = await db.collection('bonusQuestions').where('type', '==', 'groupWinner').get();
+  const questions = qSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const open = questions.filter((q) => q.facit == null || String(q.facit).trim() === '');
+  if (open.length === 0) return { resolved: 0, pending: 0, changes: [] };
+
+  const mSnap = await db.collection('matches')
+    .where('round', '==', 'group')
+    .where('status', '==', 'finished')
+    .get();
+  const finishedGroupMatches = mSnap.docs.map((d) => d.data());
+
+  const resolutions = resolveGroupWinners(open, finishedGroupMatches);
+  if (!dryRun && resolutions.length > 0) {
+    const batch = db.batch();
+    for (const r of resolutions) {
+      batch.update(db.collection('bonusQuestions').doc(r.questionId), {
+        facit: r.facit,
+        facitSource: 'auto',
+        autoResolvedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+  return { resolved: resolutions.length, pending: open.length - resolutions.length, dryRun, changes: resolutions };
+}
+
+// Trigger: når en gruppekamp netop er blevet finished, så prøv at afgøre
+// gruppevindere (gør kun noget, når en gruppe dermed er fuldt færdigspillet).
+exports.resolveGroupWinnerOnFinish = onDocumentWritten(
+  { document: 'matches/{matchId}', region: REGION },
+  async (event) => {
+    const after = event.data?.after?.data();
+    if (!after || after.round !== 'group' || after.status !== 'finished') return;
+    const before = event.data?.before?.data();
+    if (before?.status === 'finished') return; // var allerede færdig — undgå gentagne kørsler
+
+    const res = await runResolveGroupWinners(getFirestore());
+    if (res.resolved) console.log(`resolveGroupWinnerOnFinish: afgjorde ${res.resolved} gruppevinder(e).`, res.changes);
+  }
+);
+
+// Callable (admin): afgør gruppevindere nu. dryRun=true viser kun hvad der ville ske.
+exports.syncGroupWinnersNow = onCall(
+  { region: REGION },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    return runResolveGroupWinners(db, { dryRun: request.data?.dryRun === true });
   }
 );
