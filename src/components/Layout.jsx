@@ -36,10 +36,10 @@ const linkStyle = ({ isActive }) => ({
 });
 
 export default function Layout({ children }) {
-  const { user, isApproved, isMatchAdmin, isOwner, profile } = useAuth();
+  const { user, isApproved, isGlobalAdmin, isOwner, profile } = useAuth();
   const navigate = useNavigate();
-  // Antal ventende godkendelser (brugere for ejer + ligaer for alle admins)
-  const { total: pendingCount } = usePendingApprovals({ enabled: isMatchAdmin, includeUsers: isOwner });
+  // Antal ventende godkendelser (brugere + ligaer for alle globale admins)
+  const { total: pendingCount } = usePendingApprovals({ enabled: isGlobalAdmin, includeUsers: isGlobalAdmin });
   // Ulæste private beskeder (badge på Beskeder)
   const { total: unreadCount } = useUnreadMessages(isApproved ? user?.uid : null);
   // Samlede udestående opgaver (badge på Forside)
@@ -72,7 +72,7 @@ export default function Layout({ children }) {
                   <CountBadge count={unreadCount} title={`${unreadCount} ulæste beskeder`} testid="unread-messages-count" />
                 </span>
               </NavLink>
-              {isMatchAdmin && (
+              {isGlobalAdmin && (
                 <NavLink to="/admin" style={linkStyle}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                     Admin

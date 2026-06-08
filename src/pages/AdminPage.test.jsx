@@ -58,7 +58,7 @@ describe('AdminPage', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         isOwner: true,
-        isMatchAdmin: true,
+        isGlobalAdmin: true,
         user: { uid: 'owner-uid' },
         profile: { displayName: 'Ejer' },
       });
@@ -140,63 +140,52 @@ describe('AdminPage', () => {
     });
   });
 
-  // ─── MatchAdmin-bruger ────────────────────────────────────────────────────
+  // ─── Global admin (ikke ejer) ─────────────────────────────────────────────
 
-  describe('MatchAdmin-bruger (begrænset adgang)', () => {
+  describe('Global admin (ikke ejer)', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         isOwner: false,
-        isMatchAdmin: true,
-        user: { uid: 'matchadmin-uid' },
-        profile: { displayName: 'Kamp Admin' },
+        isGlobalAdmin: true,
+        user: { uid: 'globaladmin-uid' },
+        profile: { displayName: 'Global Admin' },
       });
     });
 
-    it('SKJULER Brugere-fanen for matchAdmin', () => {
+    it('VISER Brugere-fanen for global admin (kan godkende brugere)', () => {
       renderAdminPage();
-      expect(screen.queryByTestId('tab-users')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('tab-users')).toBeInTheDocument();
     });
 
-    it('viser Kampe & resultater-fanen for matchAdmin', () => {
+    it('viser Kampe & resultater-fanen for global admin', () => {
       renderAdminPage();
       expect(screen.queryByTestId('tab-matches')).toBeInTheDocument();
     });
 
-    it('viser Bonus-facit-fanen for matchAdmin', () => {
+    it('viser Bonus-facit-fanen for global admin', () => {
       renderAdminPage();
       expect(screen.queryByTestId('tab-bonus')).toBeInTheDocument();
     });
 
-    it('viser Ligaer-fanen for matchAdmin', () => {
+    it('viser Ligaer-fanen for global admin', () => {
       renderAdminPage();
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 5 faner for matchAdmin (Kampe, Bonus, Ligaer, Tests, Køreplan)', () => {
+    it('viser præcis 6 faner for global admin', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(5);
+      expect(tabs).toHaveLength(6);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
     });
 
-    it('viser tekst om kamp-administrator adgang', () => {
+    it('viser tekst om global administrator adgang', () => {
       renderAdminPage();
-      expect(screen.getByText(/kamp-administrator/i)).toBeInTheDocument();
+      expect(screen.getByText(/global administrator/i)).toBeInTheDocument();
     });
 
-    it('starter på Kampe-fanen for matchAdmin', async () => {
-      renderAdminPage();
-      await waitFor(() => {
-        expect(
-          screen.queryByText(/Henter kampe/i) ||
-          screen.queryByText(/Ingen kampe/i) ||
-          screen.queryByText(/Opret kamp/i)
-        ).toBeTruthy();
-      });
-    });
-
-    it('faneskift til Bonus-facit viser bonus-indhold for matchAdmin', async () => {
+    it('faneskift til Bonus-facit viser bonus-indhold for global admin', async () => {
       renderAdminPage();
       fireEvent.click(screen.getByTestId('tab-bonus'));
       await waitFor(() => {
@@ -211,7 +200,7 @@ describe('AdminPage', () => {
   // ─── Panel-overskrift ─────────────────────────────────────────────────────
 
   it('viser Admin-panel som overskrift', () => {
-    mockUseAuth.mockReturnValue({ isOwner: true, isMatchAdmin: true, user: { uid: 'x' } });
+    mockUseAuth.mockReturnValue({ isOwner: true, isGlobalAdmin: true, user: { uid: 'x' } });
     renderAdminPage();
     expect(screen.getByText(/Admin-panel/i)).toBeInTheDocument();
   });

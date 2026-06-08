@@ -1,5 +1,5 @@
 // Hook til live-lytning på bonusspørgsmål i Firestore.
-// Bruges af matchAdmin og owner til at sætte facit.
+// Bruges af global admin og owner til at sætte facit.
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../../firebase';

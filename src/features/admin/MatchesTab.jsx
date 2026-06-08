@@ -1,5 +1,5 @@
 // Kampe & resultater-fanen i admin-panelet.
-// Tilgængelig for matchAdmin og owner.
+// Tilgængelig for global admin og owner.
 import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';

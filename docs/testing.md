@@ -75,7 +75,7 @@ Firebase mockes fuldt i alle komponent-tests (ingen netværk).
 - Oversættelse af Firebase-fejlkoder til danske beskeder
 - Login-validering og redirect-logik
 - `PendingPage` viser korrekt besked pr. status (afventer/afvist/godkendt)
-- **Rolle-adgang:** Brugere-fanen er kun synlig for ejer, ikke for kamp-admin
+- **Rolle-adgang:** Brugere-fanen er synlig for globale admins (rolletildeling kun for ejer)
 
 ### Tippe-UI
 - `ScoreInput` validerer ikke-negative heltal

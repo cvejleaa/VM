@@ -1,17 +1,18 @@
-// Brugerfanen i admin-panelet — kun tilgængelig for owner.
-// Viser alle brugere og lader admin godkende/afvise og tildele roller.
+// Brugerfanen i admin-panelet — tilgængelig for globale admins.
+// Globale admins kan godkende/afvise brugere; KUN ejeren kan udpege/fjerne
+// globale admins (rolletildeling).
 import { useUsers } from './useUsers';
 import UserRow from './UserRow';
 import { USER_STATUS } from '../../lib/constants';
 
 /**
- * @param {{ isOwner: boolean }} props
+ * @param {{ isOwner: boolean, isGlobalAdmin: boolean }} props
  */
-export default function UsersTab({ isOwner }) {
+export default function UsersTab({ isOwner, isGlobalAdmin }) {
   const { users, loading, error } = useUsers();
 
-  if (!isOwner) {
-    // Denne fane må aldrig vises for ikke-ejere — dobbelt sikring
+  if (!isGlobalAdmin) {
+    // Denne fane må aldrig vises for ikke-admins — dobbelt sikring
     return null;
   }
 
@@ -65,7 +66,12 @@ export default function UsersTab({ isOwner }) {
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {sorted.map((u) => (
-            <UserRow key={u.id} user={u} currentUserIsOwner={isOwner} />
+            <UserRow
+              key={u.id}
+              user={u}
+              currentUserIsOwner={isOwner}
+              currentUserCanApprove={isGlobalAdmin}
+            />
           ))}
         </ul>
       )}

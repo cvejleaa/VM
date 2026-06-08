@@ -22,7 +22,7 @@ describe('usePendingApprovals', () => {
     expect(result.current.total).toBe(0);
   });
 
-  it('tæller kun ligaer for matchAdmin (uden brugere)', () => {
+  it('tæller kun ligaer når includeUsers er false', () => {
     sizeQueue = [3]; // kun ligaer-abonnementet
     const { result } = renderHook(() => usePendingApprovals({ enabled: true, includeUsers: false }));
     expect(result.current.users).toBe(0);

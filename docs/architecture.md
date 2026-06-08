@@ -25,7 +25,7 @@ Firebase
 |---|---|---|
 | displayName | string | spillernavn |
 | email | string | |
-| role | string | `owner` \| `matchAdmin` \| `player` |
+| role | string | `owner` \| `globalAdmin` \| `player` |
 | status | string | `pending` \| `approved` \| `rejected` |
 | totalPoints | number | denormaliseret, sat af Functions |
 | createdAt | timestamp | |
@@ -84,6 +84,6 @@ kan manipuleres.
 ## Sikkerhedsprincipper
 - Spillere kan kun læse/skrive **egne** `bets`/`bonusBets`, og kun **før** deadline.
 - `points`, `role`, `status`, `result`, `facit` kan **aldrig** skrives af spillere.
-- Kun `matchAdmin`/`owner` skriver `matches`, `result`, `facit`.
-- Kun `owner` ændrer `role`/`status` på brugere.
+- Kun `globalAdmin`/`owner` skriver `matches`, `result`, `facit`.
+- `globalAdmin`/`owner` kan ændre brugeres `status` (godkende/afvise); kun `owner` ændrer `role`.
 - Knockout-kampe og pointberegning køres af Cloud Functions (admin-context).

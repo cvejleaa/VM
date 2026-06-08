@@ -1,4 +1,4 @@
-// Hook (admin): abonnerer på ALLE ligaer. Kræver matchAdmin/owner (Security Rules).
+// Hook (admin): abonnerer på ALLE ligaer. Kræver globalAdmin/owner (Security Rules).
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';

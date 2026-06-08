@@ -45,7 +45,8 @@ export function AuthProvider({ children }) {
     status,
     isApproved: status === USER_STATUS.APPROVED,
     isOwner: role === ROLES.OWNER,
-    isMatchAdmin: role === ROLES.OWNER || role === ROLES.MATCH_ADMIN,
+    // Global admin = ejer eller udpeget global admin (fuld daglig drift)
+    isGlobalAdmin: role === ROLES.OWNER || role === ROLES.GLOBAL_ADMIN,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

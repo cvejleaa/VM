@@ -36,7 +36,7 @@ vi.mock('firebase/functions', () => ({
 
 import {
   setUserStatus,
-  toggleMatchAdminRole,
+  setGlobalAdminRole,
   saveMatchResult,
   clearManualLock,
   callSyncResultsNow,
@@ -87,19 +87,19 @@ describe('adminActions', () => {
     });
   });
 
-  // ─── toggleMatchAdminRole ─────────────────────────────────────────────────
+  // ─── setGlobalAdminRole ───────────────────────────────────────────────────
 
-  describe('toggleMatchAdminRole', () => {
-    it('skifter player til matchAdmin', async () => {
-      await toggleMatchAdminRole('uid-1', 'player');
+  describe('setGlobalAdminRole', () => {
+    it('skifter player til globalAdmin', async () => {
+      await setGlobalAdminRole('uid-1', 'player');
       expect(mockUpdateDoc).toHaveBeenCalledWith(
         expect.anything(),
-        { role: 'matchAdmin' }
+        { role: 'globalAdmin' }
       );
     });
 
-    it('skifter matchAdmin til player', async () => {
-      await toggleMatchAdminRole('uid-1', 'matchAdmin');
+    it('skifter globalAdmin til player', async () => {
+      await setGlobalAdminRole('uid-1', 'globalAdmin');
       expect(mockUpdateDoc).toHaveBeenCalledWith(
         expect.anything(),
         { role: 'player' }
@@ -107,14 +107,14 @@ describe('adminActions', () => {
     });
 
     it('kaster fejl ved forsøg på at ændre owner-rollen', async () => {
-      await expect(toggleMatchAdminRole('uid-1', 'owner')).rejects.toThrow(
+      await expect(setGlobalAdminRole('uid-1', 'owner')).rejects.toThrow(
         /owner-rollen/i
       );
     });
 
     it('kalder IKKE updateDoc ved owner-fejl', async () => {
       try {
-        await toggleMatchAdminRole('uid-1', 'owner');
+        await setGlobalAdminRole('uid-1', 'owner');
       } catch { /* forventet fejl */ }
       expect(mockUpdateDoc).not.toHaveBeenCalled();
     });

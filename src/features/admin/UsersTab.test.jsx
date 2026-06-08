@@ -50,14 +50,14 @@ describe('UsersTab', () => {
   });
 
   it('renderer for owner (isOwner=true)', () => {
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByText(/Ingen brugere/i)).toBeInTheDocument();
   });
 
   // ─── Tom liste ────────────────────────────────────────────────────────────
 
   it('viser Ingen brugere-besked ved tom liste', () => {
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByText(/Ingen brugere registreret/i)).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe('UsersTab', () => {
       { id: 'u1', displayName: 'Anders', email: 'a@test.dk', status: 'approved', role: 'player' },
       { id: 'u2', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
     const items = screen.getAllByRole('listitem');
     // Bent (pending) skal komme før Anders (approved) i den sorterede liste
@@ -80,7 +80,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByText(/1 bruger afventer godkendelse/i)).toBeInTheDocument();
   });
 
@@ -89,7 +89,7 @@ describe('UsersTab', () => {
       { id: 'u1', displayName: 'A', email: 'a@test.dk', status: 'pending', role: 'player' },
       { id: 'u2', displayName: 'B', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByText(/2 brugere afventer godkendelse/i)).toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Anders', email: 'a@test.dk', status: 'approved', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.queryByText(/afventer godkendelse/i)).not.toBeInTheDocument();
   });
 
@@ -107,7 +107,7 @@ describe('UsersTab', () => {
       { id: 'u2', displayName: 'Approved Bruger', email: 'a@test.dk', status: 'approved', role: 'player' },
       { id: 'u3', displayName: 'Pending Bruger', email: 'p@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
     const items = screen.getAllByRole('listitem');
     expect(items[0]).toHaveTextContent('Pending Bruger');
@@ -121,7 +121,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByRole('button', { name: /Godkend/i })).toBeInTheDocument();
   });
 
@@ -129,7 +129,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByRole('button', { name: /Afvis/i })).toBeInTheDocument();
   });
 
@@ -137,7 +137,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Anders', email: 'a@test.dk', status: 'approved', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.queryByRole('button', { name: /Godkend/i })).not.toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Carla', email: 'c@test.dk', status: 'rejected', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.queryByRole('button', { name: /Afvis/i })).not.toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Godkend/i }));
 
@@ -175,7 +175,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Afvis/i }));
 
@@ -194,7 +194,7 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
     fireEvent.click(screen.getByRole('button', { name: /Godkend/i }));
 
@@ -205,19 +205,19 @@ describe('UsersTab', () => {
 
   // ─── Rolle-toggle ─────────────────────────────────────────────────────────
 
-  it('viser Til kamp-admin-knap for player-bruger', () => {
+  it('viser Til global admin-knap for player-bruger', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Carla', email: 'c@test.dk', status: 'approved', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
-    expect(screen.getByRole('button', { name: /Til kamp-admin/i })).toBeInTheDocument();
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
+    expect(screen.getByRole('button', { name: /Til global admin/i })).toBeInTheDocument();
   });
 
-  it('viser Til spiller-knap for matchAdmin-bruger', () => {
+  it('viser Til spiller-knap for globalAdmin-bruger', () => {
     setupSnapshot([
-      { id: 'u1', displayName: 'Dorte', email: 'd@test.dk', status: 'approved', role: 'matchAdmin' },
+      { id: 'u1', displayName: 'Dorte', email: 'd@test.dk', status: 'approved', role: 'globalAdmin' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByRole('button', { name: /Til spiller/i })).toBeInTheDocument();
   });
 
@@ -228,14 +228,14 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Carla', email: 'c@test.dk', status: 'approved', role: 'player' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Til kamp-admin/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Til global admin/i }));
 
     await waitFor(() => {
       expect(updateDoc).toHaveBeenCalledWith(
         expect.anything(),
-        { role: 'matchAdmin' }
+        { role: 'globalAdmin' }
       );
     });
   });
@@ -244,10 +244,26 @@ describe('UsersTab', () => {
     setupSnapshot([
       { id: 'u1', displayName: 'Ejer Person', email: 'ejer@test.dk', status: 'approved', role: 'owner' },
     ]);
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     // Owner-bruger skal have EJER-badge men ingen handlingsknapper
     expect(screen.queryByRole('button', { name: /Godkend/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Til kamp-admin/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Til global admin/i })).not.toBeInTheDocument();
+  });
+
+  // ─── Global admin (ikke ejer) ─────────────────────────────────────────────
+
+  it('global admin (ikke ejer) kan godkende, men ser IKKE rolle-toggle', () => {
+    setupSnapshot([
+      { id: 'u1', displayName: 'Bent', email: 'b@test.dk', status: 'pending', role: 'player' },
+    ]);
+    render(<UsersTab isOwner={false} isGlobalAdmin={true} />);
+    expect(screen.getByRole('button', { name: /Godkend/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Til global admin/i })).not.toBeInTheDocument();
+  });
+
+  it('returnerer null for almindelig spiller (hverken ejer eller global admin)', () => {
+    const { container } = render(<UsersTab isOwner={false} isGlobalAdmin={false} />);
+    expect(container.firstChild).toBeNull();
   });
 
   // ─── Fejlhåndtering ───────────────────────────────────────────────────────
@@ -257,7 +273,7 @@ describe('UsersTab', () => {
       onError(new Error('Permission denied'));
       return vi.fn();
     });
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
@@ -268,7 +284,7 @@ describe('UsersTab', () => {
       // Kalder hverken onNext eller onError — simulerer loading
       return vi.fn();
     });
-    render(<UsersTab isOwner={true} />);
+    render(<UsersTab isOwner={true} isGlobalAdmin={true} />);
     expect(screen.getByText(/Henter brugere/i)).toBeInTheDocument();
   });
 });

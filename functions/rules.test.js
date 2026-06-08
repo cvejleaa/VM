@@ -150,14 +150,38 @@ describe('users/{uid} — sikkerhedsregler', () => {
     );
   });
 
-  it('en ikke-owner KAN IKKE godkende en anden bruger', async () => {
-    await createUser('admin1', 'matchAdmin', 'approved');
-    await createUser('user2', 'player',     'pending');
+  it('en almindelig spiller KAN IKKE godkende en anden bruger', async () => {
+    await createUser('player1', 'player', 'approved');
+    await createUser('user2', 'player',   'pending');
+
+    const ctx = testEnv.authenticatedContext('player1');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'users', 'user2'), {
+        status: 'approved', // spiller har ikke lov
+      })
+    );
+  });
+
+  it('en global admin KAN godkende en anden bruger', async () => {
+    await createUser('admin1', 'globalAdmin', 'approved');
+    await createUser('user2', 'player',       'pending');
+
+    const ctx = testEnv.authenticatedContext('admin1');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'users', 'user2'), {
+        status: 'approved',
+      })
+    );
+  });
+
+  it('en global admin KAN IKKE ændre en brugers rolle (kun ejeren udpeger admins)', async () => {
+    await createUser('admin1', 'globalAdmin', 'approved');
+    await createUser('user2', 'player',       'approved');
 
     const ctx = testEnv.authenticatedContext('admin1');
     await assertFails(
       updateDoc(doc(ctx.firestore(), 'users', 'user2'), {
-        status: 'approved', // matchAdmin har ikke lov
+        role: 'globalAdmin', // kun ejeren må udpege admins
       })
     );
   });
@@ -415,8 +439,8 @@ describe('matches — sikkerhedsregler', () => {
     );
   });
 
-  it('matchAdmin KAN oprette kampe', async () => {
-    await createUser('adminUser', 'matchAdmin', 'approved');
+  it('global admin KAN oprette kampe', async () => {
+    await createUser('adminUser', 'globalAdmin', 'approved');
 
     const ctx = testEnv.authenticatedContext('adminUser');
     await assertSucceeds(
@@ -459,8 +483,8 @@ describe('leagues — liga-admins (adminUids)', () => {
     );
   });
 
-  it('matchAdmin (ikke ejer) KAN IKKE ændre adminUids', async () => {
-    await createUser('ma', 'matchAdmin', 'approved');
+  it('global admin (ikke ejer) KAN IKKE ændre adminUids', async () => {
+    await createUser('ma', 'globalAdmin', 'approved');
     await createUser('m2', 'player', 'approved');
     await seedLeague('lgB', { ownerUid: 'someone', memberUids: ['someone', 'm2'] });
 
@@ -490,12 +514,12 @@ describe('leagues — liga-admins (adminUids)', () => {
     );
   });
 
-  it('en liga-admin KAN ændre format', async () => {
+  it('en liga-admin KAN IKKE ændre format (kun ejer/global admin styrer scoring)', async () => {
     await createUser('admin2', 'player', 'approved');
     await seedLeague('lgF', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'], format: 'full' });
 
     const ctx = testEnv.authenticatedContext('admin2');
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(ctx.firestore(), 'leagues', 'lgF'), { format: 'bonusOnly' })
     );
   });
@@ -510,13 +534,23 @@ describe('leagues — liga-admins (adminUids)', () => {
     );
   });
 
-  it('en liga-admin KAN ændre scoring', async () => {
+  it('en liga-admin KAN IKKE ændre scoring (kun ejer/global admin)', async () => {
     await createUser('admin2', 'player', 'approved');
     await seedLeague('lgG', { ownerUid: 'owner9', memberUids: ['owner9', 'admin2'], adminUids: ['admin2'] });
 
     const ctx = testEnv.authenticatedContext('admin2');
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(ctx.firestore(), 'leagues', 'lgG'), { scoring: { group: true, knockout: false, bonus: true, leagueBonus: true, doubleKnockout: false } })
+    );
+  });
+
+  it('liga-ejeren KAN ændre scoring', async () => {
+    await createUser('owner9', 'player', 'approved');
+    await seedLeague('lgH', { ownerUid: 'owner9', memberUids: ['owner9'], adminUids: [] });
+
+    const ctx = testEnv.authenticatedContext('owner9');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'lgH'), { scoring: { group: true, knockout: false, bonus: true, leagueBonus: true, doubleKnockout: false } })
     );
   });
 });

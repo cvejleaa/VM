@@ -14,7 +14,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../firebase';
 import { COL, ROLES } from '../../lib/constants';
 
-// ─── Brugerstyring (kun owner) ───────────────────────────────────────────────
+// ─── Brugerstyring (global admin: godkend/afvis · ejer: roller) ──────────────
 
 /**
  * Godkend eller afvis en bruger.
@@ -27,22 +27,23 @@ export async function setUserStatus(uid, newStatus) {
 }
 
 /**
- * Skift en brugers rolle mellem 'player' og 'matchAdmin'.
+ * Skift en brugers rolle mellem 'player' og 'globalAdmin'.
+ * Kun ejeren kan udpege/fjerne globale admins (håndhæves også af reglerne).
  * Kan ikke ændre owner-rollen.
  * @param {string} uid
  * @param {string} currentRole
  */
-export async function toggleMatchAdminRole(uid, currentRole) {
+export async function setGlobalAdminRole(uid, currentRole) {
   if (currentRole === ROLES.OWNER) {
     throw new Error('Kan ikke ændre owner-rollen.');
   }
   const newRole =
-    currentRole === ROLES.MATCH_ADMIN ? ROLES.PLAYER : ROLES.MATCH_ADMIN;
+    currentRole === ROLES.GLOBAL_ADMIN ? ROLES.PLAYER : ROLES.GLOBAL_ADMIN;
   const ref = doc(db, COL.USERS, uid);
   await updateDoc(ref, { role: newRole });
 }
 
-// ─── Kampstyring (matchAdmin + owner) ────────────────────────────────────────
+// ─── Kampstyring (global admin + owner) ──────────────────────────────────────
 
 /**
  * Gem resultat på en kamp og sæt status til 'finished'.
@@ -247,7 +248,7 @@ export async function callSyncGroupWinners({ dryRun = false } = {}) {
   }
 }
 
-// ─── Bonus-facit (matchAdmin + owner) ────────────────────────────────────────
+// ─── Bonus-facit (global admin + owner) ────────────────────────────────────────
 
 /**
  * Sæt facit på et bonusspørgsmål.

@@ -1,7 +1,7 @@
-// Admin-panel med tre faner:
-//   1. Brugere (kun owner)
-//   2. Kampe & resultater (matchAdmin + owner)
-//   3. Bonus-facit (matchAdmin + owner)
+// Admin-panel med faner:
+//   1. Brugere (globale admins — rolletildeling dog kun for ejer)
+//   2. Kampe & resultater (globale admins)
+//   3. Bonus-facit (globale admins)
 // Rollebaseret adgang håndhæves her og i ProtectedRoute.
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -21,15 +21,15 @@ const TAB_TESTS   = 'tests';
 const TAB_RUNBOOK = 'runbook';
 
 export default function AdminPage() {
-  const { isOwner } = useAuth();
+  const { isOwner, isGlobalAdmin } = useAuth();
 
-  // Sæt starttab til 'matches' for matchAdmin (der ikke er owner)
-  const [tab, setTab] = useState(isOwner ? TAB_USERS : TAB_MATCHES);
+  // Brugere-fanen er synlig for alle globale admins (godkendelse)
+  const [tab, setTab] = useState(TAB_USERS);
 
   // Faner der er synlige for den aktuelle bruger
   const visibleTabs = [
-    // Brugere: kun owner
-    ...(isOwner
+    // Brugere: alle globale admins (godkend brugere; rolletildeling kun ejer)
+    ...(isGlobalAdmin
       ? [{ key: TAB_USERS, label: 'Brugere' }]
       : []),
     { key: TAB_MATCHES, label: 'Kampe & resultater' },
@@ -49,7 +49,7 @@ export default function AdminPage() {
         <p style={{ margin: 0, color: 'var(--c-muted)', fontSize: '0.9rem' }}>
           {isOwner
             ? 'Du har fuld adgang som ejer.'
-            : 'Du har adgang som kamp-administrator.'}
+            : 'Du har adgang som global administrator.'}
         </p>
       </div>
 
@@ -90,7 +90,7 @@ export default function AdminPage() {
 
       {/* Fane-indhold */}
       <div className="card" style={{ padding: '1.25rem' }}>
-        {tab === TAB_USERS   && <UsersTab isOwner={isOwner} />}
+        {tab === TAB_USERS   && <UsersTab isOwner={isOwner} isGlobalAdmin={isGlobalAdmin} />}
         {tab === TAB_MATCHES && <MatchesTab />}
         {tab === TAB_BONUS   && <BonusTab />}
         {tab === TAB_LEAGUES && <LeaguesAdminTab />}
