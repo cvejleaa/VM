@@ -41,7 +41,7 @@ function GruppeKort({ gruppenavn, kampe }) {
 
       {/* Stillingslabel-forklaring */}
       <div className="table-wrap" style={{ marginBottom: '0.85rem' }}>
-        <table className="table" style={{ fontSize: '0.82rem' }}>
+        <table className="table table--compact" style={{ fontSize: '0.82rem' }}>
           <thead>
             <tr>
               <th style={{ width: '1.8rem', paddingLeft: '0.5rem' }}>#</th>
@@ -71,11 +71,11 @@ function GruppeKort({ gruppenavn, kampe }) {
                   <td>
                     <span className="team-cell">
                       <Flag code={række.team} size={20} />
-                      {/* Fuldt navn på ≥481px, forkortelse på mobil */}
-                      <span className="team-name-long" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                      {/* Fuldt navn når kortet er bredt nok, ellers landekode */}
+                      <span className="gstand-name-long" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
                         {teamName(række.team)}
                       </span>
-                      <span className="team-name-short" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                      <span className="gstand-name-short" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
                         {række.team}
                       </span>
                     </span>

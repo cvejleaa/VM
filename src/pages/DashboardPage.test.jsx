@@ -31,10 +31,10 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/Hej, Carsten/)).toBeInTheDocument();
   });
 
-  it('viser placering og point som chips', () => {
+  it('viser mærket placering og point som chips', () => {
     renderPage();
-    expect(screen.getByText('#2 af 2')).toBeInTheDocument();
-    expect(screen.getByText('12 point')).toBeInTheDocument();
+    expect(screen.getByText('Placering: #2 af 2')).toBeInTheDocument();
+    expect(screen.getByText('Point: 12')).toBeInTheDocument();
   });
 
   it('viser "Mine opgaver"-kortet', () => {
