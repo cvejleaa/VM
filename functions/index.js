@@ -688,10 +688,38 @@ async function runSyncResults(db, token, { now = new Date(), dryRun = false } = 
 exports.syncResults = onSchedule(
   { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
+    const db = getFirestore();
+    const statusRef = db.collection('config').doc('syncStatus');
     const token = FOOTBALL_DATA_TOKEN.value();
-    if (!token) { console.log('syncResults: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
-    const res = await runSyncResults(getFirestore(), token);
-    if (res.updated) console.log(`syncResults: opdaterede ${res.updated} kamp(e).`, res.changes);
+    if (!token) {
+      console.log('syncResults: FOOTBALL_DATA_TOKEN ikke sat — springer over.');
+      await statusRef.set({
+        lastRunAt: FieldValue.serverTimestamp(),
+        lastError: 'FOOTBALL_DATA_TOKEN ikke sat',
+        lastErrorAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return;
+    }
+    try {
+      const res = await runSyncResults(db, token);
+      await statusRef.set({
+        lastRunAt: FieldValue.serverTimestamp(),
+        lastSuccessAt: FieldValue.serverTimestamp(),
+        checked: res.checked ?? 0,
+        updated: res.updated ?? 0,
+        reason: res.reason ?? null,
+        lastError: null,
+      }, { merge: true });
+      if (res.updated) console.log(`syncResults: opdaterede ${res.updated} kamp(e).`, res.changes);
+    } catch (err) {
+      console.error('syncResults: fejl', err);
+      await statusRef.set({
+        lastRunAt: FieldValue.serverTimestamp(),
+        lastError: String(err?.message || err),
+        lastErrorAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw err; // lad Cloud Function-kørslen markeres som fejlet (synlig i logs)
+    }
   }
 );
 

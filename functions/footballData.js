@@ -29,7 +29,11 @@ function mapStatus(fdStatus) {
   }
 }
 
-/** Udtræk fuldtidsscore. Returnerer { home, away, winner } eller null. */
+/** Udtræk fuldtidsscore. Returnerer { home, away, winner } eller null.
+ *  Bemærk: football-data v4's `fullTime` er resultatet efter ordinær/forlænget
+ *  tid og INDEHOLDER IKKE straffesparkene. Ved straffesparkskonkurrence er
+ *  `fullTime` typisk uafgjort, mens `score.winner` peger på den der gik videre —
+ *  derfor bruges `winner` til knockout-"advance" (se decideUpdate). */
 function extractScore(fdMatch) {
   const ft = fdMatch && fdMatch.score && fdMatch.score.fullTime;
   if (!ft || ft.home == null || ft.away == null) return null;

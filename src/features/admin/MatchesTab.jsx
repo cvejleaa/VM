@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
+import SyncHealthBanner from './SyncHealthBanner';
 import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
@@ -230,6 +231,8 @@ export default function MatchesTab() {
           {"🔗 Map kamp-id'er"}
         </button>
       </div>
+
+      <SyncHealthBanner />
 
       {syncMsg && (
         <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, fontSize: '0.88rem',

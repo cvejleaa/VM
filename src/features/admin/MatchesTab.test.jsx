@@ -49,6 +49,11 @@ vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ isOwner: true }),
 }));
 
+// SyncHealthBanner har sin egen snapshot-lytter — isolér MatchesTab fra den.
+vi.mock('./useSyncStatus', () => ({
+  useSyncStatus: () => ({ status: null, loading: false, error: '' }),
+}));
+
 import MatchesTab from './MatchesTab';
 
 function setupMatches(matches) {
