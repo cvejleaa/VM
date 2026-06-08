@@ -91,6 +91,23 @@ export function formatKickoffTime(kickoff) {
 }
 
 /**
+ * Formaterer kickoff-dato kompakt til "11. jun" (Copenhagen-tid).
+ * @param {*} kickoff
+ * @returns {string}
+ */
+export function formatKickoffDate(kickoff) {
+  if (!kickoff) return '';
+  const d =
+    typeof kickoff.toDate === 'function' ? kickoff.toDate() : new Date(kickoff);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('da-DK', {
+    timeZone: TIMEZONE,
+    day: 'numeric',
+    month: 'short',
+  }).format(d);
+}
+
+/**
  * Returnerer rundens fulde danske navn.
  * @param {string} round
  * @returns {string}
