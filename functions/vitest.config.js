@@ -14,6 +14,7 @@ export default defineConfig({
       'breakdown.test.js',
       'footballData.test.js',
       'resultsSync.test.js',
+      'bonusResolve.test.js',
     ],
     exclude: [
       'rules.test.js',

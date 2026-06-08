@@ -2,7 +2,7 @@
 // Lader matchAdmin og owner sætte facit på bonusspørgsmål.
 import { useState } from 'react';
 import { useBonusQuestions } from './useBonusQuestions';
-import { saveBonusFacit, formatTimestamp } from './adminActions';
+import { saveBonusFacit, callSyncGroupWinners, formatTimestamp } from './adminActions';
 import { BONUS_TYPE } from '../../lib/constants';
 import { sortBonusQuestions } from '../bonus/bonusHelpers';
 import BonusSubmissions from './BonusSubmissions';
@@ -29,6 +29,22 @@ export default function BonusTab() {
   const [editing, setEditing] = useState({}); // { [questionId]: string }
   const [busy, setBusy] = useState({});        // { [questionId]: boolean }
   const [msgs, setMsgs] = useState({});        // { [questionId]: string }
+  const [gwBusy, setGwBusy] = useState(false);
+  const [gwMsg, setGwMsg] = useState('');
+
+  async function handleSyncGroupWinners(dryRun) {
+    if (!dryRun && !window.confirm('Afgør gruppevindere ud fra grupperesultaterne nu?')) return;
+    setGwBusy(true); setGwMsg('');
+    const res = await callSyncGroupWinners({ dryRun });
+    setGwBusy(false);
+    if (!res.ok) { setGwMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    const groups = (d.changes ?? []).map((c) => `${c.groupName}→${c.facit}`).join(', ');
+    setGwMsg(
+      `${dryRun ? 'Tør-kør' : 'Afgjort'}: ${d.resolved ?? 0} gruppevinder(e)`
+      + `${groups ? ` (${groups})` : ''}, ${d.pending ?? 0} afventer færdigspil.`,
+    );
+  }
 
   function startEdit(q) {
     setEditing((prev) => ({ ...prev, [q.id]: q.facit ?? '' }));
@@ -84,7 +100,33 @@ export default function BonusTab() {
   }
 
   return (
-    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+    <>
+      {/* Auto-afgør gruppevindere ud fra grupperesultaterne */}
+      <div style={{ marginBottom: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          className="btn"
+          disabled={gwBusy}
+          onClick={() => handleSyncGroupWinners(false)}
+          style={{ fontSize: '0.85rem', padding: '0.35rem 0.8rem' }}
+        >
+          {gwBusy ? 'Afgør…' : '🏆 Afgør gruppevindere'}
+        </button>
+        <button
+          className="btn btn--ghost"
+          disabled={gwBusy}
+          onClick={() => handleSyncGroupWinners(true)}
+          style={{ fontSize: '0.85rem', padding: '0.35rem 0.8rem' }}
+        >
+          Tør-kør
+        </button>
+        {gwMsg && (
+          <span style={{ fontSize: '0.82rem', color: gwMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-muted)' }}>
+            {gwMsg}
+          </span>
+        )}
+      </div>
+
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
       {questions.map((q) => {
         const isEditing = q.id in editing;
         const isBusy = busy[q.id] ?? false;
@@ -209,6 +251,7 @@ export default function BonusTab() {
           </li>
         );
       })}
-    </ul>
+      </ul>
+    </>
   );
 }
