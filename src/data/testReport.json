@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-08T11:17:32.106Z",
+  "generatedAt": "2026-06-08T12:03:56.910Z",
   "totals": {
-    "files": 62,
-    "tests": 1071,
-    "passed": 1071,
+    "files": 64,
+    "tests": 1105,
+    "passed": 1105,
     "failed": 0
   },
   "suites": [
@@ -306,7 +306,7 @@
     {
       "file": "src/features/admin/adminActions.test.js",
       "area": "frontend",
-      "passed": 36,
+      "passed": 41,
       "failed": 0,
       "tests": [
         {
@@ -355,6 +355,26 @@
         },
         {
           "name": "adminActions › saveMatchResult › kalder doc med matches collection og korrekt matchId",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › saveMatchResult › markerer manuel rettelse som klæbende (manualLock)",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › clearManualLock › fjerner låsen og gendanner automatik",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › callSyncResultsNow › sender dryRun-flag og returnerer data",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › callSyncResultsNow › returnerer pæn fejl hvis funktionen ikke er deployet",
+          "status": "passed"
+        },
+        {
+          "name": "adminActions › callSyncFixtures › sender season og returnerer data",
           "status": "passed"
         },
         {
@@ -3774,7 +3794,7 @@
           "status": "passed"
         },
         {
-          "name": "DashboardPage › viser placering og point som chips",
+          "name": "DashboardPage › viser mærket placering og point som chips",
           "status": "passed"
         },
         {
@@ -4568,6 +4588,50 @@
       ]
     },
     {
+      "file": "functions/footballData.test.js",
+      "area": "functions",
+      "passed": 9,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "mapStatus › kortlægger live/finished/scheduled",
+          "status": "passed"
+        },
+        {
+          "name": "extractScore › udtrækker fuldtidsscore + vinder",
+          "status": "passed"
+        },
+        {
+          "name": "extractScore › returnerer null uden score",
+          "status": "passed"
+        },
+        {
+          "name": "parseRateLimit › læser headere fra et Map-lignende objekt",
+          "status": "passed"
+        },
+        {
+          "name": "parseRateLimit › læser headere fra et almindeligt objekt",
+          "status": "passed"
+        },
+        {
+          "name": "createClient › henter data og throttler ikke når der er rigeligt tilbage",
+          "status": "passed"
+        },
+        {
+          "name": "createClient › venter når kvoten er ved at være brugt",
+          "status": "passed"
+        },
+        {
+          "name": "createClient › respekterer 429 og prøver igen efter reset",
+          "status": "passed"
+        },
+        {
+          "name": "createClient › kaster ved vedvarende fejlstatus",
+          "status": "passed"
+        }
+      ]
+    },
+    {
       "file": "functions/knockout.test.js",
       "area": "functions",
       "passed": 7,
@@ -4599,6 +4663,94 @@
         },
         {
           "name": "buildR32FromGroupMatches › bygger 16 r32-kampe uden manglende grupper når alle 12 er spillet",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "file": "functions/resultsSync.test.js",
+      "area": "functions",
+      "passed": 20,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "teamCodeMatches › matcher på tla",
+          "status": "passed"
+        },
+        {
+          "name": "teamCodeMatches › matcher når koden indleder navnet",
+          "status": "passed"
+        },
+        {
+          "name": "teamCodeMatches › afviser forskellige hold",
+          "status": "passed"
+        },
+        {
+          "name": "matchFixture › finder kampen på samme dato + hold",
+          "status": "passed"
+        },
+        {
+          "name": "matchFixture › returnerer null ved forkert dato",
+          "status": "passed"
+        },
+        {
+          "name": "matchFixture › returnerer null uden hold",
+          "status": "passed"
+        },
+        {
+          "name": "winnerToCode › oversætter vinder til holdkode",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › springer låste kampe over",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › flagger afbrudte kampe til review",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › springer ikke-startede over",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › skriver live foreløbig score",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › springer over live uden score endnu",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › afslutter gruppekamp uden advance",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › afslutter knockout med advance fra vinder",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › beder om review når knockout-vinder er uklar",
+          "status": "passed"
+        },
+        {
+          "name": "decideUpdate › flagger AWARDED-resultater til review",
+          "status": "passed"
+        },
+        {
+          "name": "patchChangesDoc › false når intet ændrer sig",
+          "status": "passed"
+        },
+        {
+          "name": "patchChangesDoc › true når scoren ændrer sig",
+          "status": "passed"
+        },
+        {
+          "name": "patchChangesDoc › true når status skifter til finished",
+          "status": "passed"
+        },
+        {
+          "name": "patchChangesDoc › true når advance tilføjes",
           "status": "passed"
         }
       ]

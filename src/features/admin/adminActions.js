@@ -58,7 +58,21 @@ export async function saveMatchResult(matchId, result) {
       ...(result.advance != null ? { advance: result.advance } : {}),
     },
     status: 'finished',
+    // Manuel rettelse er "klæbende": auto-synken rører ikke kampen igen.
+    resultSource: 'manual',
+    manualLock: true,
+    needsReview: false,
   });
+}
+
+/**
+ * Gendan automatikken for en kamp: fjern den manuelle lås, så auto-synken
+ * igen må opdatere resultatet.
+ * @param {string} matchId
+ */
+export async function clearManualLock(matchId) {
+  const ref = doc(db, COL.MATCHES, matchId);
+  await updateDoc(ref, { manualLock: false, resultSource: 'auto', needsReview: false });
 }
 
 /**
@@ -172,6 +186,43 @@ export async function callPruneOrphanMatches() {
       err?.code === 'functions/not-found'
         ? 'Cloud Function "pruneOrphanMatches" er ikke deployet endnu.'
         : err?.message ?? 'Ukendt fejl ved kald af pruneOrphanMatches.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Kald Cloud Function 'syncResultsNow' — hent live/afsluttede resultater fra
+ * football-data.org nu. dryRun=true viser kun hvad der ville ske.
+ * @param {{dryRun?: boolean}} [opts]
+ */
+export async function callSyncResultsNow({ dryRun = false } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'syncResultsNow');
+    const result = await fn({ dryRun });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncResultsNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncResultsNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Kald Cloud Function 'syncFixtures' — map vores kampe til football-data-id'er.
+ * @param {{season?: number}} [opts]
+ */
+export async function callSyncFixtures({ season } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'syncFixtures');
+    const result = await fn(season != null ? { season } : {});
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncFixtures" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncFixtures.';
     return { ok: false, error: msg };
   }
 }

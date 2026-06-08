@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -46,7 +46,34 @@ export default function MatchesTab() {
   const [reminderBusy, setReminderBusy] = useState(false);
   const [pruneMsg, setPruneMsg] = useState('');
   const [pruneBusy, setPruneBusy] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+  const [syncBusy, setSyncBusy] = useState(false);
   const { isOwner } = useAuth();
+
+  async function handleSyncNow(dryRun) {
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncResultsNow({ dryRun });
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    if (d.reason === 'no-window-matches') { setSyncMsg('Ingen kampe i gang lige nu.'); return; }
+    setSyncMsg(`${dryRun ? 'Tør-kør' : 'Synk'}: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
+  }
+
+  async function handleSyncFixtures() {
+    if (!window.confirm('Map alle vores kampe til football-data.org-id\'er?')) return;
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncFixtures({});
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    setSyncMsg(`Mapping: ${d.mapped ?? 0} nye, ${d.already ?? 0} allerede, ${(d.unmatched?.length ?? 0)} uden match.`);
+  }
+
+  async function handleRestoreAuto(matchId) {
+    if (!window.confirm('Gendan automatikken for denne kamp? Auto-synken må så opdatere resultatet igen.')) return;
+    try { await clearManualLock(matchId); } catch (e) { window.alert(e.message); }
+  }
 
   async function handlePrune() {
     if (!window.confirm('Slet forældede knockout-kampe (gamle id\'er)? Dette kan ikke fortrydes.')) return;
@@ -187,6 +214,32 @@ export default function MatchesTab() {
         )}
       </div>
 
+      {/* Resultat-automatik (football-data.org) */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--c-muted)' }}>Auto-resultater:</span>
+        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(false)} disabled={syncBusy}
+          title="Hent live/afsluttede resultater fra football-data.org nu">
+          {syncBusy ? '…' : '⚽ Synk nu'}
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(true)} disabled={syncBusy}
+          title="Vis hvad en synk ville ændre, uden at skrive noget">
+          🔎 Tør-kør
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncFixtures} disabled={syncBusy}
+          title="Map vores kampe til football-data.org-id'er (kør én gang / efter lodtrækning)">
+          {"🔗 Map kamp-id'er"}
+        </button>
+      </div>
+
+      {syncMsg && (
+        <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, fontSize: '0.88rem',
+          background: syncMsg.startsWith('Fejl') ? '#fef2f2' : '#f0fdf4',
+          color: syncMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)',
+          border: `1px solid ${syncMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)'}` }}>
+          {syncMsg}
+        </div>
+      )}
+
       {pruneMsg && (
         <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, background: 'var(--c-surface-2, #f0f0f0)', fontSize: '0.88rem' }}>
           {pruneMsg}
@@ -288,7 +341,26 @@ export default function MatchesTab() {
                           {result}
                         </span>
                       )}
+                      {match.manualLock && (
+                        <span className="badge badge--yellow" style={{ marginLeft: 8, fontSize: '0.7rem' }}>🔒 Rettet manuelt</span>
+                      )}
+                      {!match.manualLock && match.resultSource === 'auto' && (
+                        <span className="badge badge--muted" style={{ marginLeft: 8, fontSize: '0.7rem' }}>Auto</span>
+                      )}
+                      {match.needsReview && (
+                        <span className="badge badge--red" style={{ marginLeft: 8, fontSize: '0.7rem' }}>Tjek</span>
+                      )}
                     </div>
+                    {match.manualLock && (
+                      <button
+                        className="btn btn--ghost btn--sm"
+                        style={{ marginTop: 4, fontSize: '0.75rem' }}
+                        onClick={() => handleRestoreAuto(match.id)}
+                        title="Lad automatikken opdatere denne kamp igen"
+                      >
+                        ↺ Gendan automatik
+                      </button>
+                    )}
                   </div>
 
                   {/* Rediger-knap */}
