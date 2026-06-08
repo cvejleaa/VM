@@ -48,6 +48,23 @@ export default function HelpPage() {
         utippede kampe, åbne bonusspørgsmål og liga-bonus på tværs af dine ligaer. Tallet i menuen
         viser, hvor meget der mangler i alt.
       </Section>
+
+      <Section emoji="💬" title="Skriv sammen">
+        I har to steder at snakke: <Link to="/beskeder">Beskeder</Link> er private 1-til-1-beskeder
+        mellem spillere, og hver liga har sin egen <strong>væg</strong>, hvor I kan kommentere og
+        sætte emoji-reaktioner. Et rødt tal ved “Beskeder” viser ulæste beskeder.
+      </Section>
+
+      <Section emoji="✉️" title="E-mail-påmindelser">
+        Du får automatisk en <strong>e-mail-påmindelse</strong> på kampdage, hvis du mangler at tippe.
+        Vil du være fri, kan du slå dem fra under <Link to="/profil">Profil</Link> (“Send mig
+        e-mail-påmindelser …”).
+      </Section>
+
+      <Section emoji="🙂" title="Din profil & avatar">
+        På <Link to="/profil">Profil</Link> kan du vælge et <strong>emoji som profilbillede</strong> i
+        stedet for dine initialer, sætte dit yndlingshold og styre dine e-mail-præferencer.
+      </Section>
     </div>
   );
 }

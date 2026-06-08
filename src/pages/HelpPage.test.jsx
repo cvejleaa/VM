@@ -11,5 +11,8 @@ describe('HelpPage', () => {
     expect(screen.getByRole('heading', { name: /Bonusspørgsmål/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Mini-ligaer/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Mine opgaver/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Skriv sammen/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /E-mail-påmindelser/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Din profil/ })).toBeInTheDocument();
   });
 });

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useMatches } from '../features/matches/useMatches';
 import { computeGroupStandings, grupperEfterGruppe } from '../features/tournament/computeStandings';
-import { roundLabel, formatKickoffTime, dayKey } from '../features/matches/matchHelpers';
+import { roundLabel, formatKickoffTime, formatKickoffDate, dayKey } from '../features/matches/matchHelpers';
 import { teamName } from '../lib/teams';
 import { ROUNDS, MATCH_STATUS } from '../lib/constants';
 import Flag from '../components/Flag';
@@ -119,19 +119,22 @@ function GruppeKort({ gruppenavn, kampe }) {
                 </span>
               </div>
 
-              {/* Resultat eller tid */}
-              <div className="group-match__score">
-                {harResultat ? (
-                  <>
-                    <span className="group-match__score-num">{kamp.result.home}</span>
-                    <span className="group-match__score-sep">–</span>
-                    <span className="group-match__score-num">{kamp.result.away}</span>
-                  </>
-                ) : erLive ? (
-                  <span className="badge badge--red match-status-badge">LIVE</span>
-                ) : (
-                  <span className="group-match__time">{formatKickoffTime(kamp.kickoff)}</span>
-                )}
+              {/* Dato + resultat/tid */}
+              <div className="group-match__center">
+                <span className="group-match__date">{formatKickoffDate(kamp.kickoff)}</span>
+                <div className="group-match__score">
+                  {harResultat ? (
+                    <>
+                      <span className="group-match__score-num">{kamp.result.home}</span>
+                      <span className="group-match__score-sep">–</span>
+                      <span className="group-match__score-num">{kamp.result.away}</span>
+                    </>
+                  ) : erLive ? (
+                    <span className="badge badge--red match-status-badge">LIVE</span>
+                  ) : (
+                    <span className="group-match__time">{formatKickoffTime(kamp.kickoff)}</span>
+                  )}
+                </div>
               </div>
 
               {/* Udehold */}
@@ -216,7 +219,7 @@ function KnockoutKampKort({ kamp }) {
 
       {/* Metainfo: tid + eventuel live-badge */}
       <div className="ko-match__meta" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
-        <span>{formatKickoffTime(kamp.kickoff)}</span>
+        <span>{formatKickoffDate(kamp.kickoff)} kl. {formatKickoffTime(kamp.kickoff)}</span>
         {kamp.city && <span>· {kamp.city}</span>}
         {erLive && (
           <span className="badge badge--red match-status-badge">LIVE</span>

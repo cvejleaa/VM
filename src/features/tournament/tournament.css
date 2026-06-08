@@ -79,15 +79,29 @@
   white-space: nowrap;
 }
 
+.group-match__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 3.5rem;
+  flex-shrink: 0;
+}
+
+.group-match__date {
+  font-size: 0.68rem;
+  color: var(--c-muted);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .group-match__score {
   display: flex;
   align-items: center;
   gap: 0.35rem;
   font-size: 1rem;
   font-weight: 700;
-  min-width: 3.5rem;
   justify-content: center;
-  flex-shrink: 0;
 }
 
 .group-match__score-num {
