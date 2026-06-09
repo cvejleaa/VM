@@ -17,6 +17,7 @@ import Flag from '../../components/Flag';
 import ScoreInput from './ScoreInput';
 import Countdown from './Countdown';
 import MatchTips from './MatchTips';
+import MatchDetails from './MatchDetails';
 
 // Maksimale mulige point pr. kamp (til info-tekst)
 const MAX_MATCH_POINTS = POINTS.EXACT; // 5
@@ -228,6 +229,9 @@ export default function MatchCard({ match, uid, bet, usersByUid = {} }) {
           Videre: <strong>{teamName(match.result.advance)}</strong>
         </div>
       )}
+
+      {/* Kampdetaljer fra football-data: mål, kort, opstillinger */}
+      <MatchDetails match={match} homeName={homeName} awayName={awayName} />
 
       {/* Brugerens optjente point */}
       {earnedPoints !== null && (

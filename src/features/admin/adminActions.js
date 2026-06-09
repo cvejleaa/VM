@@ -229,6 +229,24 @@ export async function callSyncScorersNow() {
 }
 
 /**
+ * Kald Cloud Function 'syncMatchDetailsNow' — hent mål/kort/opstillinger for
+ * kampe i vinduet (snart i gang / live / netop afsluttet) fra football-data.org.
+ */
+export async function callSyncMatchDetailsNow() {
+  try {
+    const fn = httpsCallable(functions, 'syncMatchDetailsNow');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncMatchDetailsNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncMatchDetailsNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */

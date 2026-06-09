@@ -1,0 +1,129 @@
+// ---------------------------------------------------------------------------
+// MatchDetails – viser kampdetaljer fra football-data.org (gemt på match.details
+// af Cloud Function syncMatchDetails): mål-feed, kort, halvleg/straffe/tilskuere
+// og en udfoldelig opstilling pr. hold.
+// ---------------------------------------------------------------------------
+import { useState } from 'react';
+
+const CARD_ICON = { YELLOW: '🟨', RED: '🟥', YELLOW_RED: '🟨🟥' };
+
+function goalSuffix(type) {
+  if (type === 'PENALTY') return ' (str.)';
+  if (type === 'OWN') return ' (selvmål)';
+  return '';
+}
+
+function minuteLabel(ev) {
+  if (ev.minute == null) return '';
+  return ev.injuryTime ? `${ev.minute}+${ev.injuryTime}'` : `${ev.minute}'`;
+}
+
+// Én begivenheds-række (mål eller kort), venstre = hjemme, højre = ude.
+function EventRow({ ev }) {
+  const home = ev.side === 'home';
+  const text = ev.kind === 'goal'
+    ? `${ev.scorer ?? '?'}${ev.assist ? ` (assist: ${ev.assist})` : ''}${goalSuffix(ev.type)}`
+    : `${ev.player ?? '?'}`;
+  const icon = ev.kind === 'goal' ? '⚽' : (CARD_ICON[ev.card] ?? '🟨');
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
+      gap: '0.5rem', fontSize: '0.82rem', padding: '0.15rem 0',
+    }}>
+      <div style={{ textAlign: 'right', color: home ? 'var(--c-text)' : 'transparent' }}>
+        {home && <span>{text} {icon}</span>}
+      </div>
+      <div style={{ color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'center' }}>
+        {minuteLabel(ev)}
+      </div>
+      <div style={{ textAlign: 'left', color: !home ? 'var(--c-text)' : 'transparent' }}>
+        {!home && <span>{icon} {text}</span>}
+      </div>
+    </div>
+  );
+}
+
+function TeamLineup({ title, team }) {
+  if (!team || (!team.lineup?.length && !team.bench?.length)) return null;
+  return (
+    <div style={{ flex: 1, minWidth: 180 }}>
+      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+        {title}{team.formation ? ` · ${team.formation}` : ''}
+      </div>
+      {team.coach && <div style={{ fontSize: '0.78rem', color: 'var(--c-muted)' }}>Træner: {team.coach}</div>}
+      <ol style={{ margin: '0.35rem 0 0', paddingLeft: '1.2rem', fontSize: '0.82rem' }}>
+        {team.lineup.map((p, i) => (
+          <li key={`${p.name}-${i}`}>
+            {`${p.shirt != null ? `${p.shirt}. ` : ''}${p.name}`}
+            {p.position ? <span style={{ color: 'var(--c-muted)' }}> · {p.position}</span> : null}
+          </li>
+        ))}
+      </ol>
+      {team.bench?.length > 0 && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--c-muted)', marginTop: '0.3rem' }}>
+          Bænk: {team.bench.map((p) => p.name).join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * @param {{ match: object, homeName: string, awayName: string }} props
+ */
+export default function MatchDetails({ match, homeName, awayName }) {
+  const [showLineups, setShowLineups] = useState(false);
+  const d = match.details;
+  if (!d) return null;
+
+  // Saml mål + kort kronologisk.
+  const events = [
+    ...(d.goals ?? []).map((g) => ({ ...g, kind: 'goal' })),
+    ...(d.bookings ?? []).map((b) => ({ ...b, kind: 'card' })),
+  ].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
+
+  const meta = [];
+  if (d.halfTime) meta.push(`Halvleg ${d.halfTime.home}–${d.halfTime.away}`);
+  if (d.penalties) meta.push(`Straffe ${d.penalties.home}–${d.penalties.away}`);
+  if (d.attendance != null) meta.push(`${d.attendance.toLocaleString('da-DK')} tilskuere`);
+  if (d.referee) meta.push(`Dommer: ${d.referee}`);
+
+  const hasLineups = !!d.lineups && (d.lineups.home?.lineup?.length || d.lineups.away?.lineup?.length);
+
+  if (events.length === 0 && meta.length === 0 && !hasLineups) return null;
+
+  return (
+    <div style={{ marginBottom: '0.6rem', borderTop: '1px solid var(--c-border)', paddingTop: '0.5rem' }}>
+      {events.length > 0 && (
+        <div style={{ marginBottom: meta.length ? '0.4rem' : 0 }}>
+          {events.map((ev, i) => <EventRow key={i} ev={ev} />)}
+        </div>
+      )}
+
+      {meta.length > 0 && (
+        <div style={{ fontSize: '0.76rem', color: 'var(--c-muted)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {meta.map((t) => <span key={t}>{t}</span>)}
+        </div>
+      )}
+
+      {hasLineups && (
+        <div style={{ marginTop: '0.4rem' }}>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowLineups((v) => !v)}
+            aria-expanded={showLineups}
+          >
+            {showLineups ? '▾ Skjul opstillinger' : '▸ Vis opstillinger'}
+          </button>
+          {showLineups && (
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              <TeamLineup title={homeName} team={d.lineups.home} />
+              <TeamLineup title={awayName} team={d.lineups.away} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

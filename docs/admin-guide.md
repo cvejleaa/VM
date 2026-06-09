@@ -49,10 +49,18 @@ Daglig brug af tippekonkurrencen for administratorer.
   og vises på **Statistik → Hele turneringen** ("Kapløbet om guldstøvlen").
 - Under **Admin → Kampe & resultater** kan du:
   - **⚽ Opdater topscorere** — hent listen nu (i stedet for at vente på automatikken).
+  - **📋 Opdater kampdetaljer** — hent mål, kort og opstillinger for kampe i vinduet.
   - **🔍 Tjek football-data felter** (kun ejer) — se præcis hvilke felter jeres
     football-data.org-abonnement (tier) giver adgang til: topscorere, stilling/form
     og kampdetaljer (målscorere, kort, straffesparkskonkurrence, indbyrdes opgør).
     Brug det til at beslutte, hvilke ekstra data vi kan bygge videre på.
+
+## Kampdetaljer (mål, kort, opstillinger)
+- Under kampe hentes mål, kort og startopstillinger automatisk fra football-data.org
+  (hver 2. minut for kampe der snart starter, er live eller netop er afsluttet).
+- Vises på hvert **kampkort**: et mål-feed ("23' ⚽ scorer (assist)"), gule/røde kort,
+  halvleg/straffe/tilskuertal, og en udfoldelig **opstilling** pr. hold.
+- **Statistik → Hele turneringen** viser også **Disciplin** (flest kort pr. hold/spiller).
 
 ## Pointmodel (til reference)
 | Situation | Point |

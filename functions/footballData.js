@@ -179,8 +179,84 @@ function summarizeStandings(data) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Kampdetaljer — mål, kort og opstillinger fra et /matches/{id}-svar.
+// Alle robuste over for manglende felter (afhænger af tier/kampens fase).
+// ---------------------------------------------------------------------------
+
+/** Afgør om et hold-id hører til hjemme ('home') eller ude ('away'). */
+function sideOf(teamId, match) {
+  if (teamId == null) return null;
+  if (match?.homeTeam?.id === teamId) return 'home';
+  if (match?.awayTeam?.id === teamId) return 'away';
+  return null;
+}
+
+function unwrap(m) { return (m && m.match) ? m.match : m; }
+
+/** Mål med minut, scorer, assist og side. */
+function mapGoals(m) {
+  const match = unwrap(m);
+  const arr = Array.isArray(match?.goals) ? match.goals : [];
+  return arr.map((g) => ({
+    minute: g.minute ?? null,
+    injuryTime: g.injuryTime ?? null,
+    type: g.type ?? 'REGULAR', // REGULAR | OWN | PENALTY
+    side: sideOf(g.team?.id, match),
+    scorer: g.scorer?.name ?? null,
+    assist: g.assist?.name ?? null,
+  }));
+}
+
+/** Kort (gule/røde) med minut, spiller og side. */
+function mapBookings(m) {
+  const match = unwrap(m);
+  const arr = Array.isArray(match?.bookings) ? match.bookings : [];
+  return arr.map((b) => ({
+    minute: b.minute ?? null,
+    side: sideOf(b.team?.id, match),
+    player: b.player?.name ?? null,
+    card: b.card ?? null, // YELLOW | RED | YELLOW_RED
+  }));
+}
+
+/** Startopstilling + bænk + formation + træner pr. hold. */
+function mapLineups(m) {
+  const match = unwrap(m);
+  const mapPlayers = (list) => (Array.isArray(list) ? list.map((p) => ({
+    name: p.name ?? '?', position: p.position ?? null, shirt: p.shirtNumber ?? null,
+  })) : []);
+  const team = (t) => ({
+    formation: t?.formation ?? null,
+    coach: t?.coach?.name ?? null,
+    lineup: mapPlayers(t?.lineup),
+    bench: mapPlayers(t?.bench),
+  });
+  return { home: team(match?.homeTeam), away: team(match?.awayTeam) };
+}
+
+/** Saml alle kampdetaljer til ét kompakt objekt, der gemmes på kamp-doc'et. */
+function mapMatchDetails(m) {
+  const match = unwrap(m);
+  const score = (match && match.score) || {};
+  const refs = Array.isArray(match?.referees) ? match.referees : [];
+  const mainRef = refs.find((r) => /REFEREE/i.test(r.type || '')) || refs[0] || null;
+  const lineups = mapLineups(m);
+  const hasLineups = lineups.home.lineup.length > 0 || lineups.away.lineup.length > 0;
+  return {
+    goals: mapGoals(m),
+    bookings: mapBookings(m),
+    lineups: hasLineups ? lineups : null,
+    halfTime: score.halfTime?.home != null ? { home: score.halfTime.home, away: score.halfTime.away } : null,
+    penalties: score.penalties?.home != null ? { home: score.penalties.home, away: score.penalties.away } : null,
+    attendance: match?.attendance ?? null,
+    referee: mainRef?.name ?? null,
+  };
+}
+
 module.exports = {
   COMPETITION_CODE, BASE, REVIEW_STATUSES,
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails,
 };
