@@ -1,0 +1,40 @@
+import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import MatchDetails from './MatchDetails';
+
+const base = { homeTeam: 'BRA', awayTeam: 'ARG' };
+
+describe('MatchDetails', () => {
+  it('viser intet uden details', () => {
+    const { container } = render(<MatchDetails match={base} homeName="Brasilien" awayName="Argentina" />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('viser mål-feed med scorer, assist og minut', () => {
+    const match = { ...base, details: {
+      goals: [{ minute: 23, type: 'REGULAR', side: 'home', scorer: 'Neymar', assist: 'Vinicius' }],
+      bookings: [], lineups: null, halfTime: { home: 1, away: 0 }, attendance: 50000,
+    } };
+    render(<MatchDetails match={match} homeName="Brasilien" awayName="Argentina" />);
+    expect(screen.getByText(/Neymar/)).toBeInTheDocument();
+    expect(screen.getByText(/assist: Vinicius/)).toBeInTheDocument();
+    expect(screen.getByText(/23'/)).toBeInTheDocument();
+    expect(screen.getByText(/Halvleg 1–0/)).toBeInTheDocument();
+    expect(screen.getByText(/50.000 tilskuere/)).toBeInTheDocument();
+  });
+
+  it('udfolder opstillinger ved klik', () => {
+    const match = { ...base, details: {
+      goals: [], bookings: [],
+      lineups: {
+        home: { formation: '4-3-3', coach: 'Træner', lineup: [{ name: 'Alisson', shirt: 1, position: 'Goalkeeper' }], bench: [] },
+        away: { formation: '4-4-2', coach: null, lineup: [{ name: 'Martinez', shirt: 1 }], bench: [] },
+      },
+    } };
+    render(<MatchDetails match={match} homeName="Brasilien" awayName="Argentina" />);
+    expect(screen.queryByText(/Alisson/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Vis opstillinger/i }));
+    expect(screen.getByText(/Alisson/)).toBeInTheDocument();
+    expect(screen.getByText(/4-3-3/)).toBeInTheDocument();
+  });
+});

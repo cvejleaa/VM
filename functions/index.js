@@ -44,7 +44,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -876,6 +876,77 @@ exports.syncScorersNow = onCall(
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
     return runSyncScorers(db, token, { limit: Number(request.data?.limit) || 20 });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Kampdetaljer — mål, kort og opstillinger pr. kamp fra /matches/{id}.
+// Henter detaljer for kampe i "vinduet" (snart i gang / live / netop afsluttet)
+// og gemmer dem som `details` på kamp-doc'et. Rører ALDRIG result/status, så
+// det kan ikke forstyrre point-beregningen. Skriver kun ved ændringer.
+// ---------------------------------------------------------------------------
+async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
+  const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
+  const toTs = Timestamp.fromMillis(now.getTime() + 75 * 60 * 1000); // dæk opstillinger ~1t før
+
+  const snap = await db.collection('matches')
+    .where('kickoff', '>=', fromTs)
+    .where('kickoff', '<=', toTs)
+    .get();
+
+  const candidates = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((m) => m.externalId);
+
+  if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-window-matches' };
+
+  const client = createClient({ token });
+  let updated = 0;
+  for (const m of candidates) {
+    let raw;
+    try {
+      raw = await client.getMatch(m.externalId);
+    } catch (err) {
+      console.error(`syncMatchDetails: kunne ikke hente kamp ${m.id}/${m.externalId}`, err?.message || err);
+      continue;
+    }
+    const details = mapMatchDetails(raw);
+    // Skriv kun hvis noget faktisk har ændret sig (sparer skrivninger).
+    if (JSON.stringify(m.details || null) === JSON.stringify(details)) continue;
+    await db.collection('matches').doc(m.id).set(
+      { details, detailsUpdatedAt: FieldValue.serverTimestamp() },
+      { merge: true },
+    );
+    updated++;
+  }
+  return { checked: candidates.length, updated };
+}
+
+// Skemalagt: hver 2. minut (kun når der er kampe i vinduet).
+exports.syncMatchDetails = onSchedule(
+  { schedule: 'every 2 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async () => {
+    const db = getFirestore();
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) { console.log('syncMatchDetails: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    try {
+      const res = await runSyncMatchDetails(db, token);
+      if (res.updated) console.log(`syncMatchDetails: opdaterede detaljer for ${res.updated} kamp(e).`);
+    } catch (err) {
+      console.error('syncMatchDetails: fejl', err);
+    }
+  }
+);
+
+// Manuel opdatering (owner/global admin).
+exports.syncMatchDetailsNow = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    return runSyncMatchDetails(db, token);
   }
 );
 

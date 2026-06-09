@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeMatchStats, topScorersOfDay, maxPointsForMatch,
   computeSeasonOverview, computePlayerAccuracy, mostSurprising, bestPredicted,
+  computeDiscipline,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -134,5 +135,37 @@ describe('mostSurprising / bestPredicted', () => {
   it('returnerer null hvis ingen kamp har nok tips', () => {
     expect(mostSurprising(seasonMatches, seasonBets, 99)).toBeNull();
     expect(bestPredicted(seasonMatches, seasonBets, 99)).toBeNull();
+  });
+});
+
+describe('computeDiscipline', () => {
+  const matches = [
+    { homeTeam: 'BRA', awayTeam: 'ARG', details: { bookings: [
+      { side: 'home', player: 'A', card: 'YELLOW' },
+      { side: 'away', player: 'B', card: 'RED' },
+      { side: 'home', player: 'A', card: 'YELLOW' },
+    ] } },
+    { homeTeam: 'BRA', awayTeam: 'FRA', details: { bookings: [
+      { side: 'away', player: 'C', card: 'YELLOW_RED' },
+    ] } },
+    { homeTeam: 'DEN', awayTeam: 'ENG' }, // ingen details
+  ];
+
+  it('aggregerer kort pr. hold og spiller', () => {
+    const { teams, players, totals } = computeDiscipline(matches);
+    expect(totals).toEqual({ yellow: 2, red: 2 });
+    // ARG har et rødt (vægter tungest) → øverst
+    expect(teams[0]).toMatchObject({ code: 'ARG', red: 1 });
+    // Spiller A har 2 gule
+    const a = players.find((p) => p.name === 'A');
+    expect(a).toMatchObject({ name: 'A', team: 'BRA', yellow: 2, red: 0 });
+    // YELLOW_RED tæller som rødt
+    const c = players.find((p) => p.name === 'C');
+    expect(c).toMatchObject({ red: 1 });
+  });
+
+  it('håndterer tomt input', () => {
+    expect(computeDiscipline([])).toEqual({ teams: [], players: [], totals: { yellow: 0, red: 0 } });
+    expect(computeDiscipline(null).totals).toEqual({ yellow: 0, red: 0 });
   });
 });

@@ -22,6 +22,7 @@ export default function TopScorersCard({ limit = 10 }) {
   const rows = list.slice(0, limit);
   const updated = formatUpdated(updatedAt);
   const showAssists = rows.some((r) => r.assists != null);
+  const showPens = rows.some((r) => r.penalties != null && r.penalties > 0);
 
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
@@ -57,6 +58,9 @@ export default function TopScorersCard({ limit = 10 }) {
               <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>mål</span>
               {showAssists && s.assists != null && (
                 <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>· {s.assists} a</span>
+              )}
+              {showPens && s.penalties != null && s.penalties > 0 && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }} title="straffemål">· {s.penalties} str.</span>
               )}
             </span>
           </li>

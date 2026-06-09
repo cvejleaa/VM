@@ -4,6 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails,
 } = require('./footballData');
 
 function makeRes(status, body, headerEntries = []) {
@@ -155,5 +156,57 @@ describe('summarizeStandings', () => {
   });
   it('håndterer tomt', () => {
     expect(summarizeStandings({})).toEqual({ tableCount: 0, hasForm: false, hasGoalDiff: false });
+  });
+});
+
+describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
+  const detail = { match: {
+    homeTeam: { id: 10, formation: '4-3-3', coach: { name: 'Hjemmetræner' },
+      lineup: [{ name: 'Keeper', position: 'Goalkeeper', shirtNumber: 1 }],
+      bench: [{ name: 'Reserve', shirtNumber: 12 }] },
+    awayTeam: { id: 20, formation: '4-4-2', coach: { name: 'Udetræner' }, lineup: [{ name: 'Spiller', shirtNumber: 7 }] },
+    goals: [
+      { minute: 23, type: 'REGULAR', team: { id: 10 }, scorer: { name: 'A' }, assist: { name: 'B' } },
+      { minute: 67, type: 'PENALTY', team: { id: 20 }, scorer: { name: 'C' }, assist: null },
+    ],
+    bookings: [{ minute: 40, team: { id: 20 }, player: { name: 'D' }, card: 'YELLOW' }],
+    referees: [{ name: 'Dommer', type: 'REFEREE' }, { name: 'Linje', type: 'ASSISTANT_REFEREE_N1' }],
+    score: { halfTime: { home: 1, away: 0 }, penalties: { home: 4, away: 3 } },
+    attendance: 62471,
+  } };
+
+  it('mapGoals udleder side, scorer, assist og type', () => {
+    const g = mapGoals(detail);
+    expect(g[0]).toEqual({ minute: 23, injuryTime: null, type: 'REGULAR', side: 'home', scorer: 'A', assist: 'B' });
+    expect(g[1]).toMatchObject({ side: 'away', type: 'PENALTY', scorer: 'C', assist: null });
+  });
+
+  it('mapBookings udleder side, spiller og korttype', () => {
+    expect(mapBookings(detail)).toEqual([{ minute: 40, side: 'away', player: 'D', card: 'YELLOW' }]);
+  });
+
+  it('mapLineups giver formation, træner, startopstilling og bænk', () => {
+    const l = mapLineups(detail);
+    expect(l.home).toMatchObject({ formation: '4-3-3', coach: 'Hjemmetræner' });
+    expect(l.home.lineup[0]).toEqual({ name: 'Keeper', position: 'Goalkeeper', shirt: 1 });
+    expect(l.home.bench[0]).toEqual({ name: 'Reserve', position: null, shirt: 12 });
+  });
+
+  it('mapMatchDetails samler alt og vælger hoveddommer', () => {
+    const d = mapMatchDetails(detail);
+    expect(d.goals).toHaveLength(2);
+    expect(d.bookings).toHaveLength(1);
+    expect(d.lineups).not.toBeNull();
+    expect(d.halfTime).toEqual({ home: 1, away: 0 });
+    expect(d.penalties).toEqual({ home: 4, away: 3 });
+    expect(d.attendance).toBe(62471);
+    expect(d.referee).toBe('Dommer');
+  });
+
+  it('mapMatchDetails: lineups=null når der ingen opstillinger er', () => {
+    const d = mapMatchDetails({ match: { homeTeam: { id: 1 }, awayTeam: { id: 2 }, score: {} } });
+    expect(d.lineups).toBeNull();
+    expect(d.goals).toEqual([]);
+    expect(d.halfTime).toBeNull();
   });
 });

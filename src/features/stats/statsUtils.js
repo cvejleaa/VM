@@ -197,3 +197,42 @@ export function bestPredicted(matches, betsByMatch, minTips = 3) {
   }
   return best;
 }
+
+/**
+ * Disciplin-statistik (kort) ud fra kampdetaljer (match.details.bookings).
+ * Røde vægter tungest. Returnerer top-hold og top-spillere samt totaler.
+ * @param {Array<object>} matches  kampe med evt. .details.bookings[] og .homeTeam/.awayTeam
+ * @returns {{ teams: Array, players: Array, totals: {yellow:number, red:number} }}
+ */
+export function computeDiscipline(matches) {
+  const byTeam = {};
+  const byPlayer = {};
+  for (const m of matches ?? []) {
+    const bookings = m?.details?.bookings;
+    if (!Array.isArray(bookings)) continue;
+    for (const b of bookings) {
+      const teamCode = b.side === 'home' ? m.homeTeam : b.side === 'away' ? m.awayTeam : null;
+      const isRed = b.card === 'RED' || b.card === 'YELLOW_RED';
+      const isYellow = b.card === 'YELLOW';
+      if (teamCode) {
+        byTeam[teamCode] = byTeam[teamCode] || { code: teamCode, yellow: 0, red: 0 };
+        if (isYellow) byTeam[teamCode].yellow++;
+        if (isRed) byTeam[teamCode].red++;
+      }
+      if (b.player) {
+        byPlayer[b.player] = byPlayer[b.player] || { name: b.player, team: teamCode, yellow: 0, red: 0 };
+        if (isYellow) byPlayer[b.player].yellow++;
+        if (isRed) byPlayer[b.player].red++;
+      }
+    }
+  }
+  const score = (x) => x.red * 2 + x.yellow; // røde kort vægter tungest
+  const bySeverity = (a, b) => score(b) - score(a) || b.red - a.red;
+  const teams = Object.values(byTeam).sort(bySeverity);
+  const players = Object.values(byPlayer).sort(bySeverity);
+  const totals = teams.reduce(
+    (acc, t) => ({ yellow: acc.yellow + t.yellow, red: acc.red + t.red }),
+    { yellow: 0, red: 0 },
+  );
+  return { teams, players, totals };
+}

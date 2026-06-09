@@ -5,7 +5,7 @@ import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -146,6 +146,16 @@ export default function MatchesTab() {
     if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
     const d = res.data ?? {};
     setSyncMsg(`Topscorere opdateret: ${d.count ?? 0} spillere${d.top ? ` (fører: ${d.top})` : ''}.`);
+  }
+
+  async function handleSyncMatchDetails() {
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncMatchDetailsNow();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    if (d.reason === 'no-window-matches') { setSyncMsg('Ingen kampe i vinduet lige nu.'); return; }
+    setSyncMsg(`Kampdetaljer: ${d.updated ?? 0} opdateret af ${d.checked ?? 0}.`);
   }
 
   async function handleInspect() {
@@ -338,6 +348,10 @@ export default function MatchesTab() {
         <button className="btn btn--ghost btn--sm" onClick={handleSyncScorers} disabled={syncBusy}
           title="Opdater topscorer-listen (Golden Boot) fra football-data.org">
           ⚽ Opdater topscorere
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncMatchDetails} disabled={syncBusy}
+          title="Hent mål, kort og opstillinger for kampe i vinduet">
+          📋 Opdater kampdetaljer
         </button>
         {isOwner && (
           <button className="btn btn--ghost btn--sm" onClick={handleInspect} disabled={syncBusy}
