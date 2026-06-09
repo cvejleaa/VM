@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
 } = require('./footballData');
 
 function makeRes(status, body, headerEntries = []) {
@@ -225,4 +225,30 @@ describe('mapStandings', () => {
     expect(out[0].table[0]).toMatchObject({ position: 1, teamName: 'Brasilien', points: 9, goalDifference: 6, form: 'W,W,W' });
   });
   it('håndterer tomt', () => { expect(mapStandings({})).toEqual([]); });
+});
+
+describe('mapScorers — position/alder-felter', () => {
+  it('tager position (eller section) og dateOfBirth med', () => {
+    const data = { scorers: [
+      { player: { id: 1, name: 'A', position: 'Centre-Forward', dateOfBirth: '2000-01-01' }, team: { name: 'T' }, goals: 5, playedMatches: 10 },
+      { player: { id: 2, name: 'B', section: 'Offence' }, team: { name: 'U' }, goals: 3 },
+    ] };
+    const out = mapScorers(data);
+    expect(out[0]).toMatchObject({ position: 'Centre-Forward', dateOfBirth: '2000-01-01', playedMatches: 10 });
+    expect(out[1]).toMatchObject({ position: 'Offence', dateOfBirth: null, playedMatches: null });
+  });
+});
+
+describe('mapCompetition', () => {
+  it('udtrækker logo, navn og spilledag', () => {
+    const data = { name: 'FIFA World Cup', code: 'WC', emblem: 'http://x/wc.png',
+      area: { name: 'World' }, currentSeason: { currentMatchday: 3, startDate: '2026-06-11', endDate: '2026-07-19' } };
+    expect(mapCompetition(data)).toEqual({
+      name: 'FIFA World Cup', code: 'WC', emblem: 'http://x/wc.png', area: 'World',
+      currentMatchday: 3, seasonStart: '2026-06-11', seasonEnd: '2026-07-19',
+    });
+  });
+  it('håndterer tomt', () => {
+    expect(mapCompetition(null)).toMatchObject({ name: null, emblem: null, currentMatchday: null });
+  });
 });
