@@ -5,6 +5,7 @@ import { auth } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../context/TasksContext';
 import { usePendingApprovals } from '../features/admin/usePendingApprovals';
+import { useCompetition } from '../features/stats/useCompetition';
 import { useUnreadMessages } from '../features/comments/useUnreadMessages';
 import Avatar from './Avatar';
 
@@ -40,6 +41,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   // Antal ventende godkendelser (brugere + ligaer for alle globale admins)
   const { total: pendingCount } = usePendingApprovals({ enabled: isGlobalAdmin, includeUsers: isGlobalAdmin });
+  const competition = useCompetition();
   // Ulæste private beskeder (badge på Beskeder)
   const { total: unreadCount } = useUnreadMessages(isApproved ? user?.uid : null);
   // Samlede udestående opgaver (badge på Forside)
@@ -49,7 +51,13 @@ export default function Layout({ children }) {
     <div>
       <header style={{ borderBottom: '1px solid var(--c-border)', background: 'var(--c-surface)' }}>
         <nav className="container" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <strong style={{ marginRight: 'auto', color: 'var(--c-pitch)' }}>⚽ VM 2026 Tip</strong>
+          <span style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            {competition?.emblem
+              ? <img src={competition.emblem} alt={competition.name || 'Turnering'} title={competition.name || ''}
+                  height={34} style={{ height: 34, width: 'auto', objectFit: 'contain' }} />
+              : <span aria-hidden>⚽</span>}
+            <strong style={{ color: 'var(--c-pitch)' }}>VM 2026 Tip</strong>
+          </span>
           {user && isApproved && (
             <>
               <NavLink to="/" style={linkStyle} end>

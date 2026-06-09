@@ -3,6 +3,7 @@
 // TopScorersCard henter live-data via hook'en.
 import { useTopScorers } from './useTopScorers';
 import { nationalityFlagUrl } from '../../lib/nationality';
+import { playerAge, positionDa } from '../../lib/players';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
@@ -56,11 +57,16 @@ export function TopScorersList({ list, limit = 10, title = '⚽ Kapløbet om gul
                 })()}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.playerName}</span>
               </span>
-              {s.teamName && (
-                <span style={{ color: 'var(--c-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {s.teamName}
-                </span>
-              )}
+              {(() => {
+                const pos = positionDa(s.position);
+                const age = playerAge(s.dateOfBirth);
+                const meta = [s.teamName, pos, age != null ? `${age} år` : null].filter(Boolean).join(' · ');
+                return meta ? (
+                  <span style={{ color: 'var(--c-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {meta}
+                  </span>
+                ) : null;
+              })()}
             </span>
 
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.2, whiteSpace: 'nowrap' }}>

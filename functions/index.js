@@ -44,7 +44,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -963,7 +963,18 @@ async function runSyncStandings(db, token) {
     updatedAt: FieldValue.serverTimestamp(),
     lastError: null,
   }, { merge: true });
-  return { tables: tables.length };
+
+  // Hent også turneringsmeta (logo, navn, spilledag) — ændrer sig sjældent.
+  let competition = null;
+  try {
+    competition = mapCompetition(await client.getCompetition());
+    await db.collection('config').doc('competition').set({
+      ...competition, updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    console.error('runSyncStandings: kunne ikke hente turneringsmeta', err?.message || err);
+  }
+  return { tables: tables.length, emblem: competition?.emblem ?? null };
 }
 
 exports.syncStandings = onSchedule(

@@ -123,8 +123,11 @@ function mapScorers(data) {
     playerId: s.player?.id ?? null,
     playerName: s.player?.name ?? '(ukendt)',
     nationality: s.player?.nationality ?? null,
+    position: s.player?.position ?? s.player?.section ?? null,
+    dateOfBirth: s.player?.dateOfBirth ?? null,
     teamId: s.team?.id ?? null,
     teamName: s.team?.name ?? null,
+    playedMatches: s.playedMatches != null ? Number(s.playedMatches) : null,
     goals: Number(s.goals ?? 0),
     assists: s.assists != null ? Number(s.assists) : null,
     penalties: s.penalties != null ? Number(s.penalties) : null,
@@ -285,9 +288,23 @@ function mapMatchDetails(m) {
   };
 }
 
+/** Normalisér /competitions/{code} til turneringsmeta (logo, navn, spilledag). */
+function mapCompetition(data) {
+  const d = data || {};
+  return {
+    name: d.name ?? null,
+    code: d.code ?? null,
+    emblem: d.emblem ?? null,
+    area: d.area?.name ?? null,
+    currentMatchday: d.currentSeason?.currentMatchday ?? null,
+    seasonStart: d.currentSeason?.startDate ?? null,
+    seasonEnd: d.currentSeason?.endDate ?? null,
+  };
+}
+
 module.exports = {
   COMPETITION_CODE, BASE, REVIEW_STATUSES,
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
 };
