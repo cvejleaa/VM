@@ -247,6 +247,43 @@ export async function callSyncMatchDetailsNow() {
 }
 
 /**
+ * Kald Cloud Function 'syncStandingsNow' — opdater den officielle stilling
+ * (gruppetabeller med form) fra football-data.org.
+ */
+export async function callSyncStandingsNow() {
+  try {
+    const fn = httpsCallable(functions, 'syncStandingsNow');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncStandingsNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncStandingsNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Kald Cloud Function 'previewFootballData' — hent LIVE data fra en turnering
+ * (default Bundesliga) til forhåndsvisning af hvordan tingene kommer til at se ud.
+ * @param {{ code?: string }} [opts]
+ */
+export async function callPreviewFootballData({ code } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'previewFootballData');
+    const result = await fn(code ? { code } : {});
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "previewFootballData" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af previewFootballData.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */

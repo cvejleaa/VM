@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings,
 } = require('./footballData');
 
 function makeRes(status, body, headerEntries = []) {
@@ -209,4 +209,20 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
     expect(d.goals).toEqual([]);
     expect(d.halfTime).toBeNull();
   });
+});
+
+describe('mapStandings', () => {
+  const data = { standings: [
+    { type: 'TOTAL', stage: 'GROUP_STAGE', group: 'GROUP_A', table: [
+      { position: 1, team: { name: 'Brasilien', crest: 'x', tla: 'BRA' }, playedGames: 3, won: 3, draw: 0, lost: 0, points: 9, goalsFor: 7, goalsAgainst: 1, goalDifference: 6, form: 'W,W,W' },
+    ] },
+    { type: 'HOME', stage: 'GROUP_STAGE', group: 'GROUP_A', table: [ { position: 1, team: { name: 'X' } } ] },
+  ] };
+  it('beholder kun TOTAL og normaliserer rækker med form', () => {
+    const out = mapStandings(data);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ stage: 'GROUP_STAGE', group: 'GROUP_A' });
+    expect(out[0].table[0]).toMatchObject({ position: 1, teamName: 'Brasilien', points: 9, goalDifference: 6, form: 'W,W,W' });
+  });
+  it('håndterer tomt', () => { expect(mapStandings({})).toEqual([]); });
 });

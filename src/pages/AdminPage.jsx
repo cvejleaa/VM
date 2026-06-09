@@ -11,6 +11,7 @@ import BonusTab from '../features/admin/BonusTab';
 import LeaguesAdminTab from '../features/admin/LeaguesAdminTab';
 import TestsTab from '../features/admin/TestsTab';
 import RunbookTab from '../features/admin/RunbookTab';
+import PreviewTab from '../features/admin/PreviewTab';
 
 // Fane-id'er
 const TAB_USERS   = 'users';
@@ -19,6 +20,7 @@ const TAB_BONUS   = 'bonus';
 const TAB_LEAGUES = 'leagues';
 const TAB_TESTS   = 'tests';
 const TAB_RUNBOOK = 'runbook';
+const TAB_PREVIEW = 'preview';
 
 export default function AdminPage() {
   const { isOwner, isGlobalAdmin } = useAuth();
@@ -37,6 +39,7 @@ export default function AdminPage() {
     { key: TAB_LEAGUES, label: 'Ligaer' },
     { key: TAB_TESTS,   label: 'Tests' },
     { key: TAB_RUNBOOK, label: '📋 Køreplan' },
+    { key: TAB_PREVIEW, label: '🔮 Forhåndsvisning' },
   ];
 
   return (
@@ -96,6 +99,7 @@ export default function AdminPage() {
         {tab === TAB_LEAGUES && <LeaguesAdminTab />}
         {tab === TAB_TESTS   && <TestsTab />}
         {tab === TAB_RUNBOOK && <RunbookTab />}
+        {tab === TAB_PREVIEW && <PreviewTab />}
       </div>
     </div>
   );

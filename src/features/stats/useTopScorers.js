@@ -18,7 +18,7 @@ export function useTopScorers() {
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        const d = snap.exists() ? snap.data() : null;
+        const d = (snap && typeof snap.exists === 'function' && snap.exists()) ? snap.data() : null;
         setData({ list: Array.isArray(d?.list) ? d.list : [], updatedAt: d?.updatedAt ?? null });
         setLoading(false);
       },

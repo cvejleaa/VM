@@ -1,5 +1,6 @@
 // Kapløbet om guldstøvlen — turneringens topscorere fra football-data.org.
-// Data synkes af Cloud Function 'syncScorers' til config/topScorers.
+// TopScorersList er ren præsentation (genbruges i forhåndsvisningen);
+// TopScorersCard henter live-data via hook'en.
 import { useTopScorers } from './useTopScorers';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
@@ -12,13 +13,11 @@ function formatUpdated(ts) {
   } catch { return null; }
 }
 
-export default function TopScorersCard({ limit = 10 }) {
-  const { list, updatedAt, loading } = useTopScorers();
-
-  // Vis intet hvis der ikke er data endnu (fx før turneringen, eller hvis
-  // football-data-tieren ikke giver scorers — så fejler intet).
-  if (loading || !list || list.length === 0) return null;
-
+/**
+ * @param {{ list: Array<object>, limit?: number, title?: string, updatedAt?: any }} props
+ */
+export function TopScorersList({ list, limit = 10, title = '⚽ Kapløbet om guldstøvlen', updatedAt = null }) {
+  if (!list || list.length === 0) return null;
   const rows = list.slice(0, limit);
   const updated = formatUpdated(updatedAt);
   const showAssists = rows.some((r) => r.assists != null);
@@ -27,7 +26,7 @@ export default function TopScorersCard({ limit = 10 }) {
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.15rem' }}>⚽ Kapløbet om guldstøvlen</h2>
+        <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.15rem' }}>{title}</h2>
         {updated && <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>Opdateret {updated}</span>}
       </div>
 
@@ -36,11 +35,8 @@ export default function TopScorersCard({ limit = 10 }) {
           <li
             key={`${s.rank}-${s.playerId ?? s.playerName}`}
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '0.4rem 0',
+              display: 'grid', gridTemplateColumns: 'auto 1fr auto',
+              alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0',
               borderBottom: '1px solid var(--c-border)',
             }}
           >
@@ -68,4 +64,11 @@ export default function TopScorersCard({ limit = 10 }) {
       </ul>
     </div>
   );
+}
+
+export default function TopScorersCard({ limit = 10 }) {
+  const { list, updatedAt, loading } = useTopScorers();
+  // Vis intet hvis der ikke er data endnu (fx før turneringen).
+  if (loading) return null;
+  return <TopScorersList list={list} updatedAt={updatedAt} limit={limit} />;
 }

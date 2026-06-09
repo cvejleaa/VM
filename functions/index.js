@@ -44,7 +44,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -947,6 +947,96 @@ exports.syncMatchDetailsNow = onCall(
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
     return runSyncMatchDetails(db, token);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Officiel stilling — gruppetabeller med form fra football-data.org /standings.
+// Gemmes som config/standings, så frontenden kan vise den officielle tabel.
+// ---------------------------------------------------------------------------
+async function runSyncStandings(db, token) {
+  const client = createClient({ token });
+  const data = await client.getStandings();
+  const tables = mapStandings(data);
+  await db.collection('config').doc('standings').set({
+    tables,
+    updatedAt: FieldValue.serverTimestamp(),
+    lastError: null,
+  }, { merge: true });
+  return { tables: tables.length };
+}
+
+exports.syncStandings = onSchedule(
+  { schedule: 'every 30 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async () => {
+    const db = getFirestore();
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) { console.log('syncStandings: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    try {
+      const res = await runSyncStandings(db, token);
+      if (res.tables) console.log(`syncStandings: ${res.tables} tabel(ler).`);
+    } catch (err) {
+      console.error('syncStandings: fejl', err);
+      await db.collection('config').doc('standings').set({
+        lastError: String(err?.message || err), lastErrorAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+);
+
+exports.syncStandingsNow = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    return runSyncStandings(db, token);
+  }
+);
+
+// ---------------------------------------------------------------------------
+// previewFootballData — owner/global admin: henter LIVE data fra en valgfri
+// turnering (default Bundesliga BL1, indeværende sæson) og returnerer det
+// normaliseret, så admin kan forhåndsvise hvordan topscorere, stilling og
+// kampdetaljer kommer til at se ud — før VM går i gang. Skriver intet i basen.
+// ---------------------------------------------------------------------------
+exports.previewFootballData = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    const code = String(request.data?.code || 'BL1').toUpperCase();
+    const client = createClient({ token });
+
+    const out = { code };
+    try { out.scorers = mapScorers(await client.getScorers(15, code)); }
+    catch (err) { out.scorersError = String(err?.message || err); out.scorers = []; }
+    try { out.standings = mapStandings(await client.getStandings(code)); }
+    catch (err) { out.standingsError = String(err?.message || err); out.standings = []; }
+
+    // Seneste afsluttede kamp → fuld detalje (mål, kort, opstillinger).
+    out.sampleMatch = null;
+    try {
+      const fin = await client.getFinishedMatches(code);
+      const matches = Array.isArray(fin?.matches) ? fin.matches : [];
+      const last = matches[matches.length - 1];
+      if (last?.id) {
+        const raw = await client.getMatch(last.id);
+        const ft = last.score?.fullTime || {};
+        out.sampleMatch = {
+          homeName: last.homeTeam?.name ?? 'Hjemme',
+          awayName: last.awayTeam?.name ?? 'Ude',
+          utcDate: last.utcDate ?? null,
+          result: (ft.home != null) ? { home: ft.home, away: ft.away } : null,
+          details: mapMatchDetails(raw),
+        };
+      }
+    } catch (err) { out.sampleMatchError = String(err?.message || err); }
+
+    return out;
   }
 );
 

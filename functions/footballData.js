@@ -179,6 +179,37 @@ function summarizeStandings(data) {
   };
 }
 
+/**
+ * Normalisér /standings til tabeller med form. Beholder kun den SAMLEDE tabel
+ * (type TOTAL) pr. gruppe/stage, så vi ikke får hjemme/ude-dubletter.
+ * @param {object} data
+ * @returns {Array<{stage:string|null, group:string|null, table:Array<object>}>}
+ */
+function mapStandings(data) {
+  const tables = Array.isArray(data?.standings) ? data.standings : [];
+  return tables
+    .filter((t) => !t.type || t.type === 'TOTAL')
+    .map((t) => ({
+      stage: t.stage ?? null,
+      group: t.group ?? null,
+      table: (Array.isArray(t.table) ? t.table : []).map((r) => ({
+        position: r.position ?? null,
+        teamName: r.team?.name ?? r.team?.shortName ?? '?',
+        crest: r.team?.crest ?? null,
+        tla: r.team?.tla ?? null,
+        played: r.playedGames ?? 0,
+        won: r.won ?? 0,
+        draw: r.draw ?? 0,
+        lost: r.lost ?? 0,
+        points: r.points ?? 0,
+        goalsFor: r.goalsFor ?? 0,
+        goalsAgainst: r.goalsAgainst ?? 0,
+        goalDifference: r.goalDifference ?? 0,
+        form: r.form ?? null, // fx "W,D,L,W,W"
+      })),
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // Kampdetaljer — mål, kort og opstillinger fra et /matches/{id}-svar.
 // Alle robuste over for manglende felter (afhænger af tier/kampens fase).
@@ -258,5 +289,5 @@ module.exports = {
   COMPETITION_CODE, BASE, REVIEW_STATUSES,
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails,
+  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings,
 };

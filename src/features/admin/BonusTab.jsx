@@ -6,6 +6,7 @@ import { saveBonusFacit, callSyncGroupWinners, formatTimestamp } from './adminAc
 import { BONUS_TYPE } from '../../lib/constants';
 import { sortBonusQuestions } from '../bonus/bonusHelpers';
 import BonusSubmissions from './BonusSubmissions';
+import { useTopScorers } from '../stats/useTopScorers';
 
 // Oversæt type til dansk
 const TYPE_LABELS = {
@@ -25,6 +26,8 @@ const inputStyle = {
 
 export default function BonusTab() {
   const { questions: rawQuestions, loading, error } = useBonusQuestions();
+  const { list: topScorers } = useTopScorers();
+  const topScorerLeader = topScorers?.[0]?.playerName || null;
   const questions = sortBonusQuestions(rawQuestions);
   const [editing, setEditing] = useState({}); // { [questionId]: string }
   const [busy, setBusy] = useState({});        // { [questionId]: boolean }
@@ -227,6 +230,18 @@ export default function BonusTab() {
                     placeholder="Facit…"
                     style={{ ...inputStyle, flex: 1 }}
                   />
+                )}
+                {q.type === BONUS_TYPE.TOP_SCORER && topScorerLeader && (
+                  <button
+                    className="btn btn--ghost"
+                    type="button"
+                    disabled={isBusy}
+                    title="Indsæt den nuværende topscorer fra football-data"
+                    onClick={() => setEditing((prev) => ({ ...prev, [q.id]: topScorerLeader }))}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    ⚽ {topScorerLeader}
+                  </button>
                 )}
                 <button
                   className="btn"

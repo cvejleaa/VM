@@ -41,6 +41,8 @@ Daglig brug af tippekonkurrencen for administratorer.
 ## Bonus-facit
 - **Admin → Bonus**: sæt det korrekte svar på topscorer og hver gruppevinder,
   når det er afgjort. Bonuspoint (10 pr. korrekt) tildeles automatisk.
+- For **topscorer** kan du trykke på knappen **⚽ \<navn\>** (den nuværende fører
+  fra football-data) for at indsætte facit automatisk — bekræft med **Gem**.
 - Bonus-spørgsmål låses for spillerne ved deadline (den første relevante kamps
   kickoff), så ingen kan svare bagklogt.
 
@@ -61,6 +63,14 @@ Daglig brug af tippekonkurrencen for administratorer.
 - Vises på hvert **kampkort**: et mål-feed ("23' ⚽ scorer (assist)"), gule/røde kort,
   halvleg/straffe/tilskuertal, og en udfoldelig **opstilling** pr. hold.
 - **Statistik → Hele turneringen** viser også **Disciplin** (flest kort pr. hold/spiller).
+- **Turnering → Grupper** viser den **officielle FIFA-stilling** med form-stime
+  (synket fra football-data.org; opdater manuelt med **📊 Opdater stilling**).
+
+## Forhåndsvisning (kontrolside)
+Under **Admin → 🔮 Forhåndsvisning** kan du hente ægte data fra en aktiv turnering
+(fx **Bundesliga 2025/26**) og se præcis, hvordan topscorer-ræs, stilling med form
+og kampdetaljer kommer til at se ud — allerede før VM går i gang. Vælg turnering,
+tryk **Hent forhåndsvisning**. Intet gemmes i databasen.
 
 ## Pointmodel (til reference)
 | Situation | Point |
