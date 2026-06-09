@@ -5,7 +5,7 @@ import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, clearManualLock, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -35,6 +35,62 @@ const STATUS_COLORS = {
   [MATCH_STATUS.FINISHED]:     'var(--c-pitch)',
 };
 
+// Viser hvilke football-data.org-felter jeres tier giver adgang til.
+function FieldReport({ report, onClose }) {
+  const yn = (v) => (v ? '✅' : '❌');
+  const Section = ({ title, probe, fields }) => (
+    <div style={{ marginBottom: '0.6rem' }}>
+      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
+        {title}: {probe?.ok ? '✅ tilgængelig' : `❌ ${probe?.error || 'utilgængelig'}`}
+      </div>
+      {probe?.ok && fields && (
+        <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+          {fields.map(([label, val]) => (
+            <li key={label}>{yn(val)} {label}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  const s = report.scorers || {};
+  const st = report.standings || {};
+  const md = report.matchDetail || {};
+
+  return (
+    <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--c-pitch)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>🔍 Football-data felt-rapport</h3>
+        <button className="btn btn--ghost btn--sm" onClick={onClose}>Luk</button>
+      </div>
+      <Section title="Topscorere (/scorers)" probe={s} fields={[
+        [`antal: ${s.count ?? 0}`, (s.count ?? 0) > 0],
+        ['assists', s.hasAssists],
+        ['straffemål', s.hasPenalties],
+        ['nationalitet', s.hasNationality],
+      ]} />
+      <Section title="Stilling (/standings)" probe={st} fields={[
+        [`tabeller: ${st.tableCount ?? 0}`, (st.tableCount ?? 0) > 0],
+        ['form (W/D/L)', st.hasForm],
+        ['målforskel', st.hasGoalDiff],
+      ]} />
+      <Section title="Kampdetaljer (/matches/{id})" probe={md} fields={[
+        ['målscorere + minut', md.hasGoals],
+        ['kort (gule/røde)', md.hasBookings],
+        ['udskiftninger', md.hasSubstitutions],
+        ['dommere', md.hasReferees],
+        ['halvlegsstilling', md.hasHalfTime],
+        ['straffesparkskonkurrence', md.hasPenaltiesScore],
+        ['indbyrdes opgør (h2h)', md.hasHead2Head],
+        [`tilskuertal${md.attendance != null ? ` (${md.attendance})` : ''}`, md.attendance != null],
+      ]} />
+      <div style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>
+        Tjekket {report.checkedAt ? new Date(report.checkedAt).toLocaleString('da-DK') : '—'}.
+      </div>
+    </div>
+  );
+}
+
 export default function MatchesTab() {
   const { matches, loading, error } = useMatches();
   const [editMatchId, setEditMatchId] = useState(null);
@@ -49,7 +105,25 @@ export default function MatchesTab() {
   const [pruneBusy, setPruneBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
+  const [inspectReport, setInspectReport] = useState(null);
   const { isOwner } = useAuth();
+
+  async function handleSyncScorers() {
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncScorersNow();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    setSyncMsg(`Topscorere opdateret: ${d.count ?? 0} spillere${d.top ? ` (fører: ${d.top})` : ''}.`);
+  }
+
+  async function handleInspect() {
+    setSyncBusy(true); setSyncMsg(''); setInspectReport(null);
+    const res = await callInspectFootballData();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    setInspectReport(res.data);
+  }
 
   async function handleSyncNow(dryRun) {
     setSyncBusy(true); setSyncMsg('');
@@ -230,7 +304,21 @@ export default function MatchesTab() {
           title="Map vores kampe til football-data.org-id'er (kør én gang / efter lodtrækning)">
           {"🔗 Map kamp-id'er"}
         </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncScorers} disabled={syncBusy}
+          title="Opdater topscorer-listen (Golden Boot) fra football-data.org">
+          ⚽ Opdater topscorere
+        </button>
+        {isOwner && (
+          <button className="btn btn--ghost btn--sm" onClick={handleInspect} disabled={syncBusy}
+            title="Tjek hvilke felter jeres football-data.org-tier giver adgang til">
+            🔍 Tjek football-data felter
+          </button>
+        )}
       </div>
+
+      {inspectReport && (
+        <FieldReport report={inspectReport} onClose={() => setInspectReport(null)} />
+      )}
 
       <SyncHealthBanner />
 

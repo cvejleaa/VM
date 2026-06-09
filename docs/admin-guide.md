@@ -44,6 +44,16 @@ Daglig brug af tippekonkurrencen for administratorer.
 - Bonus-spørgsmål låses for spillerne ved deadline (den første relevante kamps
   kickoff), så ingen kan svare bagklogt.
 
+## Topscorer-ræs (Golden Boot)
+- Turneringens topscorere hentes automatisk fra football-data.org hver 30. minut
+  og vises på **Statistik → Hele turneringen** ("Kapløbet om guldstøvlen").
+- Under **Admin → Kampe & resultater** kan du:
+  - **⚽ Opdater topscorere** — hent listen nu (i stedet for at vente på automatikken).
+  - **🔍 Tjek football-data felter** (kun ejer) — se præcis hvilke felter jeres
+    football-data.org-abonnement (tier) giver adgang til: topscorere, stilling/form
+    og kampdetaljer (målscorere, kort, straffesparkskonkurrence, indbyrdes opgør).
+    Brug det til at beslutte, hvilke ekstra data vi kan bygge videre på.
+
 ## Pointmodel (til reference)
 | Situation | Point |
 |---|---|

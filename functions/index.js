@@ -44,7 +44,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -825,6 +825,104 @@ exports.syncFixtures = onCall(
     }
     if (mapped > 0) await batch.commit();
     return { season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Topscorere (Golden Boot) — synk fra football-data.org /scorers og gem som
+// config/topScorers, så frontenden kan vise et live "kapløb om guldstøvlen".
+// ---------------------------------------------------------------------------
+async function runSyncScorers(db, token, { limit = 20 } = {}) {
+  const client = createClient({ token });
+  const data = await client.getScorers(limit);
+  const list = mapScorers(data);
+  await db.collection('config').doc('topScorers').set({
+    list,
+    count: list.length,
+    season: data?.season?.startDate ? String(data.season.startDate).slice(0, 4) : null,
+    updatedAt: FieldValue.serverTimestamp(),
+    lastError: null,
+  }, { merge: true });
+  return { count: list.length, top: list[0]?.playerName || null };
+}
+
+// Skemalagt: hver 30. minut (topscorere ændrer sig langsomt).
+exports.syncScorers = onSchedule(
+  { schedule: 'every 30 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async () => {
+    const db = getFirestore();
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) { console.log('syncScorers: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    try {
+      const res = await runSyncScorers(db, token);
+      if (res.count) console.log(`syncScorers: ${res.count} scorere, top: ${res.top}`);
+    } catch (err) {
+      console.error('syncScorers: fejl', err);
+      // Gem fejlen, men kast ikke videre (topscorere er ikke kritiske).
+      await db.collection('config').doc('topScorers').set({
+        lastError: String(err?.message || err),
+        lastErrorAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+);
+
+// Manuel opdatering (owner/global admin).
+exports.syncScorersNow = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    return runSyncScorers(db, token, { limit: Number(request.data?.limit) || 20 });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// inspectFootballData — owner/global admin: prober football-data.org-endpoints
+// med jeres token og rapporterer hvilke felter jeres TIER giver adgang til.
+// Henter intet ind i basen; bruges kun til at beslutte hvad vi kan bygge på.
+// ---------------------------------------------------------------------------
+exports.inspectFootballData = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+    const client = createClient({ token });
+
+    // Prober hvert endpoint isoleret, så ét manglende (403) ikke vælter resten.
+    const probe = async (label, fn, summarize) => {
+      try {
+        const data = await fn();
+        return { label, ok: true, ...summarize(data) };
+      } catch (err) {
+        const msg = String(err?.message || err);
+        const forbidden = /403/.test(msg);
+        return { label, ok: false, forbidden, error: forbidden ? 'Ikke tilgængelig på jeres tier (403).' : msg };
+      }
+    };
+
+    // Find en allerede-spillet kamp at probe detaljer på.
+    let sampleMatchId = null;
+    const finishedSnap = await db.collection('matches')
+      .where('status', '==', 'finished').limit(1).get();
+    if (!finishedSnap.empty) sampleMatchId = finishedSnap.docs[0].data().externalId || null;
+
+    const result = {
+      checkedAt: new Date().toISOString(),
+      scorers: await probe('scorers', () => client.getScorers(5), summarizeScorers),
+      standings: await probe('standings', () => client.getStandings(), summarizeStandings),
+    };
+    if (sampleMatchId) {
+      result.matchDetail = await probe('matchDetail', () => client.getMatch(sampleMatchId), summarizeMatchDetail);
+      result.matchDetail.sampleMatchId = String(sampleMatchId);
+    } else {
+      result.matchDetail = { label: 'matchDetail', ok: false, error: 'Ingen afsluttet kamp med externalId at probe.' };
+    }
+    return result;
   }
 );
 
