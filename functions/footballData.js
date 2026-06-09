@@ -104,6 +104,8 @@ function createClient({ token, fetchImpl, sleepImpl = sleep, minRemaining = 3 } 
       request(`/competitions/${code}/standings`),
     getCompetition: (code = COMPETITION_CODE) =>
       request(`/competitions/${code}`),
+    getFinishedMatches: (code = COMPETITION_CODE) =>
+      request(`/competitions/${code}/matches?status=FINISHED`),
     getMatch: (id) => request(`/matches/${id}`),
   };
 }
@@ -150,8 +152,10 @@ function summarizeScorers(data) {
 function summarizeMatchDetail(m) {
   const match = (m && m.match) ? m.match : m; // v4 pakker nogle gange i { match: {...} }
   const score = (match && match.score) || {};
+  const homeLineup = match?.homeTeam?.lineup;
   return {
     hasGoals: Array.isArray(match?.goals) && match.goals.length > 0,
+    hasLineups: Array.isArray(homeLineup) && homeLineup.length > 0,
     hasBookings: Array.isArray(match?.bookings) && match.bookings.length > 0,
     hasSubstitutions: Array.isArray(match?.substitutions) && match.substitutions.length > 0,
     hasReferees: Array.isArray(match?.referees) && match.referees.length > 0,
