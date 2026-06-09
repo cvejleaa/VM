@@ -2,6 +2,7 @@
 // TopScorersList er ren præsentation (genbruges i forhåndsvisningen);
 // TopScorersCard henter live-data via hook'en.
 import { useTopScorers } from './useTopScorers';
+import { nationalityFlagUrl } from '../../lib/nationality';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
@@ -45,8 +46,15 @@ export function TopScorersList({ list, limit = 10, title = '⚽ Kapløbet om gul
             </span>
 
             <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
-              <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {s.playerName}
+              <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                {(() => {
+                  const flag = nationalityFlagUrl(s.nationality, 20);
+                  return flag ? (
+                    <img src={flag} alt={s.nationality} title={s.nationality} width={18} height={13}
+                      loading="lazy" style={{ borderRadius: 2, boxShadow: '0 0 0 1px rgba(0,0,0,0.08)', flexShrink: 0 }} />
+                  ) : null;
+                })()}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.playerName}</span>
               </span>
               {s.teamName && (
                 <span style={{ color: 'var(--c-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
