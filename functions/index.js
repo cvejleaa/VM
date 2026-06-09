@@ -913,6 +913,7 @@ exports.inspectFootballData = onCall(
 
     const result = {
       checkedAt: new Date().toISOString(),
+      competitionCode: client.competitionCode,
       scorers: await probe('scorers', () => client.getScorers(5), summarizeScorers),
       standings: await probe('standings', () => client.getStandings(), summarizeStandings),
     };
@@ -920,8 +921,31 @@ exports.inspectFootballData = onCall(
       result.matchDetail = await probe('matchDetail', () => client.getMatch(sampleMatchId), summarizeMatchDetail);
       result.matchDetail.sampleMatchId = String(sampleMatchId);
     } else {
-      result.matchDetail = { label: 'matchDetail', ok: false, error: 'Ingen afsluttet kamp med externalId at probe.' };
+      result.matchDetail = { label: 'matchDetail', ok: false, error: 'Ingen afsluttet VM-kamp endnu (turneringen er ikke begyndt).' };
     }
+
+    // VM 2026 er måske ikke begyndt endnu → tomme svar siger intet om tieren.
+    // Prob derfor en AKTIV reference-turnering (default Premier League) med
+    // rigtige data, så vi entydigt kan se hvilke felter tieren leverer.
+    const refCode = String(request.data?.referenceCode || 'PL').toUpperCase();
+    const reference = { code: refCode };
+    reference.scorers = await probe('refScorers', () => client.getScorers(5, refCode), summarizeScorers);
+    try {
+      const fin = await client.getFinishedMatches(refCode);
+      const matches = Array.isArray(fin?.matches) ? fin.matches : [];
+      const last = matches[matches.length - 1];
+      if (last?.id) {
+        reference.matchDetail = await probe('refMatchDetail', () => client.getMatch(last.id), summarizeMatchDetail);
+        reference.matchDetail.sampleMatchId = String(last.id);
+      } else {
+        reference.matchDetail = { label: 'refMatchDetail', ok: false, error: 'Ingen afsluttede kampe i reference-turneringen.' };
+      }
+    } catch (err) {
+      const msg = String(err?.message || err);
+      reference.matchDetail = { label: 'refMatchDetail', ok: false, forbidden: /403/.test(msg), error: msg };
+    }
+    result.reference = reference;
+
     return result;
   }
 );

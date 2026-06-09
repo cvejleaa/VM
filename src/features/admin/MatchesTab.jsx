@@ -53,9 +53,23 @@ function FieldReport({ report, onClose }) {
     </div>
   );
 
+  const matchFields = (md) => [
+    ['målscorere + minut', md.hasGoals],
+    ['opstillinger (line-ups)', md.hasLineups],
+    ['kort (gule/røde)', md.hasBookings],
+    ['udskiftninger', md.hasSubstitutions],
+    ['dommere', md.hasReferees],
+    ['halvlegsstilling', md.hasHalfTime],
+    ['straffesparkskonkurrence', md.hasPenaltiesScore],
+    ['indbyrdes opgør (h2h)', md.hasHead2Head],
+    [`tilskuertal${md.attendance != null ? ` (${md.attendance})` : ''}`, md.attendance != null],
+  ];
+
   const s = report.scorers || {};
   const st = report.standings || {};
   const md = report.matchDetail || {};
+  const ref = report.reference || null;
+  const emptyWc = s.ok && (s.count ?? 0) === 0;
 
   return (
     <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--c-pitch)' }}>
@@ -63,6 +77,16 @@ function FieldReport({ report, onClose }) {
         <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>🔍 Football-data felt-rapport</h3>
         <button className="btn btn--ghost btn--sm" onClick={onClose}>Luk</button>
       </div>
+
+      <div style={{ fontWeight: 800, fontSize: '0.8rem', margin: '0 0 0.3rem' }}>
+        VM ({report.competitionCode || 'WC'})
+      </div>
+      {emptyWc && (
+        <div style={{ fontSize: '0.78rem', color: '#92600a', background: '#fffbeb', border: '1px solid var(--c-warn)', borderRadius: 8, padding: '0.4rem 0.6rem', marginBottom: '0.5rem' }}>
+          VM er ikke begyndt endnu — derfor er der ingen scorere/kampe at hente.
+          Tomme felter her betyder <strong>ikke</strong> at I mangler adgang. Se reference-turneringen nedenfor.
+        </div>
+      )}
       <Section title="Topscorere (/scorers)" probe={s} fields={[
         [`antal: ${s.count ?? 0}`, (s.count ?? 0) > 0],
         ['assists', s.hasAssists],
@@ -74,16 +98,23 @@ function FieldReport({ report, onClose }) {
         ['form (W/D/L)', st.hasForm],
         ['målforskel', st.hasGoalDiff],
       ]} />
-      <Section title="Kampdetaljer (/matches/{id})" probe={md} fields={[
-        ['målscorere + minut', md.hasGoals],
-        ['kort (gule/røde)', md.hasBookings],
-        ['udskiftninger', md.hasSubstitutions],
-        ['dommere', md.hasReferees],
-        ['halvlegsstilling', md.hasHalfTime],
-        ['straffesparkskonkurrence', md.hasPenaltiesScore],
-        ['indbyrdes opgør (h2h)', md.hasHead2Head],
-        [`tilskuertal${md.attendance != null ? ` (${md.attendance})` : ''}`, md.attendance != null],
-      ]} />
+      <Section title="Kampdetaljer (/matches/{id})" probe={md} fields={matchFields(md)} />
+
+      {ref && (
+        <>
+          <div style={{ fontWeight: 800, fontSize: '0.8rem', margin: '0.75rem 0 0.3rem', borderTop: '1px solid var(--c-border)', paddingTop: '0.6rem' }}>
+            Reference: {ref.code} (aktiv turnering — viser hvad tieren reelt leverer)
+          </div>
+          <Section title="Topscorere (/scorers)" probe={ref.scorers} fields={[
+            [`antal: ${ref.scorers?.count ?? 0}`, (ref.scorers?.count ?? 0) > 0],
+            ['assists', ref.scorers?.hasAssists],
+            ['straffemål', ref.scorers?.hasPenalties],
+            ['nationalitet', ref.scorers?.hasNationality],
+          ]} />
+          <Section title="Kampdetaljer (/matches/{id})" probe={ref.matchDetail} fields={matchFields(ref.matchDetail || {})} />
+        </>
+      )}
+
       <div style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>
         Tjekket {report.checkedAt ? new Date(report.checkedAt).toLocaleString('da-DK') : '—'}.
       </div>

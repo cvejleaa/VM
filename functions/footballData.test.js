@@ -127,22 +127,23 @@ describe('mapScorers', () => {
 });
 
 describe('summarizeMatchDetail', () => {
-  it('rapporterer detaljefelter (udpakker { match })', () => {
+  it('rapporterer detaljefelter (udpakker { match }, inkl. opstillinger)', () => {
     const m = { match: {
       goals: [{ minute: 23, scorer: { name: 'A' } }],
       bookings: [], referees: [{ name: 'Dommer' }],
+      homeTeam: { lineup: [{ name: 'Keeper' }] },
       score: { halfTime: { home: 1, away: 0 }, penalties: { home: 4, away: 3 } },
       attendance: 50000, venue: 'Stadion',
     } };
     expect(summarizeMatchDetail(m)).toMatchObject({
-      hasGoals: true, hasBookings: false, hasReferees: true,
+      hasGoals: true, hasLineups: true, hasBookings: false, hasReferees: true,
       hasHalfTime: true, hasPenaltiesScore: true, attendance: 50000, venue: 'Stadion',
     });
   });
 
   it('håndterer fladt match-objekt og manglende felter', () => {
     expect(summarizeMatchDetail({ score: {} })).toMatchObject({
-      hasGoals: false, hasHalfTime: false, hasPenaltiesScore: false,
+      hasGoals: false, hasLineups: false, hasHalfTime: false, hasPenaltiesScore: false,
     });
   });
 });
