@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
   mapStatus, extractScore, parseRateLimit, createClient,
+  mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
 } = require('./footballData');
 
 function makeRes(status, body, headerEntries = []) {
@@ -91,5 +92,67 @@ describe('createClient', () => {
     const fetchImpl = vi.fn(async () => makeRes(403, {}));
     const client = createClient({ token: 't', fetchImpl, sleepImpl: vi.fn(() => Promise.resolve()) });
     await expect(client.getSeasonMatches(2026)).rejects.toThrow(/403/);
+  });
+});
+
+describe('mapScorers', () => {
+  const data = {
+    scorers: [
+      { player: { id: 1, name: 'Haaland', nationality: 'Norway' }, team: { id: 9, name: 'Norway' }, goals: 6, assists: 2, penalties: 1 },
+      { player: { id: 2, name: 'Mbappé' }, team: { id: 4, name: 'France' }, goals: 5 },
+    ],
+  };
+
+  it('normaliserer med rank og talfelter', () => {
+    const list = mapScorers(data);
+    expect(list[0]).toMatchObject({ rank: 1, playerName: 'Haaland', teamName: 'Norway', goals: 6, assists: 2, penalties: 1 });
+    expect(list[1]).toMatchObject({ rank: 2, playerName: 'Mbappé', goals: 5, assists: null, penalties: null });
+  });
+
+  it('håndterer tomt/manglende svar', () => {
+    expect(mapScorers(null)).toEqual([]);
+    expect(mapScorers({})).toEqual([]);
+  });
+
+  it('summarizeScorers rapporterer felt-tilgængelighed', () => {
+    const s = summarizeScorers(data);
+    expect(s).toMatchObject({ count: 2, hasAssists: true, hasPenalties: true, hasNationality: true });
+    expect(s.sample).toEqual({ playerName: 'Haaland', goals: 6 });
+  });
+
+  it('summarizeScorers: assists/penalties falske når de mangler', () => {
+    const s = summarizeScorers({ scorers: [{ player: { name: 'X' }, team: { name: 'Y' }, goals: 1 }] });
+    expect(s).toMatchObject({ count: 1, hasAssists: false, hasPenalties: false, hasNationality: false });
+  });
+});
+
+describe('summarizeMatchDetail', () => {
+  it('rapporterer detaljefelter (udpakker { match })', () => {
+    const m = { match: {
+      goals: [{ minute: 23, scorer: { name: 'A' } }],
+      bookings: [], referees: [{ name: 'Dommer' }],
+      score: { halfTime: { home: 1, away: 0 }, penalties: { home: 4, away: 3 } },
+      attendance: 50000, venue: 'Stadion',
+    } };
+    expect(summarizeMatchDetail(m)).toMatchObject({
+      hasGoals: true, hasBookings: false, hasReferees: true,
+      hasHalfTime: true, hasPenaltiesScore: true, attendance: 50000, venue: 'Stadion',
+    });
+  });
+
+  it('håndterer fladt match-objekt og manglende felter', () => {
+    expect(summarizeMatchDetail({ score: {} })).toMatchObject({
+      hasGoals: false, hasHalfTime: false, hasPenaltiesScore: false,
+    });
+  });
+});
+
+describe('summarizeStandings', () => {
+  it('rapporterer form og målforskel', () => {
+    const data = { standings: [{ table: [{ form: 'WWD', goalDifference: 4 }] }] };
+    expect(summarizeStandings(data)).toEqual({ tableCount: 1, hasForm: true, hasGoalDiff: true });
+  });
+  it('håndterer tomt', () => {
+    expect(summarizeStandings({})).toEqual({ tableCount: 0, hasForm: false, hasGoalDiff: false });
   });
 });

@@ -14,6 +14,7 @@ import { teamName } from '../lib/teams';
 import { ROUNDS } from '../lib/constants';
 import Flag from '../components/Flag';
 import Hero from '../components/Hero';
+import TopScorersCard from '../features/stats/TopScorersCard';
 
 const TAB_TODAY = 'today';
 const TAB_SEASON = 'season';
@@ -247,7 +248,10 @@ export default function StatsPage() {
       {!loading && !error && (
         tab === TAB_TODAY
           ? <TodayTab todayMatches={todayMatches} betsByMatch={betsByMatch} usersById={usersById} pointsByUidToday={pointsByUidToday} />
-          : <SeasonTab matches={matches} betsByMatch={betsByMatch} usersById={usersById} />
+          : <>
+              <TopScorersCard />
+              <SeasonTab matches={matches} betsByMatch={betsByMatch} usersById={usersById} />
+            </>
       )}
     </div>
   );

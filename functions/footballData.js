@@ -98,10 +98,85 @@ function createClient({ token, fetchImpl, sleepImpl = sleep, minRemaining = 3 } 
       request(`/competitions/${code}/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`),
     getSeasonMatches: (season, code = COMPETITION_CODE) =>
       request(`/competitions/${code}/matches?season=${season}`),
+    getScorers: (limit = 20, code = COMPETITION_CODE) =>
+      request(`/competitions/${code}/scorers?limit=${limit}`),
+    getStandings: (code = COMPETITION_CODE) =>
+      request(`/competitions/${code}/standings`),
+    getCompetition: (code = COMPETITION_CODE) =>
+      request(`/competitions/${code}`),
+    getMatch: (id) => request(`/matches/${id}`),
+  };
+}
+
+/**
+ * Normalisér football-data /scorers-svaret til en kompakt liste til leaderboard.
+ * Robust over for manglende felter (assists/penalties findes ikke på alle tiers).
+ * @param {object} data  – rå respons fra getScorers()
+ * @returns {Array<object>}
+ */
+function mapScorers(data) {
+  const arr = (data && Array.isArray(data.scorers)) ? data.scorers : [];
+  return arr.map((s, i) => ({
+    rank: i + 1,
+    playerId: s.player?.id ?? null,
+    playerName: s.player?.name ?? '(ukendt)',
+    nationality: s.player?.nationality ?? null,
+    teamId: s.team?.id ?? null,
+    teamName: s.team?.name ?? null,
+    goals: Number(s.goals ?? 0),
+    assists: s.assists != null ? Number(s.assists) : null,
+    penalties: s.penalties != null ? Number(s.penalties) : null,
+  }));
+}
+
+/** Findes mindst ét element i listen med et udfyldt (ikke-null) felt? */
+function anyHas(list, key) {
+  return Array.isArray(list) && list.some((x) => x && x[key] != null);
+}
+
+/** Kompakt felt-rapport for /scorers (til tier-verificering). */
+function summarizeScorers(data) {
+  const list = mapScorers(data);
+  return {
+    count: list.length,
+    hasAssists: anyHas(list, 'assists'),
+    hasPenalties: anyHas(list, 'penalties'),
+    hasNationality: anyHas(list, 'nationality'),
+    sample: list[0] ? { playerName: list[0].playerName, goals: list[0].goals } : null,
+  };
+}
+
+/** Kompakt felt-rapport for et /matches/{id}-svar (til tier-verificering). */
+function summarizeMatchDetail(m) {
+  const match = (m && m.match) ? m.match : m; // v4 pakker nogle gange i { match: {...} }
+  const score = (match && match.score) || {};
+  return {
+    hasGoals: Array.isArray(match?.goals) && match.goals.length > 0,
+    hasBookings: Array.isArray(match?.bookings) && match.bookings.length > 0,
+    hasSubstitutions: Array.isArray(match?.substitutions) && match.substitutions.length > 0,
+    hasReferees: Array.isArray(match?.referees) && match.referees.length > 0,
+    hasHalfTime: score.halfTime?.home != null,
+    hasExtraTime: score.extraTime?.home != null,
+    hasPenaltiesScore: score.penalties?.home != null,
+    hasHead2Head: !!match?.head2head,
+    attendance: match?.attendance ?? null,
+    venue: match?.venue ?? null,
+  };
+}
+
+/** Kompakt felt-rapport for /standings (til tier-verificering). */
+function summarizeStandings(data) {
+  const tables = Array.isArray(data?.standings) ? data.standings : [];
+  const firstRow = tables[0]?.table?.[0] || null;
+  return {
+    tableCount: tables.length,
+    hasForm: firstRow ? firstRow.form != null : false,
+    hasGoalDiff: firstRow ? firstRow.goalDifference != null : false,
   };
 }
 
 module.exports = {
   COMPETITION_CODE, BASE, REVIEW_STATUSES,
   mapStatus, extractScore, parseRateLimit, createClient,
+  mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
 };

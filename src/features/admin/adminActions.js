@@ -211,6 +211,42 @@ export async function callSyncResultsNow({ dryRun = false } = {}) {
 }
 
 /**
+ * Kald Cloud Function 'syncScorersNow' — opdater topscorer-listen (Golden Boot)
+ * fra football-data.org nu.
+ */
+export async function callSyncScorersNow() {
+  try {
+    const fn = httpsCallable(functions, 'syncScorersNow');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "syncScorersNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af syncScorersNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
+ * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
+ */
+export async function callInspectFootballData() {
+  try {
+    const fn = httpsCallable(functions, 'inspectFootballData');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "inspectFootballData" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af inspectFootballData.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'syncFixtures' — map vores kampe til football-data-id'er.
  * @param {{season?: number}} [opts]
  */
