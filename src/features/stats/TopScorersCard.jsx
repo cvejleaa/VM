@@ -31,32 +31,41 @@ export function TopScorersList({ list, limit = 10, title = '⚽ Kapløbet om gul
       </div>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
-        {rows.map((s) => (
+        {rows.map((s, idx) => (
           <li
             key={`${s.rank}-${s.playerId ?? s.playerName}`}
             style={{
-              display: 'grid', gridTemplateColumns: 'auto 1fr auto',
-              alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0',
-              borderBottom: '1px solid var(--c-border)',
+              display: 'grid', gridTemplateColumns: '1.6rem minmax(0, 1fr) auto',
+              alignItems: 'center', gap: '0.7rem', padding: '0.45rem 0',
+              borderBottom: idx === rows.length - 1 ? 'none' : '1px solid var(--c-border)',
             }}
           >
-            <span style={{ width: 28, textAlign: 'center', fontWeight: 700 }}>
+            <span style={{ textAlign: 'center', fontWeight: 700, fontSize: s.rank <= 3 ? '1.05rem' : '0.9rem', color: s.rank <= 3 ? 'inherit' : 'var(--c-muted)' }}>
               {MEDAL[s.rank - 1] ?? s.rank}
             </span>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ fontWeight: 600 }}>{s.playerName}</span>
+
+            <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+              <span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {s.playerName}
+              </span>
               {s.teamName && (
-                <span style={{ color: 'var(--c-muted)', fontSize: '0.82rem' }}> · {s.teamName}</span>
+                <span style={{ color: 'var(--c-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {s.teamName}
+                </span>
               )}
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.5rem' }}>
-              <strong style={{ fontSize: '1.05rem' }}>{s.goals}</strong>
-              <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>mål</span>
-              {showAssists && s.assists != null && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>· {s.assists} a</span>
-              )}
-              {showPens && s.penalties != null && s.penalties > 0 && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }} title="straffemål">· {s.penalties} str.</span>
+
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.3rem' }}>
+                <strong style={{ fontSize: '1.1rem', fontVariantNumeric: 'tabular-nums' }}>{s.goals}</strong>
+                <span style={{ fontSize: '0.7rem', color: 'var(--c-muted)' }}>mål</span>
+              </span>
+              {(showAssists || showPens) && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--c-muted)' }}>
+                  {showAssists && s.assists != null ? `${s.assists} assist${s.assists === 1 ? '' : 's'}` : ''}
+                  {showAssists && s.assists != null && showPens && s.penalties > 0 ? ' · ' : ''}
+                  {showPens && s.penalties > 0 ? `${s.penalties} str.` : ''}
+                </span>
               )}
             </span>
           </li>
