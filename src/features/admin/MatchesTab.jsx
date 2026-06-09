@@ -5,7 +5,7 @@ import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 import { useAuth } from '../../context/AuthContext';
 
@@ -156,6 +156,14 @@ export default function MatchesTab() {
     const d = res.data ?? {};
     if (d.reason === 'no-window-matches') { setSyncMsg('Ingen kampe i vinduet lige nu.'); return; }
     setSyncMsg(`Kampdetaljer: ${d.updated ?? 0} opdateret af ${d.checked ?? 0}.`);
+  }
+
+  async function handleSyncStandings() {
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncStandingsNow();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    setSyncMsg(`Stilling opdateret: ${res.data?.tables ?? 0} tabel(ler).`);
   }
 
   async function handleInspect() {
@@ -352,6 +360,10 @@ export default function MatchesTab() {
         <button className="btn btn--ghost btn--sm" onClick={handleSyncMatchDetails} disabled={syncBusy}
           title="Hent mål, kort og opstillinger for kampe i vinduet">
           📋 Opdater kampdetaljer
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncStandings} disabled={syncBusy}
+          title="Opdater den officielle stilling (gruppetabeller med form)">
+          📊 Opdater stilling
         </button>
         {isOwner && (
           <button className="btn btn--ghost btn--sm" onClick={handleInspect} disabled={syncBusy}

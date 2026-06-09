@@ -13,6 +13,7 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot: vi.fn(),
   query: vi.fn(),
   orderBy: vi.fn(),
+  doc: vi.fn(),
 }));
 
 // ── Mock useMatches ───────────────────────────────────────────────────────────
