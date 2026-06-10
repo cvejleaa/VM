@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useStandings } from '../features/leaderboard/useStandings';
+import { useLeagues } from '../features/leagues/useLeagues';
+import { buildContactLeagues } from '../features/comments/contactLeagues';
 import { useMyMessages, groupConversations } from '../features/comments/useMessages';
 import { sendMessage, deleteMessage } from '../features/comments/commentActions';
 import { formatTimestamp } from '../features/comments/formatTimestamp';
@@ -18,7 +20,7 @@ import Avatar from '../components/Avatar';
 // Beskederne kommer fra forælderens samlede abonnement (useMyMessages) og
 // filtreres til denne samtale — det undgår en separat query, som ellers ville
 // blive afvist af sikkerhedsreglerne (de tillader læsning via participants).
-function Thread({ meUid, otherUid, nameOf, otherUser, messages, loading }) {
+function Thread({ meUid, otherUid, nameOf, otherUser, messages, loading, leagueId }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +31,7 @@ function Thread({ meUid, otherUid, nameOf, otherUser, messages, loading }) {
     setBusy(true);
     setError('');
     try {
-      await sendMessage({ from: meUid, to: otherUid, text });
+      await sendMessage({ from: meUid, to: otherUid, text, leagueId });
       setText('');
     } catch (err) {
       setError(err.message);
@@ -91,25 +93,31 @@ function Thread({ meUid, otherUid, nameOf, otherUser, messages, loading }) {
         </ul>
       )}
 
-      <form onSubmit={handleSend} style={{ marginTop: '0.75rem' }}>
-        <textarea
-          className="input"
-          rows={2}
-          placeholder={`Skriv til ${nameOf(otherUid)}…`}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          maxLength={1000}
-          aria-label="Ny privat besked"
-          style={{ resize: 'vertical' }}
-        />
-        {error && <p className="form-error mt-1">{error}</p>}
-        <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
-          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
-          <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
-            {busy ? 'Sender…' : 'Send'}
-          </button>
-        </div>
-      </form>
+      {leagueId ? (
+        <form onSubmit={handleSend} style={{ marginTop: '0.75rem' }}>
+          <textarea
+            className="input"
+            rows={2}
+            placeholder={`Skriv til ${nameOf(otherUid)}…`}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={1000}
+            aria-label="Ny privat besked"
+            style={{ resize: 'vertical' }}
+          />
+          {error && <p className="form-error mt-1">{error}</p>}
+          <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
+            <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
+            <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
+              {busy ? 'Sender…' : 'Send'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p style={{ marginTop: '0.75rem', color: 'var(--c-muted)', fontSize: '0.85rem' }}>
+          I deler ikke længere en liga, så du kan ikke skrive nye beskeder her.
+        </p>
+      )}
     </div>
   );
 }
@@ -119,9 +127,14 @@ export default function MessagesPage() {
   const { user } = useAuth();
   const meUid = user?.uid;
   const { standings } = useStandings();
+  const { leagues } = useLeagues(meUid);
   const { messages, loading } = useMyMessages(meUid);
   const [activeUid, setActiveUid] = useState(null);
   const [pick, setPick] = useState('');
+
+  // Hvem deler man en liga med? (otherUid → delt liga-id). Privat-beskeder er
+  // begrænset til disse — håndhæves også af Security Rules.
+  const contactLeagues = useMemo(() => buildContactLeagues(leagues, meUid), [leagues, meUid]);
 
   const userOf = (uid) => standings.find((u) => u.uid === uid) || null;
   const nameOf = (uid) => userOf(uid)?.displayName || '(ukendt)';
@@ -143,8 +156,8 @@ export default function MessagesPage() {
     markConversationSeen(activeUid);
   }, [activeUid, threadMessages.length]);
 
-  // Spillere man kan skrive til (alle godkendte undtagen én selv)
-  const others = standings.filter((u) => u.uid !== meUid);
+  // Spillere man kan skrive til: kun dem man deler en liga med
+  const others = standings.filter((u) => u.uid !== meUid && contactLeagues[u.uid]);
 
   function startConversation(uid) {
     if (!uid) return;
@@ -224,7 +237,7 @@ export default function MessagesPage() {
         {/* Højre: aktiv tråd */}
         {activeUid ? (
           <Thread meUid={meUid} otherUid={activeUid} nameOf={nameOf} otherUser={userOf(activeUid)}
-            messages={threadMessages} loading={loading} />
+            messages={threadMessages} loading={loading} leagueId={contactLeagues[activeUid] || null} />
         ) : (
           <div className="card" style={{ color: 'var(--c-muted)' }}>
             Vælg en samtale eller start en ny for at skrive beskeder.

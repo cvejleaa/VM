@@ -70,16 +70,18 @@ export function conversationId(a, b) {
  * @param {string} p.text
  * @returns {Promise<string>} det nye dokument-id
  */
-export async function sendMessage({ from, to, text }) {
+export async function sendMessage({ from, to, text, leagueId }) {
   if (!from) throw new Error('Du skal være logget ind.');
   if (!to) throw new Error('Vælg en modtager.');
   if (from === to) throw new Error('Du kan ikke sende en besked til dig selv.');
+  if (!leagueId) throw new Error('Du kan kun skrive med spillere, du deler en liga med.');
   const participants = [from, to].sort();
   const ref = await addDoc(collection(db, COL.MESSAGES), {
     participants,
     conversationId: conversationId(from, to),
     from,
     to,
+    leagueId,
     text: cleanText(text),
     createdAt: serverTimestamp(),
   });

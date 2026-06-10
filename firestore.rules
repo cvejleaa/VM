@@ -263,12 +263,15 @@ service cloud.firestore {
       // Kun de to deltagere kan læse beskeden
       allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
 
-      // Opret: afsenderen er sig selv, er deltager, og begge er godkendte brugere
+      // Opret: afsenderen er sig selv, er deltager, og BEGGE deler den angivne
+      // liga (man kan kun skrive med folk, man er i liga med).
       allow create: if isApproved()
         && request.auth.uid == request.resource.data.from
         && request.auth.uid in request.resource.data.participants
         && request.resource.data.participants.size() == 2
-        && request.resource.data.to in request.resource.data.participants;
+        && request.resource.data.to in request.resource.data.participants
+        && request.auth.uid in get(/databases/$(database)/documents/leagues/$(request.resource.data.leagueId)).data.memberUids
+        && request.resource.data.to in get(/databases/$(database)/documents/leagues/$(request.resource.data.leagueId)).data.memberUids;
 
       // Beskeder kan ikke redigeres
       allow update: if false;
