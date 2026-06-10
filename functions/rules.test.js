@@ -716,15 +716,30 @@ describe('leagueComments/{id} — sikkerhedsregler', () => {
 // TESTS: messages-collection (private 1:1-beskeder)
 // ---------------------------------------------------------------------------
 describe('messages/{id} — sikkerhedsregler', () => {
-  it('en bruger KAN sende en besked til en anden', async () => {
+  it('en bruger KAN sende en besked til en liga-fælle', async () => {
     await createUser('a', 'player', 'approved');
     await createUser('b', 'player', 'approved');
+    await createLeague('lgm', 'a', ['a', 'b']);
 
     const ctx = testEnv.authenticatedContext('a');
     await assertSucceeds(
       setDoc(doc(ctx.firestore(), 'messages', 'msg1'), {
         participants: ['a', 'b'], conversationId: 'a__b', from: 'a', to: 'b',
-        text: 'Hej B', createdAt: Timestamp.now(),
+        leagueId: 'lgm', text: 'Hej B', createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('man KAN IKKE sende til en man ikke deler liga med', async () => {
+    await createUser('a', 'player', 'approved');
+    await createUser('b', 'player', 'approved');
+    await createLeague('lgsolo', 'a', ['a']); // kun a er medlem
+
+    const ctx = testEnv.authenticatedContext('a');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'messages', 'msgx'), {
+        participants: ['a', 'b'], conversationId: 'a__b', from: 'a', to: 'b',
+        leagueId: 'lgsolo', text: 'Hej', createdAt: Timestamp.now(),
       })
     );
   });

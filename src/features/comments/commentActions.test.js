@@ -71,13 +71,19 @@ describe('sendMessage', () => {
     await expect(sendMessage({ from: 'a', text: 'hej' })).rejects.toThrow(/modtager/);
   });
 
-  it('sætter sorterede participants og conversationId', async () => {
-    await sendMessage({ from: 'zeb', to: 'amy', text: 'hej' });
+  it('kræver en delt liga (leagueId)', async () => {
+    await expect(sendMessage({ from: 'a', to: 'b', text: 'hej' }))
+      .rejects.toThrow(/deler en liga/);
+  });
+
+  it('sætter sorterede participants, conversationId og leagueId', async () => {
+    await sendMessage({ from: 'zeb', to: 'amy', text: 'hej', leagueId: 'lg1' });
     const payload = addDocMock.mock.calls[0][1];
     expect(payload.participants).toEqual(['amy', 'zeb']);
     expect(payload.conversationId).toBe('amy__zeb');
     expect(payload.from).toBe('zeb');
     expect(payload.to).toBe('amy');
+    expect(payload.leagueId).toBe('lg1');
   });
 });
 
