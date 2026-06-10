@@ -37,6 +37,7 @@ vi.mock('firebase/functions', () => ({
 import {
   setUserStatus,
   setGlobalAdminRole,
+  sendAdminPasswordReset,
   saveMatchResult,
   clearManualLock,
   callSyncResultsNow,
@@ -179,6 +180,17 @@ describe('adminActions', () => {
         expect.anything(),
         { manualLock: false, resultSource: 'auto', needsReview: false },
       );
+    });
+  });
+
+  describe('sendAdminPasswordReset', () => {
+    it('kalder adminSendPasswordReset med uid og returnerer data', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { email: 'a@b.dk', sent: true, link: 'https://x/reset' } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+      const res = await sendAdminPasswordReset('uid-9');
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'adminSendPasswordReset');
+      expect(mockFn).toHaveBeenCalledWith({ uid: 'uid-9' });
+      expect(res).toEqual({ email: 'a@b.dk', sent: true, link: 'https://x/reset' });
     });
   });
 

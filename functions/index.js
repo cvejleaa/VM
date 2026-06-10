@@ -23,6 +23,7 @@ const { onDocumentWritten }        = require('firebase-functions/v2/firestore');
 const { onSchedule }               = require('firebase-functions/v2/scheduler');
 const { defineSecret }             = require('firebase-functions/params');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getAuth }                  = require('firebase-admin/auth');
 const { initializeApp }            = require('firebase-admin/app');
 const nodemailer                   = require('nodemailer');
 
@@ -1177,5 +1178,58 @@ exports.syncGroupWinnersNow = onCall(
     const db = getFirestore();
     await requireAdmin(db, request);
     return runResolveGroupWinners(db, { dryRun: request.data?.dryRun === true });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// adminSendPasswordReset — KUN ejeren: generér et nulstillingslink server-side
+// og send det via vores egen SMTP (vm@vejleaa.dk). Bruges når Firebase' egen
+// reset-mail ikke når frem (fx udbyder der blokerer firebaseapp.com).
+// Returnerer også selve linket, så ejeren kan sende det manuelt om nødvendigt.
+// ---------------------------------------------------------------------------
+exports.adminSendPasswordReset = onCall(
+  { region: REGION, secrets: [SMTP_PASSWORD] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const db = getFirestore();
+    const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+    if (callerSnap.data()?.role !== 'owner') {
+      throw new HttpsError('permission-denied', 'Kun ejeren kan sende nulstillingslink.');
+    }
+
+    const uid = request.data?.uid;
+    if (!uid) throw new HttpsError('invalid-argument', 'Mangler bruger-id.');
+
+    let userRecord;
+    try {
+      userRecord = await getAuth().getUser(uid);
+    } catch {
+      throw new HttpsError('not-found', 'Brugeren findes ikke i Authentication.');
+    }
+    const email = userRecord.email;
+    if (!email) throw new HttpsError('failed-precondition', 'Brugeren har ingen e-mailadresse.');
+
+    // Generér det officielle nulstillingslink (Firebase Admin SDK).
+    const link = await getAuth().generatePasswordResetLink(email);
+
+    // Send via vores egen SMTP, hvis adgangskoden er sat.
+    const transporter = buildTransport(SMTP_PASSWORD.value());
+    let sent = false;
+    if (transporter) {
+      const name = userRecord.displayName || 'spiller';
+      const html = `
+        <p>Hej ${name},</p>
+        <p>Du (eller en administrator) har bedt om at nulstille din adgangskode til
+        <strong>VM 2026 Tip</strong>. Klik på linket nedenfor for at vælge en ny:</p>
+        <p><a href="${link}">Nulstil min adgangskode</a></p>
+        <p>Hvis knappen ikke virker, kopiér dette link ind i din browser:<br>
+        <span style="word-break:break-all">${link}</span></p>
+        <p>Bagefter kan du logge ind på <a href="${APP_URL}">${APP_URL}</a>.</p>
+        <p>Mvh. VM 2026 Tip</p>`;
+      await sendEmail(transporter, { to: email, subject: 'Nulstil din adgangskode – VM 2026 Tip', html });
+      sent = true;
+    }
+
+    return { ok: true, email, sent, link };
   }
 );

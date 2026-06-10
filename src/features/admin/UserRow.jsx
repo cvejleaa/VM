@@ -2,7 +2,7 @@
 // Viser navn, e-mail, rolle, status og handlingsknapper.
 import { useState } from 'react';
 import { ROLES, USER_STATUS } from '../../lib/constants';
-import { setUserStatus, setGlobalAdminRole } from './adminActions';
+import { setUserStatus, setGlobalAdminRole, sendAdminPasswordReset } from './adminActions';
 import Avatar from '../../components/Avatar';
 import { teamName } from '../../lib/teams';
 
@@ -33,8 +33,24 @@ const roleLabel = {
 export default function UserRow({ user, currentUserIsOwner, currentUserCanApprove }) {
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [resetInfo, setResetInfo] = useState(null);
 
   const isOwner = user.role === ROLES.OWNER;
+
+  async function handlePasswordReset() {
+    if (!window.confirm(`Send et nulstillingslink til ${user.displayName} (${user.email})?`)) return;
+    setBusy(true);
+    setLocalError('');
+    setResetInfo(null);
+    try {
+      const res = await sendAdminPasswordReset(user.id);
+      setResetInfo(res);
+    } catch (err) {
+      setLocalError('Fejl: ' + (err.message ?? 'Ukendt fejl'));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleStatus(newStatus) {
     const label = newStatus === USER_STATUS.APPROVED ? 'godkende' : 'afvise';
@@ -133,6 +149,20 @@ export default function UserRow({ user, currentUserIsOwner, currentUserCanApprov
               {localError}
             </div>
           )}
+          {resetInfo && (
+            <div style={{ color: 'var(--c-ok)', fontSize: '0.8rem', marginTop: 4 }}>
+              {resetInfo.sent
+                ? `Nulstillingslink sendt til ${resetInfo.email}.`
+                : `Link genereret (mail ikke sendt — SMTP mangler).`}
+              {resetInfo.link && (
+                <div style={{ marginTop: 2 }}>
+                  <a href={resetInfo.link} target="_blank" rel="noreferrer" style={{ wordBreak: 'break-all', fontSize: '0.72rem' }}>
+                    Kopiér/åbn link
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -170,6 +200,19 @@ export default function UserRow({ user, currentUserIsOwner, currentUserCanApprov
               onClick={handleRoleToggle}
             >
               {user.role === ROLES.GLOBAL_ADMIN ? '↓ Til spiller' : '↑ Til global admin'}
+            </button>
+          )}
+
+          {/* Send nulstillingslink — kun ejeren */}
+          {currentUserIsOwner && (
+            <button
+              className="btn btn--ghost"
+              style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
+              disabled={busy}
+              onClick={handlePasswordReset}
+              title="Send et nulstillingslink via vm@vejleaa.dk (omgår Firebase-mailen)"
+            >
+              🔑 Nulstil kodeord
             </button>
           )}
         </div>
