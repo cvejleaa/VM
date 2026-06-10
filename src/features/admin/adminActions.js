@@ -43,6 +43,18 @@ export async function setGlobalAdminRole(uid, currentRole) {
   await updateDoc(ref, { role: newRole });
 }
 
+/**
+ * Send nulstillingslink til en bruger via vores egen SMTP (kun ejer).
+ * Omgår Firebase' egen reset-mail, der nogle gange ikke når frem.
+ * @param {string} uid
+ * @returns {Promise<{ email: string, sent: boolean, link: string }>}
+ */
+export async function sendAdminPasswordReset(uid) {
+  const fn = httpsCallable(functions, 'adminSendPasswordReset');
+  const res = await fn({ uid });
+  return res.data;
+}
+
 // ─── Kampstyring (global admin + owner) ──────────────────────────────────────
 
 /**

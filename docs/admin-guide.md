@@ -20,6 +20,14 @@ Daglig brug af tippekonkurrencen for administratorer.
 > automatisk). Evt. gamle kamp-admins mister automatisk deres rettigheder og kan
 > sættes til **spiller** eller **global admin** under **Admin → Brugere**.
 
+## Nulstil en spillers adgangskode
+Hvis en spiller ikke modtager Firebase' egen nulstillingsmail (den havner ofte i
+spam eller blokeres af visse udbydere som Outlook/Hotmail):
+- **Admin → Brugere** → find spilleren → **🔑 Nulstil kodeord** (kun ejeren).
+- Et nulstillingslink genereres og sendes via **vm@vejleaa.dk** (jeres egen
+  SMTP, som leverer pålideligt). Du får også selve linket vist, så du kan sende
+  det manuelt (fx SMS) hvis det skulle være nødvendigt.
+
 ## Godkend nye spillere
 1. Nye brugere lander i status **afventer**.
 2. **Admin → Brugere** viser ventelisten. Tryk **Godkend** (eller **Afvis**).
