@@ -20,6 +20,11 @@ Daglig brug af tippekonkurrencen for administratorer.
 > automatisk). Evt. gamle kamp-admins mister automatisk deres rettigheder og kan
 > sættes til **spiller** eller **global admin** under **Admin → Brugere**.
 
+## Mail-log
+**Admin → ✉️ Mail-log** viser de seneste udsendte mails (påmindelser, kodeord-
+nulstilling m.m.) med tidspunkt, type, modtager, emne og status (sendt/fejl).
+Logges automatisk hver gang systemet sender en mail. Synlig for globale admins.
+
 ## Nulstil en spillers adgangskode
 Hvis en spiller ikke modtager Firebase' egen nulstillingsmail (den havner ofte i
 spam eller blokeres af visse udbydere som Outlook/Hotmail):

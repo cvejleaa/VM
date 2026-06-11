@@ -943,3 +943,38 @@ describe('leagueActivity/{id} — sikkerhedsregler', () => {
     await assertFails(getDoc(doc(testEnv.authenticatedContext('outsider').firestore(), 'leagueActivity', 'a3')));
   });
 });
+
+// ---------------------------------------------------------------------------
+// TESTS: emailLog (kun admin-læsning, ingen klient-skrivning)
+// ---------------------------------------------------------------------------
+describe('emailLog — sikkerhedsregler', () => {
+  async function seedLog() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('emailLog').doc('e1').set({
+        to: 'a@b.dk', subject: 'Test', type: 'reminder', status: 'sent', createdAt: Timestamp.now(),
+      });
+    });
+  }
+
+  it('en global admin KAN læse mail-loggen', async () => {
+    await createUser('admin1', 'globalAdmin', 'approved');
+    await seedLog();
+    await assertSucceeds(getDoc(doc(testEnv.authenticatedContext('admin1').firestore(), 'emailLog', 'e1')));
+  });
+
+  it('en almindelig spiller KAN IKKE læse mail-loggen', async () => {
+    await createUser('p1', 'player', 'approved');
+    await seedLog();
+    await assertFails(getDoc(doc(testEnv.authenticatedContext('p1').firestore(), 'emailLog', 'e1')));
+  });
+
+  it('selv en admin KAN IKKE skrive i mail-loggen fra klienten', async () => {
+    await createUser('admin1', 'globalAdmin', 'approved');
+    const ctx = testEnv.authenticatedContext('admin1');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'emailLog', 'e2'), {
+        to: 'x@y.dk', subject: 'Snyd', type: 'reminder', status: 'sent', createdAt: Timestamp.now(),
+      })
+    );
+  });
+});

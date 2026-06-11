@@ -73,6 +73,7 @@ export const COL = {
   LEAGUE_BONUS: 'leagueBonus', // individuelle bonus-spørgsmål pr. liga
   LEAGUE_BONUS_ANSWERS: 'leagueBonusAnswers', // svar på liga-bonusspørgsmål
   CONFIG: 'config',
+  EMAIL_LOG: 'emailLog', // log over udsendte mails (kun admin-læsning)
 };
 
 export const TIMEZONE = 'Europe/Copenhagen';

@@ -84,10 +84,10 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser alle syv faner for owner', () => {
+    it('viser alle otte faner for owner', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(7);
+      expect(tabs).toHaveLength(8);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-preview')).toBeInTheDocument();
@@ -173,10 +173,10 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 7 faner for global admin', () => {
+    it('viser præcis 8 faner for global admin', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(7);
+      expect(tabs).toHaveLength(8);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
     });
