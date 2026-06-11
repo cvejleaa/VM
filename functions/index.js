@@ -521,8 +521,23 @@ function buildTransport(password) {
   });
 }
 
-async function sendEmail(transporter, { to, subject, html }) {
-  await transporter.sendMail({ from: EMAIL_FROM, to, subject, html });
+// Skriv en linje i mail-loggen (emailLog). Fejler aldrig hårdt.
+async function logEmail(db, entry) {
+  try {
+    await db.collection('emailLog').add({ ...entry, createdAt: FieldValue.serverTimestamp() });
+  } catch (e) {
+    console.error('logEmail: kunne ikke skrive log', e?.message || e);
+  }
+}
+
+async function sendEmail(db, transporter, { to, subject, html, type }) {
+  try {
+    await transporter.sendMail({ from: EMAIL_FROM, to, subject, html });
+    await logEmail(db, { to, subject, type: type || 'other', status: 'sent', error: null });
+  } catch (err) {
+    await logEmail(db, { to, subject, type: type || 'other', status: 'failed', error: String(err?.message || err) });
+    throw err;
+  }
 }
 
 // Kerne-logik: send påmindelser om dagens utippede kampe. Returnerer antal sendte.
@@ -577,10 +592,11 @@ async function runTipReminders(db, transporter) {
       <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
 
     try {
-      await sendEmail(transporter, {
+      await sendEmail(db, transporter, {
         to: u.email,
         subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
         html,
+        type: 'reminder',
       });
       sent++;
     } catch (e) {
@@ -670,10 +686,11 @@ exports.sendTestReminderToMe = onCall(
     html += `<p style="margin-top:14px"><a href="${APP_URL}">Gå til vm.vejleaa.dk</a></p>
       <p style="color:#888;font-size:12px">Dette er en testmail sendt kun til dig.</p>`;
 
-    await sendEmail(transporter, {
+    await sendEmail(db, transporter, {
       to: u.email,
       subject: '🧪 Testmail: kampe for de første 3 spilledage',
       html,
+      type: 'test-reminder',
     });
 
     return { success: true, sentTo: u.email, days: days.length, matches: total };
@@ -1226,7 +1243,7 @@ exports.adminSendPasswordReset = onCall(
         <span style="word-break:break-all">${link}</span></p>
         <p>Bagefter kan du logge ind på <a href="${APP_URL}">${APP_URL}</a>.</p>
         <p>Mvh. VM 2026 Tip</p>`;
-      await sendEmail(transporter, { to: email, subject: 'Nulstil din adgangskode – VM 2026 Tip', html });
+      await sendEmail(db, transporter, { to: email, subject: 'Nulstil din adgangskode – VM 2026 Tip', html, type: 'password-reset' });
       sent = true;
     }
 

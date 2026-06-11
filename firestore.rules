@@ -218,6 +218,15 @@ service cloud.firestore {
     }
 
     // -----------------------------------------------------------------------
+    // emailLog/{id} — log over udsendte mails. Skrives KUN af Cloud Functions
+    // (admin SDK); globale admins kan læse den. Ingen klient-skrivning.
+    // -----------------------------------------------------------------------
+    match /emailLog/{id} {
+      allow read: if isGlobalAdmin();
+      allow write: if false;
+    }
+
+    // -----------------------------------------------------------------------
     // inviteAttempts/{uid} — rate-limit-tæller for indløsning af invitationskoder.
     // Skrives og læses KUN af Cloud Functions (admin SDK). Ingen klientadgang,
     // så brugere ikke kan nulstille deres egen forsøgstæller.
