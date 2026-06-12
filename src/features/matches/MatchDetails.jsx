@@ -18,13 +18,27 @@ function minuteLabel(ev) {
   return ev.injuryTime ? `${ev.minute}+${ev.injuryTime}'` : `${ev.minute}'`;
 }
 
-// Én begivenheds-række (mål eller kort), venstre = hjemme, højre = ude.
+function eventText(ev) {
+  if (ev.kind === 'goal') {
+    return `${ev.scorer ?? '?'}${ev.assist ? ` (assist: ${ev.assist})` : ''}${goalSuffix(ev.type)}`;
+  }
+  if (ev.kind === 'sub') {
+    return `${ev.playerIn ?? '?'} ↑ ${ev.playerOut ?? '?'} ↓`;
+  }
+  return `${ev.player ?? '?'}`;
+}
+
+function eventIcon(ev) {
+  if (ev.kind === 'goal') return '⚽';
+  if (ev.kind === 'sub') return '🔄';
+  return CARD_ICON[ev.card] ?? '🟨';
+}
+
+// Én begivenheds-række (mål, kort eller udskiftning), venstre = hjemme, højre = ude.
 function EventRow({ ev }) {
   const home = ev.side === 'home';
-  const text = ev.kind === 'goal'
-    ? `${ev.scorer ?? '?'}${ev.assist ? ` (assist: ${ev.assist})` : ''}${goalSuffix(ev.type)}`
-    : `${ev.player ?? '?'}`;
-  const icon = ev.kind === 'goal' ? '⚽' : (CARD_ICON[ev.card] ?? '🟨');
+  const text = eventText(ev);
+  const icon = eventIcon(ev);
 
   return (
     <div style={{
@@ -81,6 +95,7 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const events = [
     ...(d.goals ?? []).map((g) => ({ ...g, kind: 'goal' })),
     ...(d.bookings ?? []).map((b) => ({ ...b, kind: 'card' })),
+    ...(d.substitutions ?? []).map((s) => ({ ...s, kind: 'sub' })),
   ].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
 
   const meta = [];
