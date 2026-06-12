@@ -200,7 +200,7 @@ describe('adminActions', () => {
       mockHttpsCallable.mockReturnValue(mockFn);
       const res = await callSyncResultsNow({ dryRun: true });
       expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'syncResultsNow');
-      expect(mockFn).toHaveBeenCalledWith({ dryRun: true });
+      expect(mockFn).toHaveBeenCalledWith({ dryRun: true, full: false });
       expect(res).toEqual({ ok: true, data: { updated: 2 } });
     });
     it('returnerer pæn fejl hvis funktionen ikke er deployet', async () => {

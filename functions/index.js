@@ -719,29 +719,40 @@ async function requireAdmin(db, request) {
 
 // Kerne: synk resultater for kampe i "vinduet" (lige startet / i gang).
 // Returnerer en oversigt. Laver kun ét football-data-kald, når der er kampe.
-async function runSyncResults(db, token, { now = new Date(), dryRun = false } = {}) {
-  const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
-  const toTs = Timestamp.fromMillis(now.getTime() + 15 * 60 * 1000);
-
-  const snap = await db.collection('matches')
-    .where('kickoff', '>=', fromTs)
-    .where('kickoff', '<=', toTs)
-    .get();
-
-  const candidates = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((m) => m.externalId && !m.manualLock && m.status !== 'finished');
-
-  if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-window-matches' };
-
-  // Datospan (UTC) der dækker kandidaterne — typisk samme dag.
-  const times = candidates.map((m) => m.kickoff.toMillis());
-  const dateFrom = utcDateStr(Math.min(...times));
-  const dateTo = utcDateStr(Math.max(...times) + 6 * 3600 * 1000); // dæk kampe der trækker ud
-
+async function runSyncResults(db, token, { now = new Date(), dryRun = false, full = false } = {}) {
   const client = createClient({ token });
-  const data = await client.getMatchesInRange(dateFrom, dateTo);
-  const fdById = new Map((data.matches || []).map((m) => [String(m.id), m]));
+  let candidates;
+  let fdById;
+
+  if (full) {
+    // Backfill: ALLE ikke-færdige kampe med externalId — uanset tidspunkt.
+    const snap = await db.collection('matches').get();
+    candidates = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((m) => m.externalId && !m.manualLock && m.status !== 'finished');
+    if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-unfinished-matches' };
+    const data = await client.getSeasonMatches(now.getUTCFullYear());
+    fdById = new Map((data.matches || []).map((m) => [String(m.id), m]));
+  } else {
+    // Standard: kun "vinduet" omkring nu (live / netop startede kampe).
+    const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
+    const toTs = Timestamp.fromMillis(now.getTime() + 15 * 60 * 1000);
+    const snap = await db.collection('matches')
+      .where('kickoff', '>=', fromTs)
+      .where('kickoff', '<=', toTs)
+      .get();
+    candidates = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((m) => m.externalId && !m.manualLock && m.status !== 'finished');
+    if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-window-matches' };
+
+    // Datospan (UTC) der dækker kandidaterne — typisk samme dag.
+    const times = candidates.map((m) => m.kickoff.toMillis());
+    const dateFrom = utcDateStr(Math.min(...times));
+    const dateTo = utcDateStr(Math.max(...times) + 6 * 3600 * 1000); // dæk kampe der trækker ud
+    const data = await client.getMatchesInRange(dateFrom, dateTo);
+    fdById = new Map((data.matches || []).map((m) => [String(m.id), m]));
+  }
 
   let updated = 0; const changes = []; let review = 0;
   for (const m of candidates) {
@@ -806,7 +817,10 @@ exports.syncResultsNow = onCall(
     await requireAdmin(db, request);
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
-    return runSyncResults(db, token, { dryRun: request.data?.dryRun === true });
+    return runSyncResults(db, token, {
+      dryRun: request.data?.dryRun === true,
+      full: request.data?.full === true,
+    });
   }
 );
 

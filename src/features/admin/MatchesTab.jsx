@@ -197,14 +197,16 @@ export default function MatchesTab() {
     setInspectReport(res.data);
   }
 
-  async function handleSyncNow(dryRun) {
+  async function handleSyncNow(dryRun, full = false) {
     setSyncBusy(true); setSyncMsg('');
-    const res = await callSyncResultsNow({ dryRun });
+    const res = await callSyncResultsNow({ dryRun, full });
     setSyncBusy(false);
     if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
     const d = res.data ?? {};
     if (d.reason === 'no-window-matches') { setSyncMsg('Ingen kampe i gang lige nu.'); return; }
-    setSyncMsg(`${dryRun ? 'Tør-kør' : 'Synk'}: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
+    if (d.reason === 'no-unfinished-matches') { setSyncMsg('Ingen uafsluttede kampe at synke.'); return; }
+    const label = full ? (dryRun ? 'Tør-kør (alle)' : 'Synk alle') : (dryRun ? 'Tør-kør' : 'Synk');
+    setSyncMsg(`${label}: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
   }
 
   async function handleSyncFixtures() {
@@ -371,6 +373,10 @@ export default function MatchesTab() {
         <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(true)} disabled={syncBusy}
           title="Vis hvad en synk ville ændre, uden at skrive noget">
           🔎 Tør-kør
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(false, true)} disabled={syncBusy}
+          title="Hent resultater for ALLE spillede kampe (også ældre), ikke kun de igangværende">
+          🗓 Synk alle resultater
         </button>
         <button className="btn btn--ghost btn--sm" onClick={handleSyncFixtures} disabled={syncBusy}
           title="Map vores kampe til football-data.org-id'er (kør én gang / efter lodtrækning)">

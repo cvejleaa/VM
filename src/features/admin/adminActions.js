@@ -208,10 +208,10 @@ export async function callPruneOrphanMatches() {
  * football-data.org nu. dryRun=true viser kun hvad der ville ske.
  * @param {{dryRun?: boolean}} [opts]
  */
-export async function callSyncResultsNow({ dryRun = false } = {}) {
+export async function callSyncResultsNow({ dryRun = false, full = false } = {}) {
   try {
     const fn = httpsCallable(functions, 'syncResultsNow');
-    const result = await fn({ dryRun });
+    const result = await fn({ dryRun, full });
     return { ok: true, data: result.data };
   } catch (err) {
     const msg =
