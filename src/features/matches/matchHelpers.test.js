@@ -8,6 +8,7 @@ import {
   formatKickoffTime,
   roundLabel,
   flagEmoji,
+  liveMinuteLabel,
 } from './matchHelpers';
 
 // ---------------------------------------------------------------------------
@@ -341,5 +342,21 @@ describe('flagEmoji', () => {
     // begge bør returnere noget (dk konverteres til DK internt)
     expect(typeof upper).toBe('string');
     expect(typeof lower).toBe('string');
+  });
+});
+
+describe('liveMinuteLabel', () => {
+  it('1. halvleg med minut', () => {
+    expect(liveMinuteLabel({ details: { minute: 43 } })).toBe("1. halvleg · 43'");
+  });
+  it('2. halvleg med tillægstid', () => {
+    expect(liveMinuteLabel({ details: { minute: 90, injuryTime: 3 } })).toBe("2. halvleg · 90+3'");
+  });
+  it('forlænget tid over 90', () => {
+    expect(liveMinuteLabel({ details: { minute: 105 } })).toBe("Forlænget tid · 105'");
+  });
+  it('falder tilbage til LIVE uden minut', () => {
+    expect(liveMinuteLabel({ details: {} })).toBe('LIVE');
+    expect(liveMinuteLabel({})).toBe('LIVE');
   });
 });

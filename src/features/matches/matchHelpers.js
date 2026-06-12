@@ -139,3 +139,20 @@ export function flagEmoji(code) {
     )
   );
 }
+
+/**
+ * Live-label til kamp-headeren, fx "1. halvleg · 43'" eller "2. halvleg · 67+2'".
+ * Bygger på det synkede spilleminut (match.details.minute/injuryTime). Mangler
+ * minuttet, returneres bare "LIVE".
+ * @param {object} match
+ * @returns {string}
+ */
+export function liveMinuteLabel(match) {
+  const d = match?.details || {};
+  const m = d.minute;
+  if (m == null) return 'LIVE';
+  const half = m <= 45 ? '1. halvleg' : m <= 90 ? '2. halvleg' : 'Forlænget tid';
+  const it = d.injuryTime;
+  const minuteStr = `${m}${it ? `+${it}` : ''}'`;
+  return `${half} · ${minuteStr}`;
+}

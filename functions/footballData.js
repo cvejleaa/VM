@@ -283,6 +283,8 @@ function mapMatchDetails(m) {
     lineups: hasLineups ? lineups : null,
     halfTime: score.halfTime?.home != null ? { home: score.halfTime.home, away: score.halfTime.away } : null,
     penalties: score.penalties?.home != null ? { home: score.penalties.home, away: score.penalties.away } : null,
+    minute: match?.minute ?? null,        // spilleminut (live)
+    injuryTime: match?.injuryTime ?? null, // tillægstid (live)
     attendance: match?.attendance ?? null,
     referee: mainRef?.name ?? null,
   };
