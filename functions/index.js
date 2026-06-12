@@ -46,7 +46,7 @@ const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition } = require('./footballData');
-const { decideUpdate, matchFixture, patchChangesDoc } = require('./resultsSync');
+const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 
@@ -820,6 +820,8 @@ exports.syncFixtures = onCall(
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
 
     const season = Number(request.data?.season) || new Date().getUTCFullYear();
+    const dryRun = request.data?.dryRun === true;
+    const fixKickoff = request.data?.fixKickoff === true;
     const client = createClient({ token });
     const data = await client.getSeasonMatches(season);
     const fdMatches = data.matches || [];
@@ -838,11 +840,31 @@ exports.syncFixtures = onCall(
         continue;
       }
       if (String(m.externalId) === String(fd.id)) { already++; continue; }
-      batch.update(db.collection('matches').doc(m.id), { externalId: String(fd.id) });
+      if (!dryRun) batch.update(db.collection('matches').doc(m.id), { externalId: String(fd.id) });
       mapped++;
     }
-    if (mapped > 0) await batch.commit();
-    return { season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail };
+    if (mapped > 0 && !dryRun) await batch.commit();
+
+    // Tjek/ret kamptider mod football-data (matcher på hold → fanger også store fejl).
+    let kickoffChanges = [];
+    if (fixKickoff) {
+      kickoffChanges = auditKickoffs(ours, fdMatches);
+      if (!dryRun && kickoffChanges.length > 0) {
+        const kb = db.batch();
+        for (const c of kickoffChanges) {
+          kb.update(db.collection('matches').doc(c.id), {
+            kickoff: Timestamp.fromMillis(Date.parse(c.toISO)),
+            externalId: c.fdId,
+          });
+        }
+        await kb.commit();
+      }
+    }
+
+    return {
+      season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail,
+      dryRun, kickoffChanges,
+    };
   }
 );
 

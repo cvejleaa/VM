@@ -317,10 +317,14 @@ export async function callInspectFootballData() {
  * Kald Cloud Function 'syncFixtures' — map vores kampe til football-data-id'er.
  * @param {{season?: number}} [opts]
  */
-export async function callSyncFixtures({ season } = {}) {
+export async function callSyncFixtures({ season, dryRun, fixKickoff } = {}) {
   try {
     const fn = httpsCallable(functions, 'syncFixtures');
-    const result = await fn(season != null ? { season } : {});
+    const payload = {};
+    if (season != null) payload.season = season;
+    if (dryRun) payload.dryRun = true;
+    if (fixKickoff) payload.fixKickoff = true;
+    const result = await fn(payload);
     return { ok: true, data: result.data };
   } catch (err) {
     const msg =

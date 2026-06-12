@@ -131,7 +131,39 @@ function patchChangesDoc(match, patch) {
   return false;
 }
 
+/**
+ * Sammenlign vores kamptider med football-data og find afvigelser.
+ * Matcher primært på hold (gruppe-pardannelser er unikke), så selv store
+ * tids-fejl fanges. Returnerer kun kampe, hvor tiden afviger > 60 sek.
+ * @param {Array<object>} ours       vores kampe (med homeTeam/awayTeam/kickoff/id)
+ * @param {Array<object>} fdMatches  football-data-kampe (utcDate, homeTeam, awayTeam, id)
+ * @returns {Array<{id,home,away,fromISO,toISO,fdId}>}
+ */
+function auditKickoffs(ours, fdMatches) {
+  const changes = [];
+  for (const m of ours || []) {
+    if (!m || !m.homeTeam || !m.awayTeam) continue;
+    const sameTeams = (fdMatches || []).filter((fd) =>
+      teamCodeMatches(m.homeTeam, fd.homeTeam) && teamCodeMatches(m.awayTeam, fd.awayTeam));
+    // Præcis ét hold-match → brug det (uanset tid). Ellers disambiguér via vindue.
+    const fd = sameTeams.length === 1 ? sameTeams[0] : matchFixture(m, fdMatches);
+    if (!fd || !fd.utcDate) continue;
+    const ourMs = kickoffMs(m.kickoff);
+    const fdMs = new Date(fd.utcDate).getTime();
+    if (Number.isNaN(fdMs)) continue;
+    if (Number.isNaN(ourMs) || Math.abs(fdMs - ourMs) > 60000) {
+      changes.push({
+        id: m.id, home: m.homeTeam, away: m.awayTeam,
+        fromISO: Number.isNaN(ourMs) ? null : new Date(ourMs).toISOString(),
+        toISO: new Date(fdMs).toISOString(),
+        fdId: String(fd.id),
+      });
+    }
+  }
+  return changes;
+}
+
 module.exports = {
   norm, teamCodeMatches, utcDate, kickoffMs,
-  matchFixture, winnerToCode, decideUpdate, patchChangesDoc,
+  matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
 };

@@ -137,7 +137,30 @@ export default function MatchesTab() {
   const [syncMsg, setSyncMsg] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
   const [inspectReport, setInspectReport] = useState(null);
+  const [timeChanges, setTimeChanges] = useState(null); // null=ikke tjekket, []=ingen afvigelser
   const { isOwner } = useAuth();
+
+  async function handleCheckTimes() {
+    setSyncBusy(true); setSyncMsg(''); setTimeChanges(null);
+    const res = await callSyncFixtures({ fixKickoff: true, dryRun: true });
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const changes = res.data?.kickoffChanges ?? [];
+    setTimeChanges(changes);
+    setSyncMsg(changes.length === 0
+      ? 'Alle kamptider stemmer med football-data. 👍'
+      : `${changes.length} kamp(e) afviger fra football-data — se nedenfor.`);
+  }
+
+  async function handleApplyTimes() {
+    if (!window.confirm('Ret kamptiderne til football-data?')) return;
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncFixtures({ fixKickoff: true, dryRun: false });
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    setSyncMsg(`Rettede ${res.data?.kickoffChanges?.length ?? 0} kamptid(er).`);
+    setTimeChanges(null);
+  }
 
   async function handleSyncScorers() {
     setSyncBusy(true); setSyncMsg('');
@@ -353,6 +376,10 @@ export default function MatchesTab() {
           title="Map vores kampe til football-data.org-id'er (kør én gang / efter lodtrækning)">
           {"🔗 Map kamp-id'er"}
         </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleCheckTimes} disabled={syncBusy}
+          title="Sammenlign vores kamptider med football-data.org og find afvigelser">
+          🕐 Tjek kamptider
+        </button>
         <button className="btn btn--ghost btn--sm" onClick={handleSyncScorers} disabled={syncBusy}
           title="Opdater topscorer-listen (Golden Boot) fra football-data.org">
           ⚽ Opdater topscorere
@@ -385,6 +412,27 @@ export default function MatchesTab() {
           color: syncMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)',
           border: `1px solid ${syncMsg.startsWith('Fejl') ? 'var(--c-err)' : 'var(--c-ok)'}` }}>
           {syncMsg}
+        </div>
+      )}
+
+      {timeChanges && timeChanges.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--c-warn)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <strong style={{ fontSize: '0.9rem' }}>Afvigende kamptider ({timeChanges.length})</strong>
+            <button className="btn btn--sm" onClick={handleApplyTimes} disabled={syncBusy}>
+              ✅ Ret til football-data
+            </button>
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', fontSize: '0.82rem' }}>
+            {timeChanges.map((c) => (
+              <li key={c.id} style={{ padding: '0.25rem 0', borderTop: '1px solid var(--c-border)' }}>
+                <strong>{c.home}–{c.away}</strong>:{' '}
+                <span style={{ color: 'var(--c-err)' }}>{new Date(c.fromISO).toLocaleString('da-DK')}</span>
+                {' → '}
+                <span style={{ color: 'var(--c-ok)' }}>{new Date(c.toISO).toLocaleString('da-DK')}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
