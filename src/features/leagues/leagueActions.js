@@ -58,6 +58,16 @@ export async function createLeague(name, ownerUid, scoring = DEFAULT_SCORING) {
 }
 
 /**
+ * Slå AI-morgenopslag (VM-Botten) til/fra for en liga (liga-ejer).
+ * @param {string} leagueId
+ * @param {boolean} enabled
+ */
+export async function setLeagueAiRecaps(leagueId, enabled) {
+  if (!leagueId) throw new Error('Mangler liga-id.');
+  await updateDoc(doc(db, COL.LEAGUES, leagueId), { aiRecaps: enabled });
+}
+
+/**
  * Generér en ny join-/invitationskode for en liga (liga-ejer).
  * Brugbart hvis den gamle kode er lækket. Den gamle kode holder op med at virke.
  * @param {string} leagueId

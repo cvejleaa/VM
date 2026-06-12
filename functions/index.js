@@ -35,6 +35,9 @@ const SMTP_PASSWORD = defineSecret('SMTP_PASSWORD');
 // football-data.org API-token (auto-resultater). Sættes med:
 //   firebase functions:secrets:set FOOTBALL_DATA_TOKEN
 const FOOTBALL_DATA_TOKEN = defineSecret('FOOTBALL_DATA_TOKEN');
+// Anthropic API-nøgle til AI-morgenopslag. Sættes med:
+//   firebase functions:secrets:set ANTHROPIC_API_KEY
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const SMTP_HOST = 'send.one.com';
 const SMTP_PORT = 465; // implicit TLS
 const SMTP_USER = 'vm@vejleaa.dk';
@@ -49,6 +52,8 @@ const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summar
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
+const Anthropic = require('@anthropic-ai/sdk');
+const { RECAP_SYSTEM, buildRecapFacts } = require('./leagueRecap');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -771,6 +776,139 @@ async function runSyncResults(db, token, { now = new Date(), dryRun = false, ful
   }
   return { checked: candidates.length, updated, review, dryRun, changes };
 }
+
+// ---------------------------------------------------------------------------
+// AI-morgenopslag (VM-Botten) — genererer hver morgen kl. 07:00 et kort dansk
+// vægopslag pr. liga om seneste døgns udvikling. Bruger Claude (Opus 4.8).
+// ---------------------------------------------------------------------------
+
+// Saml døgnets fakta ÉN gang (deles af alle ligaer): afsluttede kampe, point
+// pr. spiller, og dagens kommende kampe.
+async function gatherRecapDayData(db, now) {
+  const dayStartMs = now.getTime() - 30 * 3600 * 1000; // dækker aften-kampe der trak ud
+  const finSnap = await db.collection('matches')
+    .where('kickoff', '>=', Timestamp.fromMillis(dayStartMs))
+    .where('kickoff', '<=', Timestamp.fromMillis(now.getTime()))
+    .get();
+  const finished = finSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((m) => m.status === 'finished' && m.result);
+
+  const dayPointsByUid = {};
+  for (const m of finished) {
+    const bets = await db.collection('bets').where('matchId', '==', m.id).get();
+    for (const b of bets.docs) {
+      const x = b.data();
+      dayPointsByUid[x.uid] = (dayPointsByUid[x.uid] || 0) + Number(x.points || 0);
+    }
+  }
+  const matches = finished.map((m) => ({
+    home: m.homeTeam, away: m.awayTeam, score: `${m.result.home}-${m.result.away}`,
+  }));
+
+  const upSnap = await db.collection('matches')
+    .where('kickoff', '>=', Timestamp.fromMillis(now.getTime()))
+    .where('kickoff', '<=', Timestamp.fromMillis(now.getTime() + 24 * 3600 * 1000))
+    .get();
+  const upcoming = upSnap.docs
+    .map((d) => d.data())
+    .filter((m) => m.homeTeam && m.awayTeam)
+    .map((m) => ({
+      home: m.homeTeam, away: m.awayTeam,
+      time: m.kickoff.toDate().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: TZ }),
+    }));
+
+  return { dayPointsByUid, matches, upcoming };
+}
+
+function recapAlreadyToday(ts, now) {
+  if (!ts) return false;
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const fmt = (x) => x.toLocaleDateString('da-DK', { timeZone: TZ });
+  return fmt(d) === fmt(now);
+}
+
+async function generateRecapText(anthropic, facts) {
+  const res = await anthropic.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: 600,
+    thinking: { type: 'adaptive' },
+    system: RECAP_SYSTEM,
+    messages: [{ role: 'user', content: JSON.stringify(facts) }],
+  });
+  return (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+}
+
+async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = false, onlyLeagueId = null } = {}) {
+  const anthropic = new Anthropic({ apiKey });
+  const { dayPointsByUid, matches, upcoming } = await gatherRecapDayData(db, now);
+
+  const usersSnap = await db.collection('users').get();
+  const usersById = new Map(usersSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+
+  const leaguesSnap = await db.collection('leagues').where('status', '==', 'approved').get();
+  const results = [];
+  for (const ld of leaguesSnap.docs) {
+    const league = { id: ld.id, ...ld.data() };
+    if (onlyLeagueId && league.id !== onlyLeagueId) continue;
+    if (league.aiRecaps === false) continue; // ejer har slået det fra
+    const members = (league.memberUids || []).map((uid) => usersById.get(uid)).filter(Boolean);
+    if (members.length < 2) continue;
+    if (!dryRun && recapAlreadyToday(league.lastRecapAt, now)) continue;
+
+    const facts = buildRecapFacts({ league, members, dayPointsByUid, matches, upcoming, now });
+    let text;
+    try {
+      text = await generateRecapText(anthropic, facts);
+    } catch (err) {
+      console.error('leagueRecap: AI-fejl for liga', league.id, err?.message || err);
+      continue;
+    }
+    if (!text) continue;
+    results.push({ leagueId: league.id, leagueName: league.name, text });
+
+    if (!dryRun) {
+      await db.collection('leagueComments').add({
+        leagueId: league.id, uid: 'ai-bot', displayName: 'VM-Botten', avatarEmoji: '🤖',
+        favoriteTeam: null, text, system: true, createdAt: FieldValue.serverTimestamp(),
+      });
+      await db.collection('leagues').doc(league.id).set(
+        { lastRecapAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+  }
+  return { leagues: results.length, results };
+}
+
+// Skemalagt: hver morgen kl. 07:00 (Europe/Copenhagen).
+exports.generateLeagueRecaps = onSchedule(
+  { schedule: '0 7 * * *', timeZone: TZ, region: REGION, secrets: [ANTHROPIC_API_KEY] },
+  async () => {
+    const db = getFirestore();
+    const apiKey = ANTHROPIC_API_KEY.value();
+    if (!apiKey) { console.log('generateLeagueRecaps: ANTHROPIC_API_KEY ikke sat — springer over.'); return; }
+    try {
+      const res = await runGenerateLeagueRecaps(db, apiKey);
+      console.log(`generateLeagueRecaps: postede i ${res.leagues} liga(er).`);
+    } catch (err) {
+      console.error('generateLeagueRecaps: fejl', err);
+    }
+  }
+);
+
+// Manuel forhåndsvisning/kørsel (owner/global admin). dryRun=true poster ikke.
+exports.generateLeagueRecapNow = onCall(
+  { region: REGION, secrets: [ANTHROPIC_API_KEY] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const apiKey = ANTHROPIC_API_KEY.value();
+    if (!apiKey) throw new HttpsError('failed-precondition', 'ANTHROPIC_API_KEY er ikke sat.');
+    return runGenerateLeagueRecaps(db, apiKey, {
+      dryRun: request.data?.dryRun === true,
+      onlyLeagueId: request.data?.leagueId || null,
+    });
+  }
+);
 
 exports.syncResults = onSchedule(
   { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },

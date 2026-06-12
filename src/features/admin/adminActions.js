@@ -296,6 +296,25 @@ export async function callPreviewFootballData({ code } = {}) {
 }
 
 /**
+ * Kald Cloud Function 'generateLeagueRecapNow' — generér AI-morgenopslag.
+ * dryRun=true poster ikke, men returnerer teksten til forhåndsvisning.
+ * @param {{ leagueId?: string, dryRun?: boolean }} [opts]
+ */
+export async function callGenerateLeagueRecapNow({ leagueId, dryRun = false } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'generateLeagueRecapNow');
+    const res = await fn({ leagueId, dryRun });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "generateLeagueRecapNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af generateLeagueRecapNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */
