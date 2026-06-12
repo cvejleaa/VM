@@ -17,6 +17,7 @@ export default defineConfig({
       'bonusResolve.test.js',
       'pipeline.integration.test.js',
       'invites.test.js',
+      'leagueRecap.test.js',
     ],
     exclude: [
       'rules.test.js',

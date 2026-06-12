@@ -12,6 +12,7 @@ import {
   removeMember,
   setLeagueAdmin,
   setLeagueScoring,
+  setLeagueAiRecaps,
 } from './leagueActions';
 
 // ── Mock firebase/firestore ───────────────────────────────────────────────────
@@ -364,5 +365,16 @@ describe('removeMember', () => {
   it('kalder ikke updateDoc ved ugyldig operation', async () => {
     await expect(removeMember('liga-1', 'ejer-uid', 'ejer-uid')).rejects.toThrow();
     expect(mockUpdateDoc).not.toHaveBeenCalled();
+  });
+});
+
+describe('setLeagueAiRecaps', () => {
+  beforeEach(() => mockUpdateDoc.mockClear());
+  it('kalder updateDoc med aiRecaps-flag', async () => {
+    await setLeagueAiRecaps('liga-1', false);
+    expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { aiRecaps: false });
+  });
+  it('kræver liga-id', async () => {
+    await expect(setLeagueAiRecaps()).rejects.toThrow(/liga-id/);
   });
 });

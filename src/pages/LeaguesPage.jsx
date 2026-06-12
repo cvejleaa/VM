@@ -22,7 +22,9 @@ import {
   renameLeague,
   setLeagueScoring,
   regenerateJoinCode,
+  setLeagueAiRecaps,
 } from '../features/leagues/leagueActions';
+import { callGenerateLeagueRecapNow } from '../features/admin/adminActions';
 import {
   normalizeScoring, scoringLabel, isFullScoring, SCORING_COMPONENTS, DEFAULT_SCORING, leagueScore,
 } from '../features/leagues/leagueFormat';
@@ -98,6 +100,24 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const [renaming, setRenaming] = useState(false);
   const [savingFormat, setSavingFormat] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [recapBusy, setRecapBusy] = useState(false);
+  const [recapPreview, setRecapPreview] = useState('');
+  const aiRecapsOn = league.aiRecaps !== false; // default til
+
+  async function handleToggleAiRecaps() {
+    setActionError('');
+    try { await setLeagueAiRecaps(league.id, !aiRecapsOn); }
+    catch (e) { setActionError(e.message); }
+  }
+
+  async function handlePreviewRecap() {
+    setRecapBusy(true); setActionError(''); setRecapPreview('');
+    const res = await callGenerateLeagueRecapNow({ leagueId: league.id, dryRun: true });
+    setRecapBusy(false);
+    if (!res.ok) { setActionError(res.error); return; }
+    const r = res.data?.results?.[0];
+    setRecapPreview(r ? r.text : '(Botten ville ikke skrive et opslag for denne liga i dag.)');
+  }
 
   async function handleRegenerateCode() {
     if (!window.confirm('Generér en ny invitationskode? Den nuværende kode holder op med at virke.')) return;
@@ -280,6 +300,31 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
                 Slutspil tæller dobbelt
               </label>
             </div>
+          </div>
+        )}
+
+        {/* AI-morgenopslag (kun ejer) */}
+        {isOwner && (
+          <div style={{ marginTop: '0.6rem' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+              <input type="checkbox" checked={aiRecapsOn} onChange={handleToggleAiRecaps} />
+              🤖 AI-morgenopslag kl. 07:00 (VM-Botten)
+            </label>
+            {aiRecapsOn && (
+              <button
+                className="btn btn--ghost btn--sm"
+                style={{ marginLeft: '0.5rem' }}
+                onClick={handlePreviewRecap}
+                disabled={recapBusy}
+              >
+                {recapBusy ? 'Skriver…' : '👀 Forhåndsvis'}
+              </button>
+            )}
+            {recapPreview && (
+              <div style={{ marginTop: '0.4rem', padding: '0.5rem 0.7rem', background: 'var(--c-bg)', border: '1px solid var(--c-border)', borderRadius: 8, fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
+                {recapPreview}
+              </div>
+            )}
           </div>
         )}
 

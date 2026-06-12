@@ -38,6 +38,7 @@ import {
   setUserStatus,
   setGlobalAdminRole,
   sendAdminPasswordReset,
+  callGenerateLeagueRecapNow,
   saveMatchResult,
   clearManualLock,
   callSyncResultsNow,
@@ -191,6 +192,17 @@ describe('adminActions', () => {
       expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'adminSendPasswordReset');
       expect(mockFn).toHaveBeenCalledWith({ uid: 'uid-9' });
       expect(res).toEqual({ email: 'a@b.dk', sent: true, link: 'https://x/reset' });
+    });
+  });
+
+  describe('callGenerateLeagueRecapNow', () => {
+    it('kalder generateLeagueRecapNow med leagueId og dryRun', async () => {
+      const mockFn = vi.fn().mockResolvedValue({ data: { leagues: 1, results: [{ text: 'God morgen!' }] } });
+      mockHttpsCallable.mockReturnValue(mockFn);
+      const res = await callGenerateLeagueRecapNow({ leagueId: 'lg1', dryRun: true });
+      expect(mockHttpsCallable).toHaveBeenCalledWith(expect.anything(), 'generateLeagueRecapNow');
+      expect(mockFn).toHaveBeenCalledWith({ leagueId: 'lg1', dryRun: true });
+      expect(res).toEqual({ ok: true, data: { leagues: 1, results: [{ text: 'God morgen!' }] } });
     });
   });
 
