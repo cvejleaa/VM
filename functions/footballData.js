@@ -254,6 +254,19 @@ function mapBookings(m) {
   }));
 }
 
+/** Udskiftninger med minut, ind/ud-spiller og side. */
+function mapSubstitutions(m) {
+  const match = unwrap(m);
+  const arr = Array.isArray(match?.substitutions) ? match.substitutions : [];
+  return arr.map((s) => ({
+    minute: s.minute ?? null,
+    injuryTime: s.injuryTime ?? null,
+    side: sideOf(s.team?.id, match),
+    playerIn: s.playerIn?.name ?? null,
+    playerOut: s.playerOut?.name ?? null,
+  }));
+}
+
 /** Startopstilling + bænk + formation + træner pr. hold. */
 function mapLineups(m) {
   const match = unwrap(m);
@@ -280,6 +293,7 @@ function mapMatchDetails(m) {
   return {
     goals: mapGoals(m),
     bookings: mapBookings(m),
+    substitutions: mapSubstitutions(m),
     lineups: hasLineups ? lineups : null,
     halfTime: score.halfTime?.home != null ? { home: score.halfTime.home, away: score.halfTime.away } : null,
     penalties: score.penalties?.home != null ? { home: score.penalties.home, away: score.penalties.away } : null,
@@ -308,5 +322,5 @@ module.exports = {
   COMPETITION_CODE, BASE, REVIEW_STATUSES,
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
+  mapGoals, mapBookings, mapSubstitutions, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
 };

@@ -4,7 +4,7 @@ const require = createRequire(import.meta.url);
 const {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
-  mapGoals, mapBookings, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
+  mapGoals, mapBookings, mapSubstitutions, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
 } = require('./footballData');
 
 function makeRes(status, body, headerEntries = []) {
@@ -170,6 +170,7 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
       { minute: 67, type: 'PENALTY', team: { id: 20 }, scorer: { name: 'C' }, assist: null },
     ],
     bookings: [{ minute: 40, team: { id: 20 }, player: { name: 'D' }, card: 'YELLOW' }],
+    substitutions: [{ minute: 71, team: { id: 10 }, playerOut: { name: 'A' }, playerIn: { name: 'E' } }],
     referees: [{ name: 'Dommer', type: 'REFEREE' }, { name: 'Linje', type: 'ASSISTANT_REFEREE_N1' }],
     score: { halfTime: { home: 1, away: 0 }, penalties: { home: 4, away: 3 } },
     minute: 67, injuryTime: 2,
@@ -186,6 +187,12 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
     expect(mapBookings(detail)).toEqual([{ minute: 40, side: 'away', player: 'D', card: 'YELLOW' }]);
   });
 
+  it('mapSubstitutions udleder side, ind- og ud-spiller', () => {
+    expect(mapSubstitutions(detail)).toEqual([
+      { minute: 71, injuryTime: null, side: 'home', playerIn: 'E', playerOut: 'A' },
+    ]);
+  });
+
   it('mapLineups giver formation, træner, startopstilling og bænk', () => {
     const l = mapLineups(detail);
     expect(l.home).toMatchObject({ formation: '4-3-3', coach: 'Hjemmetræner' });
@@ -197,6 +204,7 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
     const d = mapMatchDetails(detail);
     expect(d.goals).toHaveLength(2);
     expect(d.bookings).toHaveLength(1);
+    expect(d.substitutions).toHaveLength(1);
     expect(d.lineups).not.toBeNull();
     expect(d.halfTime).toEqual({ home: 1, away: 0 });
     expect(d.penalties).toEqual({ home: 4, away: 3 });

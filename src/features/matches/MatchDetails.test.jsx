@@ -23,6 +23,16 @@ describe('MatchDetails', () => {
     expect(screen.getByText(/50.000 tilskuere/)).toBeInTheDocument();
   });
 
+  it('viser udskiftninger i tidslinjen med ind/ud-spiller', () => {
+    const match = { ...base, details: {
+      goals: [], bookings: [],
+      substitutions: [{ minute: 71, side: 'home', playerIn: 'Endrick', playerOut: 'Neymar' }],
+    } };
+    render(<MatchDetails match={match} homeName="Brasilien" awayName="Argentina" />);
+    expect(screen.getByText(/Endrick ↑ Neymar ↓/)).toBeInTheDocument();
+    expect(screen.getByText(/71'/)).toBeInTheDocument();
+  });
+
   it('udfolder opstillinger ved klik', () => {
     const match = { ...base, details: {
       goals: [], bookings: [],
