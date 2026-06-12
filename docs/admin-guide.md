@@ -45,6 +45,11 @@ spam eller blokeres af visse udbydere som Outlook/Hotmail):
    forlænget tid/straffe).
 4. Point til alle spillere beregnes automatisk med det samme.
 
+> **Resultater opdateres normalt automatisk** fra football-data.org under kampe.
+> Mangler der resultater for ældre, færdigspillede kampe, så brug **Admin →
+> Kampe → 🗓 Synk alle resultater** (henter for alle uafsluttede kampe, ikke kun
+> de igangværende). **🕐 Tjek kamptider** retter forskudte kickoff-tider.
+
 ## Byg slutspillet
 - Når **alle** gruppekampe har resultat, tryk **Byg slutspil**.
 - Systemet udregner grupperangeringen og sætter de rigtige hold ind i
