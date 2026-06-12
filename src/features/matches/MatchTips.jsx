@@ -9,15 +9,21 @@ import Avatar from '../../components/Avatar';
 import Reactions from '../reactions/Reactions';
 import { COL, ROUNDS } from '../../lib/constants';
 
-export default function MatchTips({ match, meUid, usersByUid = {} }) {
+export default function MatchTips({ match, meUid, usersByUid = {}, visibleUids = null }) {
   const [open, setOpen] = useState(false);
   const { bets, loading } = useMatchBets(match.id, open);
   const isKnockout = match.round !== ROUNDS.GROUP;
 
   const nameOf = (uid) => usersByUid[uid]?.displayName || 'Spiller';
 
+  // Vis kun tips fra spillere man deler en liga med (+ ens egne). Uden liste
+  // (fald-tilbage) vises alle.
+  const visible = visibleUids
+    ? bets.filter((b) => b.uid === meUid || visibleUids.has(b.uid))
+    : bets;
+
   // Sortér: flest point øverst (når afgjort), ellers efter navn
-  const sorted = [...bets].sort((a, b) => {
+  const sorted = [...visible].sort((a, b) => {
     if (typeof a.points === 'number' && typeof b.points === 'number') return b.points - a.points;
     return nameOf(a.uid).localeCompare(nameOf(b.uid), 'da');
   });

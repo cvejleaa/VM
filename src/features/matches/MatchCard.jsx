@@ -30,7 +30,7 @@ const MAX_KNOCKOUT_POINTS = POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE; // 7
  *   bet: object|null,
  * }} props
  */
-export default function MatchCard({ match, uid, bet, usersByUid = {} }) {
+export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUids = null }) {
   const locked = isMatchLocked(match.kickoff);
   const isKnockout = match.round !== ROUNDS.GROUP;
   const isPendingTeams = match.status === MATCH_STATUS.PENDING_TEAMS;
@@ -350,7 +350,7 @@ export default function MatchCard({ match, uid, bet, usersByUid = {} }) {
 
       {/* Alles tips + reaktioner (kun efter kickoff, og kun for kampe med kendte hold) */}
       {locked && !isPendingTeams && (
-        <MatchTips match={match} meUid={uid} usersByUid={usersByUid} />
+        <MatchTips match={match} meUid={uid} usersByUid={usersByUid} visibleUids={visibleUids} />
       )}
     </div>
   );

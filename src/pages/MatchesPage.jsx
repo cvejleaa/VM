@@ -17,6 +17,8 @@ import {
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
 import { useStandings } from '../features/leaderboard/useStandings';
+import { useLeagues } from '../features/leagues/useLeagues';
+import { buildContactLeagues } from '../features/comments/contactLeagues';
 import { TIMEZONE } from '../lib/constants';
 
 // Filterkonstanter
@@ -56,6 +58,15 @@ export default function MatchesPage() {
   }, [standings]);
 
   const uid = user?.uid ?? '';
+
+  // Afslørede tips vises kun for spillere man deler en liga med (+ én selv).
+  const { leagues } = useLeagues(uid || null);
+  const visibleUids = useMemo(() => {
+    const set = new Set(Object.keys(buildContactLeagues(leagues, uid)));
+    if (uid) set.add(uid);
+    return set;
+  }, [leagues, uid]);
+
   const today = todayKey();
 
   // Anvend valgt filter på kamplisten
@@ -207,6 +218,7 @@ export default function MatchesPage() {
                       uid={uid}
                       bet={bets.get(match.id) ?? null}
                       usersByUid={usersByUid}
+                      visibleUids={visibleUids}
                     />
                   ))}
                 </div>
