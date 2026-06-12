@@ -11,6 +11,7 @@ import {
   isMatchLocked,
   formatKickoffTime,
   roundLabel,
+  liveMinuteLabel,
 } from './matchHelpers';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
@@ -35,6 +36,7 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
   const isKnockout = match.round !== ROUNDS.GROUP;
   const isPendingTeams = match.status === MATCH_STATUS.PENDING_TEAMS;
   const isFinished = match.status === MATCH_STATUS.FINISHED;
+  const isLive = match.status === MATCH_STATUS.LIVE;
 
   // Holdnavne (fuldt landenavn, eller placeholders for ukendte knockout-hold)
   const homeName = match.homeTeam ? teamName(match.homeTeam) : (match.homePlaceholder ?? 'Hjemmehold');
@@ -184,15 +186,25 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
           <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{homeName}</span>
         </div>
 
-        {/* Resultat eller "vs" */}
-        <div style={{ textAlign: 'center', minWidth: 48 }}>
-          {isFinished && match.result ? (
-            <span
-              style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--c-text)' }}
-              data-testid="match-result"
-            >
-              {match.result.home}–{match.result.away}
-            </span>
+        {/* Resultat (live eller afsluttet) eller "vs" */}
+        <div style={{ textAlign: 'center', minWidth: 56 }}>
+          {(isFinished || isLive) && match.result ? (
+            <>
+              <span
+                style={{ fontSize: '1.1rem', fontWeight: 800, color: isLive ? 'var(--c-err)' : 'var(--c-text)' }}
+                data-testid="match-result"
+              >
+                {match.result.home}–{match.result.away}
+              </span>
+              {isLive && (
+                <div
+                  data-testid="live-minute"
+                  style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--c-err)', marginTop: 1, whiteSpace: 'nowrap' }}
+                >
+                  🔴 {liveMinuteLabel(match)}
+                </div>
+              )}
+            </>
           ) : (
             <span style={{ fontSize: '0.9rem', color: 'var(--c-muted)', fontWeight: 600 }}>
               vs

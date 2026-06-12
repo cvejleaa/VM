@@ -172,6 +172,7 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
     bookings: [{ minute: 40, team: { id: 20 }, player: { name: 'D' }, card: 'YELLOW' }],
     referees: [{ name: 'Dommer', type: 'REFEREE' }, { name: 'Linje', type: 'ASSISTANT_REFEREE_N1' }],
     score: { halfTime: { home: 1, away: 0 }, penalties: { home: 4, away: 3 } },
+    minute: 67, injuryTime: 2,
     attendance: 62471,
   } };
 
@@ -201,6 +202,8 @@ describe('mapGoals / mapBookings / mapLineups / mapMatchDetails', () => {
     expect(d.penalties).toEqual({ home: 4, away: 3 });
     expect(d.attendance).toBe(62471);
     expect(d.referee).toBe('Dommer');
+    expect(d.minute).toBe(67);
+    expect(d.injuryTime).toBe(2);
   });
 
   it('mapMatchDetails: lineups=null når der ingen opstillinger er', () => {

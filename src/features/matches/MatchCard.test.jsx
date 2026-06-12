@@ -110,6 +110,18 @@ describe('MatchCard – resultater og point', () => {
     expect(screen.getByTestId('match-result')).toHaveTextContent('2–1');
   });
 
+  it('viser løbende score og spilleminut når kampen er live', () => {
+    const m = makeMatch({
+      kickoff: pastKickoff,
+      status: 'live',
+      result: { home: 1, away: 0 },
+      details: { minute: 43 },
+    });
+    render(<MatchCard match={m} uid="u1" bet={null} />);
+    expect(screen.getByTestId('match-result')).toHaveTextContent('1–0');
+    expect(screen.getByTestId('live-minute')).toHaveTextContent("1. halvleg · 43'");
+  });
+
   it('viser optjente point for bruger med tip', () => {
     const m = makeMatch({
       kickoff: pastKickoff,
