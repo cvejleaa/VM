@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
-  teamCodeMatches, matchFixture, winnerToCode, decideUpdate, patchChangesDoc,
+  teamCodeMatches, matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
 } = require('./resultsSync');
 
 const NOW = new Date('2026-06-11T21:00:00Z');
@@ -140,5 +140,35 @@ describe('patchChangesDoc', () => {
   it('true når advance tilføjes', () => {
     const m = { status: 'finished', result: { home: 1, away: 1 } };
     expect(patchChangesDoc(m, { status: 'finished', result: { home: 1, away: 1, advance: 'ARG' } })).toBe(true);
+  });
+});
+
+describe('auditKickoffs', () => {
+  const fd = [
+    { id: 101, utcDate: '2026-06-12T02:00:00Z', homeTeam: { tla: 'KOR', name: 'South Korea' }, awayTeam: { tla: 'CZE', name: 'Czechia' } },
+    { id: 102, utcDate: '2026-06-11T19:00:00Z', homeTeam: { tla: 'MEX', name: 'Mexico' }, awayTeam: { tla: 'RSA', name: 'South Africa' } },
+  ];
+
+  it('finder en kamp hvor tiden afviger (matcher på hold)', () => {
+    const ours = [
+      { id: 'grp_A_2', homeTeam: 'KOR', awayTeam: 'CZE', kickoff: '2026-06-13T02:00:00Z' }, // 1 dag for sent
+      { id: 'grp_A_1', homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-11T19:00:00Z' }, // korrekt
+    ];
+    const changes = auditKickoffs(ours, fd);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      id: 'grp_A_2', home: 'KOR', away: 'CZE',
+      fromISO: '2026-06-13T02:00:00.000Z', toISO: '2026-06-12T02:00:00.000Z', fdId: '101',
+    });
+  });
+
+  it('returnerer tomt når alt stemmer', () => {
+    const ours = [{ id: 'grp_A_1', homeTeam: 'MEX', awayTeam: 'RSA', kickoff: '2026-06-11T19:00:00Z' }];
+    expect(auditKickoffs(ours, fd)).toEqual([]);
+  });
+
+  it('ignorerer kampe uden hold (knockout-pladsholdere)', () => {
+    const ours = [{ id: 'r16_1', homeTeam: null, awayTeam: null, kickoff: '2026-07-01T19:00:00Z' }];
+    expect(auditKickoffs(ours, fd)).toEqual([]);
   });
 });
