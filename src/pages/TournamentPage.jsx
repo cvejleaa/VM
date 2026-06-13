@@ -9,6 +9,10 @@ import { roundLabel, formatKickoffTime, formatKickoffDate, dayKey } from '../fea
 import { teamName } from '../lib/teams';
 import { ROUNDS, MATCH_STATUS } from '../lib/constants';
 import Flag from '../components/Flag';
+import { TopScorersList } from '../features/stats/TopScorersCard';
+import { useTopScorers } from '../features/stats/useTopScorers';
+import DisciplineCard from '../features/stats/DisciplineCard';
+import { computeDiscipline } from '../features/stats/statsUtils';
 import '../features/tournament/tournament.css';
 
 // ─── Konstanter ────────────────────────────────────────────────────────────
@@ -17,6 +21,8 @@ const FANER = [
   { id: 'grupper',     label: 'Grupper' },
   { id: 'mellemrunde', label: 'Mellemrunde' },
   { id: 'slutspil',    label: 'Slutspil' },
+  { id: 'topscorere',  label: 'Topscorere' },
+  { id: 'disciplin',   label: 'Disciplin' },
 ];
 
 // Rækkefølgen vi viser knockout-runder i slutspil
@@ -350,6 +356,45 @@ function SlutspilFane({ matches }) {
   );
 }
 
+/**
+ * Topscorere-fane: turneringens målscorere fra football-data.org.
+ */
+function TopscorereFane() {
+  const { list, updatedAt, loading } = useTopScorers();
+
+  if (loading) {
+    return <p className="text-center text-muted text-sm">Henter topscorere…</p>;
+  }
+  if (!list || list.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state__icon">⚽</div>
+        <div className="empty-state__title">Ingen topscorere endnu</div>
+        <p className="text-muted text-sm">Listen fyldes, så snart der scores mål.</p>
+      </div>
+    );
+  }
+  return <TopScorersList list={list} updatedAt={updatedAt} limit={20} />;
+}
+
+/**
+ * Disciplin-fane: flest gule/røde kort pr. hold og spiller.
+ */
+function DisciplinFane({ matches }) {
+  const { totals } = computeDiscipline(matches);
+
+  if (totals.yellow === 0 && totals.red === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state__icon">🟨</div>
+        <div className="empty-state__title">Ingen kort endnu</div>
+        <p className="text-muted text-sm">Disciplin-oversigten fyldes, når der vises kort.</p>
+      </div>
+    );
+  }
+  return <DisciplineCard matches={matches} limit={10} />;
+}
+
 // ─── Hoved-komponent ───────────────────────────────────────────────────────
 
 export default function TournamentPage() {
@@ -424,6 +469,12 @@ export default function TournamentPage() {
       )}
       {aktivFane === 'slutspil' && (
         <SlutspilFane matches={matches} />
+      )}
+      {aktivFane === 'topscorere' && (
+        <TopscorereFane />
+      )}
+      {aktivFane === 'disciplin' && (
+        <DisciplinFane matches={matches} />
       )}
     </div>
   );
