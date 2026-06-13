@@ -13,6 +13,13 @@ function goalSuffix(type) {
   return '';
 }
 
+// Modsat side (selvmål tæller for modstanderen). Bevarer null uændret.
+function flipSide(side) {
+  if (side === 'home') return 'away';
+  if (side === 'away') return 'home';
+  return side;
+}
+
 function minuteLabel(ev) {
   if (ev.minute == null) return '';
   return ev.injuryTime ? `${ev.minute}+${ev.injuryTime}'` : `${ev.minute}'`;
@@ -91,9 +98,10 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const d = match.details;
   if (!d) return null;
 
-  // Saml mål + kort kronologisk.
+  // Saml mål + kort kronologisk. Selvmål tæller for modstanderen, så de vises
+  // på den modsatte side (med scorerens navn + "(selvmål)").
   const events = [
-    ...(d.goals ?? []).map((g) => ({ ...g, kind: 'goal' })),
+    ...(d.goals ?? []).map((g) => ({ ...g, kind: 'goal', side: g.type === 'OWN' ? flipSide(g.side) : g.side })),
     ...(d.bookings ?? []).map((b) => ({ ...b, kind: 'card' })),
     ...(d.substitutions ?? []).map((s) => ({ ...s, kind: 'sub' })),
   ].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
