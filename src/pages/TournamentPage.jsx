@@ -9,8 +9,6 @@ import { roundLabel, formatKickoffTime, formatKickoffDate, dayKey } from '../fea
 import { teamName } from '../lib/teams';
 import { ROUNDS, MATCH_STATUS } from '../lib/constants';
 import Flag from '../components/Flag';
-import StandingsTable from '../features/stats/StandingsTable';
-import { useOfficialStandings } from '../features/stats/useOfficialStandings';
 import '../features/tournament/tournament.css';
 
 // ─── Konstanter ────────────────────────────────────────────────────────────
@@ -357,7 +355,6 @@ function SlutspilFane({ matches }) {
 export default function TournamentPage() {
   const { matches, loading, error } = useMatches();
   const [aktivFane, setAktivFane] = useState('grupper');
-  const { tables: officialTables } = useOfficialStandings();
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -420,10 +417,7 @@ export default function TournamentPage() {
 
       {/* Fane-indhold */}
       {aktivFane === 'grupper' && (
-        <>
-          <StandingsTable tables={officialTables} title="📊 Officiel stilling (FIFA)" />
-          <GrupperFane matches={matches} />
-        </>
+        <GrupperFane matches={matches} />
       )}
       {aktivFane === 'mellemrunde' && (
         <MellemrundeFane matches={matches} />
