@@ -107,6 +107,49 @@ export function formatKickoffDate(kickoff) {
   }).format(d);
 }
 
+/** ms-tid for et kickoff-felt (Timestamp/Date/ms). Ugyldigt → 0. */
+function kickoffMs(kickoff) {
+  if (!kickoff) return 0;
+  const d = typeof kickoff.toDate === 'function' ? kickoff.toDate() : new Date(kickoff);
+  const t = d.getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Find id'et på den "aktuelle" kamp ud fra uret:
+ *  1) første kamp der er i gang (status 'live'), ellers
+ *  2) næste kamp hvis kickoff endnu ikke er passeret, ellers
+ *  3) sidste kamp (alt er spillet).
+ * Forventer kampe sorteret stigende på kickoff.
+ * @param {Array} matches
+ * @param {Date} [now]
+ * @returns {string|null}
+ */
+export function findCurrentMatchId(matches, now = new Date()) {
+  if (!Array.isArray(matches) || matches.length === 0) return null;
+  const nowMs = now.getTime();
+  const live = matches.find((m) => m.status === 'live');
+  if (live) return live.id ?? null;
+  const next = matches.find((m) => kickoffMs(m.kickoff) >= nowMs);
+  if (next) return next.id ?? null;
+  return matches[matches.length - 1].id ?? null;
+}
+
+/**
+ * Er en dag-gruppe "tidligere" (alle kampe spillet og ikke i dag)?
+ * Bruges til at folde gamle kampe sammen i kamplisten.
+ * @param {{label:string, matches:Array}} group
+ * @param {string} todayLabel  dansk dagsnøgle for i dag (fra dayKey)
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isDayGroupPast(group, todayLabel, now = new Date()) {
+  if (!group || !Array.isArray(group.matches) || group.matches.length === 0) return false;
+  if (group.label === todayLabel) return false;
+  const nowMs = now.getTime();
+  return group.matches.every((m) => m.status !== 'live' && kickoffMs(m.kickoff) < nowMs);
+}
+
 /**
  * Returnerer rundens fulde danske navn.
  * @param {string} round
