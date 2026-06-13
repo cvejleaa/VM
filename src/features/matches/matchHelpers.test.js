@@ -9,6 +9,8 @@ import {
   roundLabel,
   flagEmoji,
   liveMinuteLabel,
+  findCurrentMatchId,
+  isDayGroupPast,
 } from './matchHelpers';
 
 // ---------------------------------------------------------------------------
@@ -358,5 +360,80 @@ describe('liveMinuteLabel', () => {
   it('falder tilbage til LIVE uden minut', () => {
     expect(liveMinuteLabel({ details: {} })).toBe('LIVE');
     expect(liveMinuteLabel({})).toBe('LIVE');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findCurrentMatchId
+// ---------------------------------------------------------------------------
+describe('findCurrentMatchId', () => {
+  const now = new Date('2026-06-13T18:00:00Z');
+  const at = (h) => new Date(`2026-06-13T${String(h).padStart(2, '0')}:00:00Z`);
+
+  it('vælger en kamp der er i gang (live)', () => {
+    const matches = [
+      { id: 'a', kickoff: at(12), status: 'finished' },
+      { id: 'b', kickoff: at(17), status: 'live' },
+      { id: 'c', kickoff: at(20), status: 'scheduled' },
+    ];
+    expect(findCurrentMatchId(matches, now)).toBe('b');
+  });
+
+  it('vælger næste kommende kamp når ingen er live', () => {
+    const matches = [
+      { id: 'a', kickoff: at(12), status: 'finished' },
+      { id: 'b', kickoff: at(20), status: 'scheduled' },
+      { id: 'c', kickoff: at(22), status: 'scheduled' },
+    ];
+    expect(findCurrentMatchId(matches, now)).toBe('b');
+  });
+
+  it('vælger sidste kamp når alt er spillet', () => {
+    const matches = [
+      { id: 'a', kickoff: at(10), status: 'finished' },
+      { id: 'b', kickoff: at(12), status: 'finished' },
+    ];
+    expect(findCurrentMatchId(matches, now)).toBe('b');
+  });
+
+  it('returnerer null for tom liste', () => {
+    expect(findCurrentMatchId([], now)).toBeNull();
+    expect(findCurrentMatchId(null, now)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isDayGroupPast
+// ---------------------------------------------------------------------------
+describe('isDayGroupPast', () => {
+  const now = new Date('2026-06-13T18:00:00Z');
+
+  it('er sand når alle kampe er spillet og ikke i dag', () => {
+    const group = { label: 'i går', matches: [
+      { kickoff: new Date('2026-06-12T15:00:00Z'), status: 'finished' },
+      { kickoff: new Date('2026-06-12T18:00:00Z'), status: 'finished' },
+    ] };
+    expect(isDayGroupPast(group, 'i dag', now)).toBe(true);
+  });
+
+  it('er falsk for i dag (matcher todayLabel)', () => {
+    const group = { label: 'i dag', matches: [
+      { kickoff: new Date('2026-06-13T10:00:00Z'), status: 'finished' },
+    ] };
+    expect(isDayGroupPast(group, 'i dag', now)).toBe(false);
+  });
+
+  it('er falsk når en kamp stadig er live', () => {
+    const group = { label: 'i går', matches: [
+      { kickoff: new Date('2026-06-12T17:00:00Z'), status: 'live' },
+    ] };
+    expect(isDayGroupPast(group, 'i dag', now)).toBe(false);
+  });
+
+  it('er falsk når en kamp ligger i fremtiden', () => {
+    const group = { label: 'i morgen', matches: [
+      { kickoff: new Date('2026-06-14T17:00:00Z'), status: 'scheduled' },
+    ] };
+    expect(isDayGroupPast(group, 'i dag', now)).toBe(false);
   });
 });

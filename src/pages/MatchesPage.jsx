@@ -3,7 +3,7 @@
 // Sorterer kampe efter kickoff, grupperer visuelt per dag og runde.
 // Filtre: Alle / I dag / Kommende / Mine utippede.
 // ---------------------------------------------------------------------------
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useMatches } from '../features/matches/useMatches';
@@ -14,6 +14,8 @@ import {
   isTippable,
   dayKey,
   roundLabel,
+  findCurrentMatchId,
+  isDayGroupPast,
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
 import { useStandings } from '../features/leaderboard/useStandings';
@@ -94,6 +96,30 @@ export default function MatchesPage() {
     [filteredMatches],
   );
 
+  // Del dagene i "tidligere" (foldes sammen) og aktuelle/kommende.
+  const { pastGroups, activeGroups } = useMemo(() => {
+    const now = new Date();
+    const past = [];
+    const active = [];
+    for (const g of dayGroups) {
+      (isDayGroupPast(g, today, now) ? past : active).push(g);
+    }
+    return { pastGroups: past, activeGroups: active };
+  }, [dayGroups, today]);
+
+  // Den aktuelle kamp ud fra uret (live → næste → sidste) – mål for auto-scroll.
+  const currentMatchId = useMemo(
+    () => findCurrentMatchId(filteredMatches),
+    [filteredMatches],
+  );
+
+  // Vis/skjul de tidligere kampe (foldet sammen som standard).
+  const [showPast, setShowPast] = useState(false);
+  const pastCount = useMemo(
+    () => pastGroups.reduce((n, g) => n + g.matches.length, 0),
+    [pastGroups],
+  );
+
   // Tæl utippede kampe til filterlabel (kun kampe der faktisk kan tippes)
   const untippedCount = useMemo(
     () =>
@@ -103,6 +129,83 @@ export default function MatchesPage() {
   );
 
   const isLoading = loading || betsLoading;
+
+  // Hop direkte til den aktuelle kamp når listen er klar / filteret skifter.
+  useEffect(() => {
+    if (isLoading) return;
+    const el = document.getElementById('aktuel-kamp');
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [isLoading, filter, currentMatchId]);
+
+  // Render én dag-gruppe (overskrift + runde-undergrupper + kampkort).
+  // Kampkortet for den aktuelle kamp får id="aktuel-kamp" (mål for auto-scroll).
+  const renderDayGroup = (group) => {
+    // Grupper yderligere per runde inden for dagen
+    const roundGroups = group.matches.reduce((acc, m) => {
+      const key = m.round;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(m);
+      return acc;
+    }, {});
+
+    return (
+      <div key={group.label} style={{ marginBottom: '1.5rem' }}>
+        {/* Dag-overskrift */}
+        <h2
+          style={{
+            fontSize: '1rem',
+            fontWeight: 700,
+            color: 'var(--c-pitch)',
+            textTransform: 'capitalize',
+            margin: '0 0 0.75rem',
+            paddingBottom: '0.3rem',
+            borderBottom: '2px solid var(--c-pitch)',
+            display: 'inline-block',
+          }}
+        >
+          {group.label}
+        </h2>
+
+        {/* Runde-undergrupper */}
+        {Object.entries(roundGroups).map(([round, roundMatches]) => (
+          <div key={round} style={{ marginBottom: '0.75rem' }}>
+            {/* Vis rundenavn kun for knockout */}
+            {round !== 'group' && (
+              <p
+                style={{
+                  margin: '0 0 0.4rem',
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  color: 'var(--c-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                {roundLabel(round)}
+              </p>
+            )}
+            {roundMatches.map((match) => (
+              <div
+                key={match.id}
+                id={match.id === currentMatchId ? 'aktuel-kamp' : undefined}
+                style={match.id === currentMatchId ? { scrollMarginTop: '4.5rem' } : undefined}
+              >
+                <MatchCard
+                  match={match}
+                  uid={uid}
+                  bet={bets.get(match.id) ?? null}
+                  usersByUid={usersByUid}
+                  visibleUids={visibleUids}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="container">
@@ -164,68 +267,24 @@ export default function MatchesPage() {
         </div>
       )}
 
-      {/* Dag-grupper */}
-      {!isLoading &&
-        dayGroups.map((group) => {
-          // Grupper yderligere per runde inden for dagen
-          const roundGroups = group.matches.reduce((acc, m) => {
-            const key = m.round;
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(m);
-            return acc;
-          }, {});
+      {/* Tidligere kampe – foldet sammen som standard */}
+      {!isLoading && pastGroups.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowPast((v) => !v)}
+            aria-expanded={showPast}
+            data-testid="toggle-past"
+            style={{ marginBottom: showPast ? '1rem' : 0 }}
+          >
+            {showPast ? '▾ Skjul tidligere kampe' : `▸ Vis tidligere kampe (${pastCount})`}
+          </button>
+          {showPast && pastGroups.map(renderDayGroup)}
+        </div>
+      )}
 
-          return (
-            <div key={group.label} style={{ marginBottom: '1.5rem' }}>
-              {/* Dag-overskrift */}
-              <h2
-                style={{
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  color: 'var(--c-pitch)',
-                  textTransform: 'capitalize',
-                  margin: '0 0 0.75rem',
-                  paddingBottom: '0.3rem',
-                  borderBottom: '2px solid var(--c-pitch)',
-                  display: 'inline-block',
-                }}
-              >
-                {group.label}
-              </h2>
-
-              {/* Runde-undergrupper */}
-              {Object.entries(roundGroups).map(([round, roundMatches]) => (
-                <div key={round} style={{ marginBottom: '0.75rem' }}>
-                  {/* Vis rundenavn kun for knockout */}
-                  {round !== 'group' && (
-                    <p
-                      style={{
-                        margin: '0 0 0.4rem',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        color: 'var(--c-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.06em',
-                      }}
-                    >
-                      {roundLabel(round)}
-                    </p>
-                  )}
-                  {roundMatches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      match={match}
-                      uid={uid}
-                      bet={bets.get(match.id) ?? null}
-                      usersByUid={usersByUid}
-                      visibleUids={visibleUids}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          );
-        })}
+      {/* Aktuelle og kommende kampe */}
+      {!isLoading && activeGroups.map(renderDayGroup)}
     </div>
   );
 }
