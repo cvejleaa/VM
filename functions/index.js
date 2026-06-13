@@ -550,25 +550,27 @@ async function runTipReminders(db, transporter) {
   if (!transporter) { console.log('tipReminders: ingen SMTP_PASSWORD — springer over.'); return { sent: 0, reason: 'no-smtp-password' }; }
 
   const now = new Date();
-  const todayStr = cphDateStr(now);
+  // Rullende 24-timers vindue fra køretidspunktet: kører kl. 09:00, så det dækker
+  // kampe fra kl. 09:00 i dag til kl. 08:59 i morgen — uafhængigt af kalenderdag.
+  const windowEnd = new Date(now.getTime() + 24 * 3600 * 1000);
 
-  // Dagens kampe der stadig kan tippes (kendte hold, ikke kickoff endnu)
+  // Kampe det næste døgn der stadig kan tippes (kendte hold, ikke kickoff endnu)
   const matchesSnap = await db
     .collection('matches')
     .where('status', '==', 'scheduled')
     .get();
 
-  const todayMatches = matchesSnap.docs
+  const upcomingMatches = matchesSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((m) => m.homeTeam && m.awayTeam && m.kickoff?.toDate
-      && cphDateStr(m.kickoff.toDate()) === todayStr
-      && m.kickoff.toDate() > now);
+      && m.kickoff.toDate() > now
+      && m.kickoff.toDate() < windowEnd);
 
-  if (todayMatches.length === 0) { console.log('tipReminders: ingen kampe i dag.'); return { sent: 0, reason: 'no-matches' }; }
+  if (upcomingMatches.length === 0) { console.log('tipReminders: ingen kampe det næste døgn.'); return { sent: 0, reason: 'no-matches' }; }
 
   // Hvem har tippet hver kamp (fra tipParticipation)
   const tippedByMatch = {};
-  await Promise.all(todayMatches.map(async (m) => {
+  await Promise.all(upcomingMatches.map(async (m) => {
     const p = await db.collection('tipParticipation').doc(m.id).get();
     tippedByMatch[m.id] = new Set(p.exists ? (p.data().uids ?? []) : []);
   }));
@@ -583,7 +585,7 @@ async function runTipReminders(db, transporter) {
     const u = userDoc.data();
     if (u.emailOptOut || !u.email) continue;
 
-    const missing = todayMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
+    const missing = upcomingMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
     if (missing.length === 0) continue;
 
     const list = missing
@@ -591,7 +593,7 @@ async function runTipReminders(db, transporter) {
       .join('');
     const html = `
       <p>Hej ${u.displayName || 'spiller'} 👋</p>
-      <p>Du mangler at tippe på <strong>${missing.length}</strong> af dagens kampe:</p>
+      <p>Du mangler at tippe på <strong>${missing.length}</strong> kamp${missing.length === 1 ? '' : 'e'} det næste døgn:</p>
       <ul>${list}</ul>
       <p><a href="${APP_URL}">Afgiv dine tips på vm.vejleaa.dk</a> inden kampstart.</p>
       <p style="color:#888;font-size:12px">Du kan slå disse påmindelser fra på din profilside.</p>`;
@@ -599,7 +601,7 @@ async function runTipReminders(db, transporter) {
     try {
       await sendEmail(db, transporter, {
         to: u.email,
-        subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} i dag`,
+        subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} det næste døgn`,
         html,
         type: 'reminder',
       });
@@ -609,7 +611,7 @@ async function runTipReminders(db, transporter) {
     }
   }
   console.log(`tipReminders: sendte ${sent} påmindelser.`);
-  return { sent, candidates: todayMatches.length };
+  return { sent, candidates: upcomingMatches.length };
 }
 
 exports.tipReminders = onSchedule(
