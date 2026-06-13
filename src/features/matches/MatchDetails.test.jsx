@@ -33,6 +33,20 @@ describe('MatchDetails', () => {
     expect(screen.getByText(/71'/)).toBeInTheDocument();
   });
 
+  it('viser selvmål på modstanderens (begunstigede) side', () => {
+    // Selvmål af et hjemmehold-spiller tæller for udeholdet → skal stå til højre.
+    const match = { ...base, details: {
+      goals: [{ minute: 7, type: 'OWN', side: 'home', scorer: 'Bobadilla' }],
+      bookings: [], lineups: null,
+    } };
+    render(<MatchDetails match={match} homeName="USA" awayName="Paraguay" />);
+    const row = screen.getByText(/Bobadilla/).closest('div').parentElement;
+    // Navnet ligger i den højre (ude) kolonne — venstre kolonne er gennemsigtig/tom.
+    const cols = row.querySelectorAll(':scope > div');
+    expect(cols[0].textContent).not.toMatch(/Bobadilla/); // venstre (hjemme) tom
+    expect(cols[2].textContent).toMatch(/Bobadilla.*selvmål/); // højre (ude)
+  });
+
   it('udfolder opstillinger ved klik', () => {
     const match = { ...base, details: {
       goals: [], bookings: [],
