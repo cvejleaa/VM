@@ -906,6 +906,14 @@ exports.generateLeagueRecaps = onSchedule(
     // Uden for det valgte tidsvindue: gør intet.
     if (!recapWindowOpen(cphHourMinute(now), recapTime, 60)) return;
 
+    // Vent hvis en kamp er i gang: live-kampe får foreløbige point, som ville
+    // forurene stillingen i opslaget. Prøver igen ved næste tick (inden for vinduet).
+    const liveSnap = await db.collection('matches').where('status', '==', 'live').limit(1).get();
+    if (!liveSnap.empty) {
+      console.log('generateLeagueRecaps: kamp i gang — udskyder opslaget.');
+      return;
+    }
+
     // Kør højst én gang pr. dag.
     const runRef = db.collection('config').doc('aiRecapRun');
     const runSnap = await runRef.get();
