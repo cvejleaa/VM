@@ -3,6 +3,7 @@
 import {
   doc,
   updateDoc,
+  setDoc,
   addDoc,
   collection,
   serverTimestamp,
@@ -53,6 +54,18 @@ export async function sendAdminPasswordReset(uid) {
   const fn = httpsCallable(functions, 'adminSendPasswordReset');
   const res = await fn({ uid });
   return res.data;
+}
+
+// ─── Indstillinger (kun ejer — config/settings) ──────────────────────────────
+
+/**
+ * Sæt tidspunktet for AI-morgenopslaget (VM-Botten). Format 'HH:MM',
+ * Europe/Copenhagen. Skrives til config/settings (kun ejer kan skrive iflg. reglerne).
+ * @param {string} time  fx '08:15'
+ */
+export async function setRecapTime(time) {
+  const ref = doc(db, COL.CONFIG, 'settings');
+  await setDoc(ref, { recapTime: time }, { merge: true });
 }
 
 // ─── Kampstyring (global admin + owner) ──────────────────────────────────────

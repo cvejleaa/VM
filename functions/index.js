@@ -53,7 +53,7 @@ const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
-const { RECAP_SYSTEM, buildRecapFacts } = require('./leagueRecap');
+const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen } = require('./leagueRecap');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -881,16 +881,52 @@ async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = 
   return { leagues: results.length, results };
 }
 
-// Skemalagt: hver morgen kl. 07:00 (Europe/Copenhagen).
+/** Nuværende 'HH:MM' i Europe/Copenhagen (robust mod "24:00" ved midnat). */
+function cphHourMinute(now) {
+  const s = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(now);
+  return s.replace(/^24:/, '00:');
+}
+
+// Skemalagt: kører hvert 5. minut, men poster kun på det tidspunkt admin har
+// valgt i config/settings.recapTime (default 08:15, Europe/Copenhagen) — og
+// kun én gang i døgnet. Det gør tidspunktet justerbart uden gen-deploy.
 exports.generateLeagueRecaps = onSchedule(
-  { schedule: '0 7 * * *', timeZone: TZ, region: REGION, secrets: [ANTHROPIC_API_KEY] },
+  { schedule: '*/5 * * * *', timeZone: TZ, region: REGION, secrets: [ANTHROPIC_API_KEY] },
   async () => {
     const db = getFirestore();
     const apiKey = ANTHROPIC_API_KEY.value();
     if (!apiKey) { console.log('generateLeagueRecaps: ANTHROPIC_API_KEY ikke sat — springer over.'); return; }
+
+    const now = new Date();
+    const settingsSnap = await db.collection('config').doc('settings').get();
+    const recapTime = (settingsSnap.exists && settingsSnap.data().recapTime) || RECAP_DEFAULT_TIME;
+
+    // Uden for det valgte tidsvindue: gør intet.
+    if (!recapWindowOpen(cphHourMinute(now), recapTime, 60)) return;
+
+    // Vent hvis en kamp er i gang: live-kampe får foreløbige point, som ville
+    // forurene stillingen i opslaget. Prøver igen ved næste tick (inden for vinduet).
+    const liveSnap = await db.collection('matches').where('status', '==', 'live').limit(1).get();
+    if (!liveSnap.empty) {
+      console.log('generateLeagueRecaps: kamp i gang — udskyder opslaget.');
+      return;
+    }
+
+    // Kør højst én gang pr. dag.
+    const runRef = db.collection('config').doc('aiRecapRun');
+    const runSnap = await runRef.get();
+    const todayStr = now.toLocaleDateString('da-DK', { timeZone: TZ });
+    if (runSnap.exists && runSnap.data().lastRunDate === todayStr) return;
+
     try {
-      const res = await runGenerateLeagueRecaps(db, apiKey);
-      console.log(`generateLeagueRecaps: postede i ${res.leagues} liga(er).`);
+      const res = await runGenerateLeagueRecaps(db, apiKey, { now });
+      await runRef.set(
+        { lastRunDate: todayStr, leagues: res.leagues, at: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+      console.log(`generateLeagueRecaps: postede i ${res.leagues} liga(er) (kl. ${recapTime}).`);
     } catch (err) {
       console.error('generateLeagueRecaps: fejl', err);
     }
