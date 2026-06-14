@@ -57,4 +57,33 @@ function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], u
   };
 }
 
-module.exports = { RECAP_SYSTEM, leagueTotal, buildRecapFacts };
+/** Standard-tidspunkt for AI-morgenopslaget (kan overstyres i config/settings). */
+const RECAP_DEFAULT_TIME = '08:15';
+
+/** 'HH:MM' → minutter siden midnat, ellers null ved ugyldigt format. */
+function parseHM(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s == null ? '' : s).trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/**
+ * Er det aktuelle klokkeslæt inden for opslags-vinduet [target, target+window)?
+ * Begge tidspunkter er 'HH:MM' (lokal tid). Bruges til at lade en hyppig cron
+ * ramme et admin-valgt tidspunkt uden at gen-deploye.
+ * @param {string} currentHM  nuværende 'HH:MM'
+ * @param {string} targetHM   ønsket 'HH:MM'
+ * @param {number} [windowMin] vinduets længde i minutter (default 60)
+ * @returns {boolean}
+ */
+function recapWindowOpen(currentHM, targetHM, windowMin = 60) {
+  const cur = parseHM(currentHM);
+  const tgt = parseHM(targetHM);
+  if (cur == null || tgt == null) return false;
+  return cur >= tgt && cur < tgt + windowMin;
+}
+
+module.exports = { RECAP_SYSTEM, RECAP_DEFAULT_TIME, leagueTotal, buildRecapFacts, parseHM, recapWindowOpen };

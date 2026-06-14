@@ -84,13 +84,14 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser alle otte faner for owner', () => {
+    it('viser alle ni faner for owner (inkl. Indstillinger)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(8);
+      expect(tabs).toHaveLength(9);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-preview')).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-settings')).toBeInTheDocument();
     });
 
     it('viser tekst om fuld adgang som ejer', () => {
@@ -173,12 +174,13 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 8 faner for global admin', () => {
+    it('viser præcis 8 faner for global admin (ingen Indstillinger)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
       expect(tabs).toHaveLength(8);
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
+      expect(screen.queryByTestId('tab-settings')).not.toBeInTheDocument();
     });
 
     it('viser tekst om global administrator adgang', () => {

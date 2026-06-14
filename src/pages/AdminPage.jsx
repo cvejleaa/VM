@@ -13,6 +13,7 @@ import TestsTab from '../features/admin/TestsTab';
 import RunbookTab from '../features/admin/RunbookTab';
 import PreviewTab from '../features/admin/PreviewTab';
 import EmailLogTab from '../features/admin/EmailLogTab';
+import SettingsTab from '../features/admin/SettingsTab';
 
 // Fane-id'er
 const TAB_USERS   = 'users';
@@ -23,6 +24,7 @@ const TAB_TESTS   = 'tests';
 const TAB_RUNBOOK = 'runbook';
 const TAB_PREVIEW = 'preview';
 const TAB_MAILS   = 'mails';
+const TAB_SETTINGS = 'settings';
 
 export default function AdminPage() {
   const { isOwner, isGlobalAdmin } = useAuth();
@@ -43,6 +45,10 @@ export default function AdminPage() {
     { key: TAB_RUNBOOK, label: '📋 Køreplan' },
     { key: TAB_PREVIEW, label: '🔮 Forhåndsvisning' },
     { key: TAB_MAILS,   label: '✉️ Mail-log' },
+    // Indstillinger skriver til config (kun ejer kan skrive iflg. reglerne)
+    ...(isOwner
+      ? [{ key: TAB_SETTINGS, label: '⚙️ Indstillinger' }]
+      : []),
   ];
 
   return (
@@ -104,6 +110,7 @@ export default function AdminPage() {
         {tab === TAB_RUNBOOK && <RunbookTab />}
         {tab === TAB_PREVIEW && <PreviewTab />}
         {tab === TAB_MAILS   && <EmailLogTab />}
+        {tab === TAB_SETTINGS && <SettingsTab />}
       </div>
     </div>
   );
