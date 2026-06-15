@@ -76,6 +76,24 @@ export function computeMatchStats(match, bets) {
 }
 
 /**
+ * Point pr. spiller for et givent sæt kampe (kun afsluttede tæller).
+ * @param {Array<object>} matches
+ * @param {Map<string,Array>|{get?:Function}} betsByMatch  matchId -> bets[]
+ * @returns {Record<string,number>} uid -> point
+ */
+export function pointsByUidForMatches(matches, betsByMatch) {
+  const out = {};
+  for (const m of finishedWithResult(matches)) {
+    const isKo = m.round && m.round !== ROUNDS.GROUP;
+    for (const b of betsByMatch?.get?.(m.id) ?? []) {
+      if (!b.uid) continue;
+      out[b.uid] = (out[b.uid] ?? 0) + (isKo ? scoreKnockout(b, m.result) : scoreMatch(b, m.result));
+    }
+  }
+  return out;
+}
+
+/**
  * Find de spillere der fik flest point i dag.
  * @param {Record<string,number>} pointsByUid
  * @param {Record<string,object>} usersById  uid -> {displayName}

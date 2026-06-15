@@ -11,6 +11,7 @@ import { useMatches } from '../features/matches/useMatches';
 import { useMyBets } from '../features/matches/useMyBets';
 import Hero from '../components/Hero';
 import DashboardHub from '../features/matches/DashboardHub';
+import DayMatchesCard from '../features/matches/DayMatchesCard';
 import TodoCard from '../features/dashboard/TodoCard';
 import OnboardingChecklist from '../features/onboarding/OnboardingChecklist';
 
@@ -57,6 +58,8 @@ export default function DashboardPage() {
           onJumpToUntipped={() => navigate('/kampe?filter=utippede')}
         />
       )}
+
+      {!matchesLoading && !error && <DayMatchesCard matches={matches} />}
 
       {/* Genveje */}
       <div className="card" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
