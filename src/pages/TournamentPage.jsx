@@ -13,7 +13,11 @@ import TeamLink from '../components/TeamLink';
 import { TopScorersList } from '../features/stats/TopScorersCard';
 import { useTopScorers } from '../features/stats/useTopScorers';
 import DisciplineCard from '../features/stats/DisciplineCard';
-import { computeDiscipline } from '../features/stats/statsUtils';
+import FieryRefereeCard from '../features/stats/FieryRefereeCard';
+import GoalIntervalCard from '../features/stats/GoalIntervalCard';
+import TournamentFactsCard from '../features/stats/TournamentFactsCard';
+import SecondHalfCard from '../features/stats/SecondHalfCard';
+import { computeDiscipline, computeTournamentFacts } from '../features/stats/statsUtils';
 import '../features/tournament/tournament.css';
 
 // ─── Konstanter ────────────────────────────────────────────────────────────
@@ -24,6 +28,7 @@ const FANER = [
   { id: 'slutspil',    label: 'Slutspil' },
   { id: 'topscorere',  label: 'Topscorere' },
   { id: 'disciplin',   label: 'Disciplin' },
+  { id: 'fakta',       label: 'Fakta' },
 ];
 
 // Rækkefølgen vi viser knockout-runder i slutspil
@@ -399,7 +404,36 @@ function DisciplinFane({ matches }) {
       </div>
     );
   }
-  return <DisciplineCard matches={matches} limit={10} />;
+  return (
+    <>
+      <DisciplineCard matches={matches} limit={10} />
+      <FieryRefereeCard matches={matches} />
+    </>
+  );
+}
+
+/**
+ * Fakta-fane: turneringsstatistik (mål pr. minut-interval, nøgletal, 2. halvleg).
+ */
+function FaktaFane({ matches }) {
+  const facts = computeTournamentFacts(matches);
+
+  if (facts.played === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-state__icon">📊</div>
+        <div className="empty-state__title">Ingen fakta endnu</div>
+        <p className="text-muted text-sm">Statistikken fyldes, så snart de første kampe er spillet.</p>
+      </div>
+    );
+  }
+  return (
+    <>
+      <TournamentFactsCard matches={matches} />
+      <GoalIntervalCard matches={matches} />
+      <SecondHalfCard matches={matches} />
+    </>
+  );
 }
 
 // ─── Hoved-komponent ───────────────────────────────────────────────────────
@@ -482,6 +516,9 @@ export default function TournamentPage() {
       )}
       {aktivFane === 'disciplin' && (
         <DisciplinFane matches={matches} />
+      )}
+      {aktivFane === 'fakta' && (
+        <FaktaFane matches={matches} />
       )}
     </div>
   );

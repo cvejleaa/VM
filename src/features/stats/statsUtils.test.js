@@ -3,6 +3,8 @@ import {
   computeMatchStats, topScorersOfDay, maxPointsForMatch,
   computeSeasonOverview, computePlayerAccuracy, mostSurprising, bestPredicted,
   computeDiscipline,
+  computeGoalsByInterval, computeTournamentFacts, computeSecondHalfStats,
+  computeFieryMatches, computeRefereeStats,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -167,5 +169,95 @@ describe('computeDiscipline', () => {
   it('håndterer tomt input', () => {
     expect(computeDiscipline([])).toEqual({ teams: [], players: [], totals: { yellow: 0, red: 0 } });
     expect(computeDiscipline(null).totals).toEqual({ yellow: 0, red: 0 });
+  });
+});
+
+// ─── Turnerings-fakta ───────────────────────────────────────────────────────
+
+const g = (minute, side, type = 'REGULAR', injuryTime = 0) => ({ minute, side, type, injuryTime });
+
+describe('computeGoalsByInterval', () => {
+  it('fordeler mål på de rigtige intervaller', () => {
+    const matches = [{ id: 'm', homeTeam: 'A', awayTeam: 'B', details: { goals: [
+      g(3, 'home'), g(15, 'away'), g(45, 'home', 'REGULAR', 2), g(60, 'away'),
+      g(90, 'home', 'REGULAR', 4), g(105, 'away'),
+    ] } }];
+    const { bins, total, peak } = computeGoalsByInterval(matches);
+    const by = Object.fromEntries(bins.map((b) => [b.label, b.count]));
+    expect(total).toBe(6);
+    expect(by['0-15']).toBe(2);   // 3' og 15'
+    expect(by['45+']).toBe(1);    // 45+2
+    expect(by['46-60']).toBe(1);  // 60'
+    expect(by['90+']).toBe(2);    // 90+4 og 105'
+    expect(peak.count).toBe(2);
+  });
+
+  it('håndterer tomt input', () => {
+    expect(computeGoalsByInterval([])).toMatchObject({ total: 0, peak: null });
+  });
+});
+
+describe('computeTournamentFacts', () => {
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 1 },
+      details: { goals: [g(10, 'home'), g(20, 'away', 'PENALTY'), g(80, 'home', 'OWN')] } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 1, away: 2 },
+      details: { goals: [g(5, 'away')] } },
+  ];
+  it('beregner mål/kamp, hjemme/ude og mål-typer', () => {
+    const f = computeTournamentFacts(matches);
+    expect(f.played).toBe(2);
+    expect(f.totalGoals).toBe(6);
+    expect(f.goalsPerMatch).toBe(3);
+    expect(f.homeGoals).toBe(3);
+    expect(f.awayGoals).toBe(3);
+    expect(f.typeBreakdown).toEqual({ regular: 2, penalty: 1, own: 1 });
+  });
+  it('finder hyppigste resultat (rækkefølge-uafhængigt) samt tidligste/seneste mål', () => {
+    const f = computeTournamentFacts(matches);
+    // 2-1 og 2-1 (1-2 normaliseres) → "2-1" set 2 gange.
+    expect(f.frequentResults[0]).toEqual({ score: '2-1', count: 2 });
+    expect(f.earliest.minute).toBe(5);
+    expect(f.latest.minute).toBe(80);
+  });
+});
+
+describe('computeSecondHalfStats', () => {
+  const matches = [
+    // Comeback: ude førte 0-1 ved pausen, hjemme vandt 2-1.
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 1 },
+      details: { halfTime: { home: 0, away: 1 } } },
+    // Uændret: hjemme førte hele vejen.
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 3, away: 0 },
+      details: { halfTime: { home: 1, away: 0 } } },
+  ];
+  it('tæller ændringer efter pausen, comebacks og clean sheets', () => {
+    const s = computeSecondHalfStats(matches);
+    expect(s.withHalfTime).toBe(2);
+    expect(s.changedAfterHalf).toBe(1);
+    expect(s.comebacks).toHaveLength(1);
+    expect(s.comebacks[0].team).toBe('BRA');
+    // Clean sheets: GER holdt nullet (ESP scorede 0).
+    expect(s.cleanSheets[0]).toEqual({ team: 'GER', count: 1 });
+  });
+});
+
+describe('computeFieryMatches & computeRefereeStats', () => {
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', details: { referee: 'Dommer A', bookings: [
+      { side: 'home', card: 'YELLOW' }, { side: 'away', card: 'RED' },
+    ] } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', details: { referee: 'Dommer A', bookings: [
+      { side: 'home', card: 'YELLOW' },
+    ] } },
+  ];
+  it('rangerer hidsigste kampe (rødt vægter dobbelt)', () => {
+    const fiery = computeFieryMatches(matches);
+    expect(fiery[0].match.id).toBe('1');
+    expect(fiery[0]).toMatchObject({ yellow: 1, red: 1, weight: 3 });
+  });
+  it('samler dommerstatistik', () => {
+    const refs = computeRefereeStats(matches);
+    expect(refs[0]).toMatchObject({ name: 'Dommer A', matches: 2, yellow: 2, red: 1 });
   });
 });

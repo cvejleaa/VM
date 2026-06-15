@@ -236,3 +236,190 @@ export function computeDiscipline(matches) {
   );
   return { teams, players, totals };
 }
+
+// ─── Turnerings-fakta (uafhængigt af vores tip-spil) ────────────────────────
+
+/** Alle mål på tværs af kampe (fra details.goals), evt. beriget med kampens hold. */
+function allGoals(matches) {
+  const out = [];
+  for (const m of matches ?? []) {
+    const goals = m?.details?.goals;
+    if (!Array.isArray(goals)) continue;
+    for (const g of goals) out.push({ ...g, home: m.homeTeam, away: m.awayTeam, matchId: m.id });
+  }
+  return out;
+}
+
+const INTERVAL_BINS = ['0-15', '16-30', '31-45', '45+', '46-60', '61-75', '76-90', '90+'];
+
+/** Hvilket minut-interval hører et mål til? Returnerer en label fra INTERVAL_BINS eller null. */
+function goalBin(minute, injuryTime) {
+  if (minute == null) return null;
+  if (injuryTime > 0 && minute <= 45) return '45+';
+  if (injuryTime > 0 && minute >= 46) return '90+';
+  if (minute > 90) return '90+';
+  if (minute <= 15) return '0-15';
+  if (minute <= 30) return '16-30';
+  if (minute <= 45) return '31-45';
+  if (minute <= 60) return '46-60';
+  if (minute <= 75) return '61-75';
+  return '76-90';
+}
+
+/**
+ * Fordel alle mål på minut-intervaller (bins) på tværs af alle kampe.
+ * @param {Array<object>} matches
+ * @returns {{ bins: Array<{label:string,count:number,pct:number}>, total:number, peak:object|null }}
+ */
+export function computeGoalsByInterval(matches) {
+  const counts = Object.fromEntries(INTERVAL_BINS.map((b) => [b, 0]));
+  let total = 0;
+  for (const g of allGoals(matches)) {
+    const bin = goalBin(g.minute, g.injuryTime);
+    if (!bin) continue;
+    counts[bin] += 1;
+    total += 1;
+  }
+  const bins = INTERVAL_BINS.map((label) => ({
+    label, count: counts[label], pct: total ? Math.round((counts[label] / total) * 100) : 0,
+  }));
+  let peak = null;
+  for (const b of bins) if (b.count > 0 && (!peak || b.count > peak.count)) peak = b;
+  return { bins, total, peak };
+}
+
+/**
+ * Samlede turnerings-nøgletal ud fra afsluttede kampe + kampdetaljer.
+ * @param {Array<object>} matches
+ */
+export function computeTournamentFacts(matches) {
+  const finished = finishedWithResult(matches);
+  const played = finished.length;
+  let homeGoals = 0;
+  let awayGoals = 0;
+  const resultTally = new Map(); // "hi-lo" -> count
+  for (const m of finished) {
+    homeGoals += Number(m.result.home || 0);
+    awayGoals += Number(m.result.away || 0);
+    const hi = Math.max(m.result.home, m.result.away);
+    const lo = Math.min(m.result.home, m.result.away);
+    const key = `${hi}-${lo}`;
+    resultTally.set(key, (resultTally.get(key) ?? 0) + 1);
+  }
+  const totalGoals = homeGoals + awayGoals;
+
+  // Mål-typer fra detaljer
+  const typeBreakdown = { regular: 0, penalty: 0, own: 0 };
+  let earliest = null;
+  let latest = null;
+  for (const g of allGoals(matches)) {
+    if (g.type === 'PENALTY') typeBreakdown.penalty += 1;
+    else if (g.type === 'OWN') typeBreakdown.own += 1;
+    else typeBreakdown.regular += 1;
+    if (g.minute != null) {
+      const key = g.minute * 100 + (g.injuryTime || 0);
+      if (!earliest || key < earliest._k) earliest = { ...g, _k: key };
+      if (!latest || key > latest._k) latest = { ...g, _k: key };
+    }
+  }
+
+  const frequentResults = [...resultTally.entries()]
+    .map(([score, count]) => ({ score, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  return {
+    played,
+    totalGoals,
+    goalsPerMatch: played ? Math.round((totalGoals / played) * 10) / 10 : 0,
+    homeGoals,
+    awayGoals,
+    typeBreakdown,
+    frequentResults,
+    earliest,
+    latest,
+  };
+}
+
+/** Udfald (HOME/AWAY/DRAW) af et {home,away}-scoreobjekt. */
+function sideOutcome(home, away) {
+  if (home > away) return 'HOME';
+  if (away > home) return 'AWAY';
+  return 'DRAW';
+}
+
+/**
+ * 2.-halvlegs-statistik: kampe hvor stillingen ændrede sig efter pausen,
+ * comebacks (hold bagud ved pausen der endte med at vinde) og clean sheets.
+ * @param {Array<object>} matches
+ */
+export function computeSecondHalfStats(matches) {
+  const finished = finishedWithResult(matches);
+  let changedAfterHalf = 0;
+  let withHalfTime = 0;
+  const comebacks = [];
+  for (const m of finished) {
+    const ht = m.details?.halfTime;
+    if (ht && ht.home != null && ht.away != null) {
+      withHalfTime += 1;
+      const htO = sideOutcome(ht.home, ht.away);
+      const ftO = sideOutcome(m.result.home, m.result.away);
+      if (htO !== ftO) changedAfterHalf += 1;
+      // Comeback: bagud ved pausen, vandt til slut.
+      if (htO === 'HOME' && ftO === 'AWAY') comebacks.push({ match: m, team: m.awayTeam });
+      if (htO === 'AWAY' && ftO === 'HOME') comebacks.push({ match: m, team: m.homeTeam });
+    }
+  }
+
+  // Clean sheets pr. hold (afsluttede kampe uden indkasserede mål).
+  const cs = {};
+  for (const m of finished) {
+    if (m.homeTeam && m.result.away === 0) cs[m.homeTeam] = (cs[m.homeTeam] ?? 0) + 1;
+    if (m.awayTeam && m.result.home === 0) cs[m.awayTeam] = (cs[m.awayTeam] ?? 0) + 1;
+  }
+  const cleanSheets = Object.entries(cs)
+    .map(([team, count]) => ({ team, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return { withHalfTime, changedAfterHalf, comebacks, cleanSheets };
+}
+
+/**
+ * "Hidsigste" kampe: flest kort (rødt vægter dobbelt). Top `limit`.
+ * @param {Array<object>} matches
+ * @param {number} [limit]
+ */
+export function computeFieryMatches(matches, limit = 5) {
+  const rows = [];
+  for (const m of matches ?? []) {
+    const bookings = m?.details?.bookings;
+    if (!Array.isArray(bookings) || bookings.length === 0) continue;
+    let yellow = 0;
+    let red = 0;
+    for (const b of bookings) {
+      if (b.card === 'YELLOW') yellow += 1;
+      else if (b.card === 'RED' || b.card === 'YELLOW_RED') red += 1;
+    }
+    rows.push({ match: m, yellow, red, weight: red * 2 + yellow });
+  }
+  return rows.sort((a, b) => b.weight - a.weight || b.red - a.red).slice(0, limit);
+}
+
+/**
+ * Dommerstatistik: antal kampe + kort pr. dommer (fra details.referee/bookings).
+ * @param {Array<object>} matches
+ */
+export function computeRefereeStats(matches) {
+  const byRef = {};
+  for (const m of matches ?? []) {
+    const ref = m?.details?.referee;
+    if (!ref) continue;
+    byRef[ref] = byRef[ref] || { name: ref, matches: 0, yellow: 0, red: 0 };
+    byRef[ref].matches += 1;
+    for (const b of m.details.bookings ?? []) {
+      if (b.card === 'YELLOW') byRef[ref].yellow += 1;
+      else if (b.card === 'RED' || b.card === 'YELLOW_RED') byRef[ref].red += 1;
+    }
+  }
+  return Object.values(byRef).sort((a, b) => b.matches - a.matches || (b.yellow + b.red) - (a.yellow + a.red));
+}
