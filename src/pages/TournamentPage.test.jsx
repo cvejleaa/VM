@@ -402,3 +402,34 @@ describe('TournamentPage – Slutspil-fane', () => {
     expect(screen.getByText('LIVE')).toBeInTheDocument();
   });
 });
+
+// ─── Fakta-fane ───────────────────────────────────────────────────────────────
+
+describe('TournamentPage – Fakta-fane', () => {
+  it('viser tom-tilstand uden spillede kampe', () => {
+    mockUseMatches.mockReturnValue({
+      matches: [lavGruppeKamp('gk-1', 'ARG', 'BRA', 'A')],
+      loading: false,
+      error: null,
+    });
+    render(<TournamentPage />);
+    fireEvent.click(screen.getByRole('tab', { name: /fakta/i }));
+    expect(screen.getByText(/Ingen fakta endnu/i)).toBeInTheDocument();
+  });
+
+  it('viser nøgletal og minut-interval-diagram for spillede kampe', () => {
+    const m = {
+      ...lavGruppeKamp('gk-1', 'ARG', 'BRA', 'A', 'finished', { home: 2, away: 1 }),
+      details: { goals: [
+        { minute: 10, side: 'home', type: 'REGULAR' },
+        { minute: 80, side: 'away', type: 'PENALTY' },
+        { minute: 90, side: 'home', type: 'REGULAR', injuryTime: 2 },
+      ], halfTime: { home: 1, away: 0 } },
+    };
+    mockUseMatches.mockReturnValue({ matches: [m], loading: false, error: null });
+    render(<TournamentPage />);
+    fireEvent.click(screen.getByRole('tab', { name: /fakta/i }));
+    expect(screen.getByText(/Turneringen i tal/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mål pr. minut-interval/i)).toBeInTheDocument();
+  });
+});
