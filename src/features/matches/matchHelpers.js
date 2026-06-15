@@ -183,6 +183,38 @@ export function flagEmoji(code) {
   );
 }
 
+/** Modsat side (selvmål tæller for modstanderen). Bevarer null/ukendt uændret. */
+export function flipSide(side) {
+  if (side === 'home') return 'away';
+  if (side === 'away') return 'home';
+  return side;
+}
+
+/** Kronologisk sortering af begivenheder på minut + tillægstid. */
+function byMinute(a, b) {
+  return ((a.minute ?? 999) - (b.minute ?? 999)) || ((a.injuryTime ?? 0) - (b.injuryTime ?? 0));
+}
+
+/**
+ * Sortér mål kronologisk og påfør den løbende stilling EFTER hvert mål.
+ * Selvmål (type 'OWN') tæller for modstanderen. Beregnes på de RÅ mål (med
+ * uflippet `side`), så visningen efterfølgende selv kan flippe selvmål uden
+ * at det påvirker scoren.
+ * @param {Array<{minute?:number, injuryTime?:number, type?:string, side?:string}>} goals
+ * @returns {Array<object>} samme mål (sorteret) med tilføjet `score: {home, away}`
+ */
+export function goalsWithRunningScore(goals) {
+  const sorted = [...(Array.isArray(goals) ? goals : [])].sort(byMinute);
+  let home = 0;
+  let away = 0;
+  return sorted.map((g) => {
+    const scoringSide = g.type === 'OWN' ? flipSide(g.side) : g.side;
+    if (scoringSide === 'home') home += 1;
+    else if (scoringSide === 'away') away += 1;
+    return { ...g, score: { home, away } };
+  });
+}
+
 /**
  * Live-label til kamp-headeren, fx "1. halvleg · 43'" eller "2. halvleg · 67+2'".
  * Bygger på det synkede spilleminut (match.details.minute/injuryTime). Mangler

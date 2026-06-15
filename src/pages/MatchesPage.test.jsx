@@ -43,9 +43,11 @@ function renderPage() {
   );
 }
 
-// Faste testkampe
-const futureKickoff = new Date('2099-06-15T18:00:00Z');
-const pastKickoff = new Date('2020-06-15T18:00:00Z');
+// Testkampe relativt til "nu" (±200 dage), så de altid er tydeligt fremtid/fortid
+// og deres dag-nøgle aldrig kolliderer med dagens dato (undgår kalender-flaky).
+const DAY_MS = 86400000;
+const futureKickoff = new Date(Date.now() + 200 * DAY_MS);
+const pastKickoff = new Date(Date.now() - 200 * DAY_MS);
 
 const mockMatches = [
   {
@@ -110,10 +112,14 @@ describe('MatchesPage – filterknapper', () => {
 });
 
 describe('MatchesPage – visning af kampe', () => {
-  it('viser alle kampe som standard', () => {
+  it('viser aktive kampe og folder tidligere sammen som standard', () => {
     renderPage();
-    const cards = screen.getAllByTestId('match-card');
-    expect(cards.length).toBe(2);
+    // m1 (fremtid) vises; m2 (fortid) er foldet bag "Vis tidligere kampe".
+    expect(screen.getAllByTestId('match-card').length).toBe(1);
+    const toggle = screen.getByTestId('toggle-past');
+    expect(toggle).toHaveTextContent('Vis tidligere kampe (1)');
+    fireEvent.click(toggle);
+    expect(screen.getAllByTestId('match-card').length).toBe(2);
   });
 
   it('viser dag-overskrifter for kampe', () => {
@@ -162,11 +168,14 @@ describe('MatchesPage – filtre', () => {
     expect(screen.getByText(/Alle tilgængelige kampe er tippet/)).toBeInTheDocument();
   });
 
-  it('filter "Alle" viser alle kampe igen efter at have skiftet filter', () => {
+  it('filter "Alle" viser kampe igen efter at have skiftet filter', () => {
     renderPage();
     fireEvent.click(screen.getByTestId('filter-kommende'));
     expect(screen.getAllByTestId('match-card').length).toBe(1);
     fireEvent.click(screen.getByTestId('filter-alle'));
+    // Aktiv kamp vises straks; tidligere kan foldes ud.
+    expect(screen.getAllByTestId('match-card').length).toBe(1);
+    fireEvent.click(screen.getByTestId('toggle-past'));
     expect(screen.getAllByTestId('match-card').length).toBe(2);
   });
 

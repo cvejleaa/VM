@@ -4,6 +4,7 @@
 // og en udfoldelig opstilling pr. hold.
 // ---------------------------------------------------------------------------
 import { useState } from 'react';
+import { flipSide, goalsWithRunningScore } from './matchHelpers';
 
 const CARD_ICON = { YELLOW: '🟨', RED: '🟥', YELLOW_RED: '🟨🟥' };
 
@@ -11,13 +12,6 @@ function goalSuffix(type) {
   if (type === 'PENALTY') return ' (str.)';
   if (type === 'OWN') return ' (selvmål)';
   return '';
-}
-
-// Modsat side (selvmål tæller for modstanderen). Bevarer null uændret.
-function flipSide(side) {
-  if (side === 'home') return 'away';
-  if (side === 'away') return 'home';
-  return side;
 }
 
 function minuteLabel(ev) {
@@ -55,8 +49,22 @@ function EventRow({ ev }) {
       <div style={{ textAlign: 'right', color: home ? 'var(--c-text)' : 'transparent' }}>
         {home && <span>{text} {icon}</span>}
       </div>
-      <div style={{ color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'center' }}>
-        {minuteLabel(ev)}
+      <div style={{
+        color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 40,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+      }}>
+        <span>{minuteLabel(ev)}</span>
+        {ev.kind === 'goal' && ev.score && (
+          <span
+            data-testid="running-score"
+            style={{
+              fontSize: '0.7rem', fontWeight: 700, color: 'var(--c-text)',
+              background: 'var(--c-border)', borderRadius: 4, padding: '0 0.25rem',
+            }}
+          >
+            {ev.score.home}–{ev.score.away}
+          </span>
+        )}
       </div>
       <div style={{ textAlign: 'left', color: !home ? 'var(--c-text)' : 'transparent' }}>
         {!home && <span>{icon} {text}</span>}
@@ -98,13 +106,16 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const d = match.details;
   if (!d) return null;
 
-  // Saml mål + kort kronologisk. Selvmål tæller for modstanderen, så de vises
-  // på den modsatte side (med scorerens navn + "(selvmål)").
+  // Saml mål + kort + udskiftninger kronologisk. Mål får den løbende stilling,
+  // og selvmål tæller for modstanderen — så de vises på den modsatte side (med
+  // scorerens navn + "(selvmål)"), mens selve scoren regnes på de rå mål.
   const events = [
-    ...(d.goals ?? []).map((g) => ({ ...g, kind: 'goal', side: g.type === 'OWN' ? flipSide(g.side) : g.side })),
+    ...goalsWithRunningScore(d.goals ?? []).map((g) => ({
+      ...g, kind: 'goal', side: g.type === 'OWN' ? flipSide(g.side) : g.side,
+    })),
     ...(d.bookings ?? []).map((b) => ({ ...b, kind: 'card' })),
     ...(d.substitutions ?? []).map((s) => ({ ...s, kind: 'sub' })),
-  ].sort((a, b) => (a.minute ?? 999) - (b.minute ?? 999));
+  ].sort((a, b) => ((a.minute ?? 999) - (b.minute ?? 999)) || ((a.injuryTime ?? 0) - (b.injuryTime ?? 0)));
 
   const meta = [];
   if (d.halfTime) meta.push(`Halvleg ${d.halfTime.home}–${d.halfTime.away}`);
