@@ -12,6 +12,9 @@ import { useMyBets } from '../features/matches/useMyBets';
 import Hero from '../components/Hero';
 import DashboardHub from '../features/matches/DashboardHub';
 import DayMatchesCard from '../features/matches/DayMatchesCard';
+import MyStatsCard from '../features/dashboard/MyStatsCard';
+import MiniStandings from '../features/dashboard/MiniStandings';
+import RecentResultsCard from '../features/dashboard/RecentResultsCard';
 import TodoCard from '../features/dashboard/TodoCard';
 import OnboardingChecklist from '../features/onboarding/OnboardingChecklist';
 
@@ -60,6 +63,15 @@ export default function DashboardPage() {
       )}
 
       {!matchesLoading && !error && <DayMatchesCard matches={matches} />}
+
+      <MiniStandings standings={standings} uid={user?.uid} />
+
+      {!matchesLoading && !error && (
+        <div className="dashboard-stats-grid" style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+          <MyStatsCard matches={matches} bets={bets} />
+          <RecentResultsCard matches={matches} bets={bets} />
+        </div>
+      )}
 
       {/* Genveje */}
       <div className="card" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
