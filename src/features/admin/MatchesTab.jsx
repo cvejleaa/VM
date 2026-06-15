@@ -5,9 +5,8 @@ import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSendTestReminderToMe, callPruneOrphanMatches, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, callInspectFootballData, clearManualLock, formatTimestamp } from './adminActions';
+import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
-import { useAuth } from '../../context/AuthContext';
 
 // Oversæt runde til dansk
 const ROUND_LABELS = {
@@ -35,93 +34,6 @@ const STATUS_COLORS = {
   [MATCH_STATUS.FINISHED]:     'var(--c-pitch)',
 };
 
-// Viser hvilke football-data.org-felter jeres tier giver adgang til.
-function FieldReport({ report, onClose }) {
-  const yn = (v) => (v ? '✅' : '❌');
-  const Section = ({ title, probe, fields }) => (
-    <div style={{ marginBottom: '0.6rem' }}>
-      <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>
-        {title}: {probe?.ok ? '✅ tilgængelig' : `❌ ${probe?.error || 'utilgængelig'}`}
-      </div>
-      {probe?.ok && fields && (
-        <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.1rem', fontSize: '0.82rem', color: 'var(--c-muted)' }}>
-          {fields.map(([label, val]) => (
-            <li key={label}>{yn(val)} {label}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-
-  const matchFields = (md) => [
-    ['målscorere + minut', md.hasGoals],
-    ['opstillinger (line-ups)', md.hasLineups],
-    ['kort (gule/røde)', md.hasBookings],
-    ['udskiftninger', md.hasSubstitutions],
-    ['dommere', md.hasReferees],
-    ['halvlegsstilling', md.hasHalfTime],
-    ['straffesparkskonkurrence', md.hasPenaltiesScore],
-    ['indbyrdes opgør (h2h)', md.hasHead2Head],
-    [`tilskuertal${md.attendance != null ? ` (${md.attendance})` : ''}`, md.attendance != null],
-  ];
-
-  const s = report.scorers || {};
-  const st = report.standings || {};
-  const md = report.matchDetail || {};
-  const ref = report.reference || null;
-  const emptyWc = s.ok && (s.count ?? 0) === 0;
-
-  return (
-    <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--c-pitch)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>🔍 Football-data felt-rapport</h3>
-        <button className="btn btn--ghost btn--sm" onClick={onClose}>Luk</button>
-      </div>
-
-      <div style={{ fontWeight: 800, fontSize: '0.8rem', margin: '0 0 0.3rem' }}>
-        VM ({report.competitionCode || 'WC'})
-      </div>
-      {emptyWc && (
-        <div style={{ fontSize: '0.78rem', color: '#92600a', background: '#fffbeb', border: '1px solid var(--c-warn)', borderRadius: 8, padding: '0.4rem 0.6rem', marginBottom: '0.5rem' }}>
-          VM er ikke begyndt endnu — derfor er der ingen scorere/kampe at hente.
-          Tomme felter her betyder <strong>ikke</strong> at I mangler adgang. Se reference-turneringen nedenfor.
-        </div>
-      )}
-      <Section title="Topscorere (/scorers)" probe={s} fields={[
-        [`antal: ${s.count ?? 0}`, (s.count ?? 0) > 0],
-        ['assists', s.hasAssists],
-        ['straffemål', s.hasPenalties],
-        ['nationalitet', s.hasNationality],
-      ]} />
-      <Section title="Stilling (/standings)" probe={st} fields={[
-        [`tabeller: ${st.tableCount ?? 0}`, (st.tableCount ?? 0) > 0],
-        ['form (W/D/L)', st.hasForm],
-        ['målforskel', st.hasGoalDiff],
-      ]} />
-      <Section title="Kampdetaljer (/matches/{id})" probe={md} fields={matchFields(md)} />
-
-      {ref && (
-        <>
-          <div style={{ fontWeight: 800, fontSize: '0.8rem', margin: '0.75rem 0 0.3rem', borderTop: '1px solid var(--c-border)', paddingTop: '0.6rem' }}>
-            Reference: {ref.code} (aktiv turnering — viser hvad tieren reelt leverer)
-          </div>
-          <Section title="Topscorere (/scorers)" probe={ref.scorers} fields={[
-            [`antal: ${ref.scorers?.count ?? 0}`, (ref.scorers?.count ?? 0) > 0],
-            ['assists', ref.scorers?.hasAssists],
-            ['straffemål', ref.scorers?.hasPenalties],
-            ['nationalitet', ref.scorers?.hasNationality],
-          ]} />
-          <Section title="Kampdetaljer (/matches/{id})" probe={ref.matchDetail} fields={matchFields(ref.matchDetail || {})} />
-        </>
-      )}
-
-      <div style={{ fontSize: '0.72rem', color: 'var(--c-muted)' }}>
-        Tjekket {report.checkedAt ? new Date(report.checkedAt).toLocaleString('da-DK') : '—'}.
-      </div>
-    </div>
-  );
-}
-
 export default function MatchesTab() {
   const { matches, loading, error } = useMatches();
   const [editMatchId, setEditMatchId] = useState(null);
@@ -132,13 +44,9 @@ export default function MatchesTab() {
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [reminderMsg, setReminderMsg] = useState('');
   const [reminderBusy, setReminderBusy] = useState(false);
-  const [pruneMsg, setPruneMsg] = useState('');
-  const [pruneBusy, setPruneBusy] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
-  const [inspectReport, setInspectReport] = useState(null);
   const [timeChanges, setTimeChanges] = useState(null); // null=ikke tjekket, []=ingen afvigelser
-  const { isOwner } = useAuth();
 
   async function handleCheckTimes() {
     setSyncBusy(true); setSyncMsg(''); setTimeChanges(null);
@@ -189,24 +97,15 @@ export default function MatchesTab() {
     setSyncMsg(`Stilling opdateret: ${res.data?.tables ?? 0} tabel(ler).`);
   }
 
-  async function handleInspect() {
-    setSyncBusy(true); setSyncMsg(''); setInspectReport(null);
-    const res = await callInspectFootballData();
-    setSyncBusy(false);
-    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
-    setInspectReport(res.data);
-  }
-
-  async function handleSyncNow(dryRun, full = false) {
+  async function handleSyncNow() {
     setSyncBusy(true); setSyncMsg('');
-    const res = await callSyncResultsNow({ dryRun, full });
+    const res = await callSyncResultsNow({ dryRun: false, full: false });
     setSyncBusy(false);
     if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
     const d = res.data ?? {};
     if (d.reason === 'no-window-matches') { setSyncMsg('Ingen kampe i gang lige nu.'); return; }
     if (d.reason === 'no-unfinished-matches') { setSyncMsg('Ingen uafsluttede kampe at synke.'); return; }
-    const label = full ? (dryRun ? 'Tør-kør (alle)' : 'Synk alle') : (dryRun ? 'Tør-kør' : 'Synk');
-    setSyncMsg(`${label}: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
+    setSyncMsg(`Synk: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
   }
 
   async function handleSyncFixtures() {
@@ -224,17 +123,6 @@ export default function MatchesTab() {
     try { await clearManualLock(matchId); } catch (e) { window.alert(e.message); }
   }
 
-  async function handlePrune() {
-    if (!window.confirm('Slet forældede knockout-kampe (gamle id\'er)? Dette kan ikke fortrydes.')) return;
-    setPruneBusy(true);
-    setPruneMsg('');
-    const res = await callPruneOrphanMatches();
-    setPruneBusy(false);
-    setPruneMsg(res.ok
-      ? `Slettet ${res.data?.deleted ?? 0} forældede kampe (${res.data?.remaining ?? '?'} tilbage)`
-      : `Fejl: ${res.error}`);
-  }
-
   async function handleSendReminders() {
     if (!window.confirm('Send e-mail-påmindelser til alle der mangler at tippe på dagens kampe?')) return;
     setReminderBusy(true);
@@ -243,16 +131,6 @@ export default function MatchesTab() {
     setReminderBusy(false);
     setReminderMsg(res.ok
       ? `Påmindelser sendt: ${res.data?.sent ?? 0}`
-      : `Fejl: ${res.error}`);
-  }
-
-  async function handleTestToMe() {
-    setReminderBusy(true);
-    setReminderMsg('');
-    const res = await callSendTestReminderToMe();
-    setReminderBusy(false);
-    setReminderMsg(res.ok
-      ? `Testmail sendt til ${res.data?.sentTo} (${res.data?.matches} kampe / ${res.data?.days} spilledage)`
       : `Fejl: ${res.error}`);
   }
 
@@ -342,44 +220,17 @@ export default function MatchesTab() {
           {reminderBusy ? 'Sender…' : '✉️ Send påmindelser nu'}
         </button>
 
-        <button
-          className="btn btn--ghost"
-          onClick={handleTestToMe}
-          disabled={reminderBusy}
-          title="Send en testmail kun til dig selv med de første 3 spilledage"
-        >
-          {reminderBusy ? 'Sender…' : '🧪 Testmail til mig'}
-        </button>
-
-        {isOwner && (
-          <button
-            className="btn btn--ghost"
-            onClick={handlePrune}
-            disabled={pruneBusy}
-            title="Slet forældede knockout-kampe med gamle id'er"
-          >
-            {pruneBusy ? 'Rydder…' : '🧹 Ryd forældede kampe'}
-          </button>
-        )}
       </div>
 
       {/* Resultat-automatik (football-data.org) */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
         <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--c-muted)' }}>Auto-resultater:</span>
-        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(false)} disabled={syncBusy}
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncNow} disabled={syncBusy}
           title="Hent live/afsluttede resultater fra football-data.org nu">
           {syncBusy ? '…' : '⚽ Synk nu'}
         </button>
-        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(true)} disabled={syncBusy}
-          title="Vis hvad en synk ville ændre, uden at skrive noget">
-          🔎 Tør-kør
-        </button>
-        <button className="btn btn--ghost btn--sm" onClick={() => handleSyncNow(false, true)} disabled={syncBusy}
-          title="Hent resultater for ALLE spillede kampe (også ældre), ikke kun de igangværende">
-          🗓 Synk alle resultater
-        </button>
         <button className="btn btn--ghost btn--sm" onClick={handleSyncFixtures} disabled={syncBusy}
-          title="Map vores kampe til football-data.org-id'er (kør én gang / efter lodtrækning)">
+          title="Map vores kampe til football-data.org-id'er (kør efter lodtrækning / når knockout-kampe får hold)">
           {"🔗 Map kamp-id'er"}
         </button>
         <button className="btn btn--ghost btn--sm" onClick={handleCheckTimes} disabled={syncBusy}
@@ -398,17 +249,7 @@ export default function MatchesTab() {
           title="Opdater den officielle stilling (gruppetabeller med form)">
           📊 Opdater stilling
         </button>
-        {isOwner && (
-          <button className="btn btn--ghost btn--sm" onClick={handleInspect} disabled={syncBusy}
-            title="Tjek hvilke felter jeres football-data.org-tier giver adgang til">
-            🔍 Tjek football-data felter
-          </button>
-        )}
       </div>
-
-      {inspectReport && (
-        <FieldReport report={inspectReport} onClose={() => setInspectReport(null)} />
-      )}
 
       <SyncHealthBanner />
 
@@ -439,12 +280,6 @@ export default function MatchesTab() {
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {pruneMsg && (
-        <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, background: 'var(--c-surface-2, #f0f0f0)', fontSize: '0.88rem' }}>
-          {pruneMsg}
         </div>
       )}
 
