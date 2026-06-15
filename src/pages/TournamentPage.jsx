@@ -2,12 +2,14 @@
 // TournamentPage – Kampplan og stilling for grupper, mellemrunde og slutspil.
 // Opdateres live via useMatches() (onSnapshot).
 // ---------------------------------------------------------------------------
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMatches } from '../features/matches/useMatches';
+import { useAuth } from '../context/AuthContext';
+import { useBonusQuestions, useMyBonusBets } from '../features/bonus/useBonusData';
 import { computeGroupStandings, grupperEfterGruppe } from '../features/tournament/computeStandings';
 import { roundLabel, formatKickoffTime, formatKickoffDate, dayKey } from '../features/matches/matchHelpers';
 import { teamName } from '../lib/teams';
-import { ROUNDS, MATCH_STATUS } from '../lib/constants';
+import { ROUNDS, MATCH_STATUS, BONUS_TYPE } from '../lib/constants';
 import Flag from '../components/Flag';
 import TeamLink from '../components/TeamLink';
 import { TopScorersList } from '../features/stats/TopScorersCard';
@@ -39,7 +41,7 @@ const SLUTSPIL_RUNDER = [ROUNDS.R16, ROUNDS.QF, ROUNDS.SF, ROUNDS.BRONZE, ROUNDS
 /**
  * Stillingslinje for én gruppe (tabel + kampprogram).
  */
-function GruppeKort({ gruppenavn, kampe }) {
+function GruppeKort({ gruppenavn, kampe, myWinner }) {
   const stilling = computeGroupStandings(kampe);
 
   return (
@@ -93,6 +95,16 @@ function GruppeKort({ gruppenavn, kampe }) {
                       </span>
                     </span>
                     </TeamLink>
+                    {myWinner === række.team && (
+                      <span
+                        className="badge badge--yellow"
+                        data-testid="my-group-winner"
+                        title="Dit gæt på gruppevinder"
+                        style={{ marginLeft: 6, fontSize: '0.64rem', whiteSpace: 'nowrap' }}
+                      >
+                        ⭐ Dit gæt
+                      </span>
+                    )}
                   </td>
                   <td className="text-center text-muted">{række.played}</td>
                   <td className="text-center">{række.won}</td>
@@ -257,7 +269,7 @@ function KnockoutKampKort({ kamp }) {
 /**
  * Grupper-fane: stillingskort for alle grupper A–L.
  */
-function GrupperFane({ matches }) {
+function GrupperFane({ matches, myGroupWinners }) {
   const gruppeKampe = matches.filter((m) => m.round === ROUNDS.GROUP);
   const gruppeMap = grupperEfterGruppe(gruppeKampe);
 
@@ -274,7 +286,7 @@ function GrupperFane({ matches }) {
   return (
     <div className="groups-grid">
       {[...gruppeMap.entries()].map(([navn, kampe]) => (
-        <GruppeKort key={navn} gruppenavn={navn} kampe={kampe} />
+        <GruppeKort key={navn} gruppenavn={navn} kampe={kampe} myWinner={myGroupWinners?.[navn]} />
       ))}
     </div>
   );
@@ -440,7 +452,22 @@ function FaktaFane({ matches }) {
 
 export default function TournamentPage() {
   const { matches, loading, error } = useMatches();
+  const { user } = useAuth();
+  const { questions } = useBonusQuestions();
+  const { bonusBets } = useMyBonusBets(user?.uid ?? null);
   const [aktivFane, setAktivFane] = useState('grupper');
+
+  // Mit gæt på gruppevinder pr. gruppe (fra bonus-spørgsmål): gruppenavn → holdkode.
+  const myGroupWinners = useMemo(() => {
+    const out = {};
+    for (const q of questions) {
+      if (q.type === BONUS_TYPE.GROUP_WINNER && q.groupName) {
+        const answer = bonusBets.get(q.id)?.answer;
+        if (answer) out[q.groupName] = answer;
+      }
+    }
+    return out;
+  }, [questions, bonusBets]);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -503,7 +530,7 @@ export default function TournamentPage() {
 
       {/* Fane-indhold */}
       {aktivFane === 'grupper' && (
-        <GrupperFane matches={matches} />
+        <GrupperFane matches={matches} myGroupWinners={myGroupWinners} />
       )}
       {aktivFane === 'mellemrunde' && (
         <MellemrundeFane matches={matches} />
