@@ -27,6 +27,20 @@ vi.mock('../features/matches/useMatches', () => ({
   useMatches: () => mockUseMatches(),
 }));
 
+// ── Mock auth + bonus (gruppevinder-gæt) ──────────────────────────────────────
+let mockQuestions = [];
+let mockBonusBets = new Map();
+vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { uid: 'u1' } }) }));
+vi.mock('../features/bonus/useBonusData', () => ({
+  useBonusQuestions: () => ({ questions: mockQuestions }),
+  useMyBonusBets: () => ({ bonusBets: mockBonusBets }),
+}));
+
+beforeEach(() => {
+  mockQuestions = [];
+  mockBonusBets = new Map();
+});
+
 // ── Hjælpefunktioner til testdata ─────────────────────────────────────────────
 function lavGruppeKamp(id, homeTeam, awayTeam, groupName, status = 'scheduled', result = null) {
   return {
@@ -431,5 +445,33 @@ describe('TournamentPage – Fakta-fane', () => {
     fireEvent.click(screen.getByRole('tab', { name: /fakta/i }));
     expect(screen.getByText(/Turneringen i tal/i)).toBeInTheDocument();
     expect(screen.getByText(/Mål pr. minut-interval/i)).toBeInTheDocument();
+  });
+});
+
+// ─── Gruppevinder-gæt ─────────────────────────────────────────────────────────
+
+describe('TournamentPage – gruppevinder-gæt', () => {
+  it('markerer mit gæt på gruppevinder i gruppestillingen', () => {
+    mockUseMatches.mockReturnValue({
+      matches: [lavGruppeKamp('gk-1', 'ARG', 'BRA', 'A')],
+      loading: false,
+      error: null,
+    });
+    mockQuestions = [{ id: 'q-A', type: 'groupWinner', groupName: 'A' }];
+    mockBonusBets = new Map([['q-A', { questionId: 'q-A', answer: 'ARG' }]]);
+    render(<TournamentPage />);
+    const marks = screen.getAllByTestId('my-group-winner');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent('Dit gæt');
+  });
+
+  it('viser ingen markering uden gæt', () => {
+    mockUseMatches.mockReturnValue({
+      matches: [lavGruppeKamp('gk-1', 'ARG', 'BRA', 'A')],
+      loading: false,
+      error: null,
+    });
+    render(<TournamentPage />);
+    expect(screen.queryByTestId('my-group-winner')).not.toBeInTheDocument();
   });
 });
