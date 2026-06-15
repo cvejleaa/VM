@@ -57,7 +57,7 @@ export default function RunbookTab() {
       <section style={sectionStyle}>
         <h2 style={h2Style}>🧪 Tjek før go-live</h2>
         <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
-          <li style={liStyle}>Tryk <Kbd>🔎 Tør-kør</Kbd> under Auto-resultater — den viser, hvad en synk <em>ville</em> ændre, uden at skrive noget.</li>
+          <li style={liStyle}>Tryk <Kbd>⚽ Synk nu</Kbd> under Auto-resultater for at hente resultater med det samme (ellers kører synken selv hvert minut).</li>
           <li style={liStyle}>Efter den første afsluttede kamp: bekræft at resultatet står som «Afsluttet», og at leaderboardet har opdateret point.</li>
         </ul>
       </section>
