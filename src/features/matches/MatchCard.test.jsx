@@ -1,6 +1,11 @@
 // Tests for MatchCard – bekræfter låst-tilstand, resultat og point.
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+
+// MatchCard indeholder <TeamLink> (et <Link>), så render kræver en Router-kontekst.
+const render = (ui, opts) =>
+  rtlRender(ui, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>, ...opts });
 
 // Mock Firebase
 vi.mock('../../firebase', () => ({ db: {} }));

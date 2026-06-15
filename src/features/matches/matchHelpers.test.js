@@ -13,6 +13,7 @@ import {
   isDayGroupPast,
   flipSide,
   goalsWithRunningScore,
+  teamMatchOutcome,
 } from './matchHelpers';
 
 // ---------------------------------------------------------------------------
@@ -493,5 +494,29 @@ describe('goalsWithRunningScore', () => {
     expect(goalsWithRunningScore([])).toEqual([]);
     expect(goalsWithRunningScore([{ minute: 5, side: null, type: 'REGULAR' }])[0].score)
       .toEqual({ home: 0, away: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// teamMatchOutcome
+// ---------------------------------------------------------------------------
+describe('teamMatchOutcome', () => {
+  const m = { homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 1 } };
+
+  it('afgør vundet/tabt/uafgjort fra holdets perspektiv', () => {
+    expect(teamMatchOutcome(m, 'BRA')).toBe('win');
+    expect(teamMatchOutcome(m, 'ARG')).toBe('loss');
+    expect(teamMatchOutcome({ ...m, result: { home: 1, away: 1 } }, 'BRA')).toBe('draw');
+  });
+
+  it('bruger advance ved afgjort knockout (også uafgjort på straffe)', () => {
+    const ko = { homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 1, away: 1, advance: 'ARG' } };
+    expect(teamMatchOutcome(ko, 'ARG')).toBe('win');
+    expect(teamMatchOutcome(ko, 'BRA')).toBe('loss');
+  });
+
+  it('returnerer null uden resultat eller hvis holdet ikke er med', () => {
+    expect(teamMatchOutcome({ homeTeam: 'BRA', awayTeam: 'ARG', result: null }, 'BRA')).toBeNull();
+    expect(teamMatchOutcome(m, 'DEN')).toBeNull();
   });
 });

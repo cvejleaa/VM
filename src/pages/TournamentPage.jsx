@@ -9,6 +9,7 @@ import { roundLabel, formatKickoffTime, formatKickoffDate, dayKey } from '../fea
 import { teamName } from '../lib/teams';
 import { ROUNDS, MATCH_STATUS } from '../lib/constants';
 import Flag from '../components/Flag';
+import TeamLink from '../components/TeamLink';
 import { TopScorersList } from '../features/stats/TopScorersCard';
 import { useTopScorers } from '../features/stats/useTopScorers';
 import DisciplineCard from '../features/stats/DisciplineCard';
@@ -75,6 +76,7 @@ function GruppeKort({ gruppenavn, kampe }) {
                     </span>
                   </td>
                   <td>
+                    <TeamLink code={række.team} style={{ display: 'inline-flex' }}>
                     <span className="team-cell">
                       <Flag code={række.team} size={20} />
                       {/* Fuldt navn når kortet er bredt nok, ellers landekode */}
@@ -85,6 +87,7 @@ function GruppeKort({ gruppenavn, kampe }) {
                         {række.team}
                       </span>
                     </span>
+                    </TeamLink>
                   </td>
                   <td className="text-center text-muted">{række.played}</td>
                   <td className="text-center">{række.won}</td>
@@ -117,13 +120,15 @@ function GruppeKort({ gruppenavn, kampe }) {
           return (
             <div key={kamp.id} className="group-match">
               {/* Hjemmehold */}
-              <div className="group-match__team">
-                <Flag code={kamp.homeTeam} size={20} />
-                <span className="group-match__team-name">
-                  <span className="team-name-long">{teamName(kamp.homeTeam)}</span>
-                  <span className="team-name-short">{kamp.homeTeam}</span>
-                </span>
-              </div>
+              <TeamLink code={kamp.homeTeam} style={{ display: 'flex' }}>
+                <div className="group-match__team">
+                  <Flag code={kamp.homeTeam} size={20} />
+                  <span className="group-match__team-name">
+                    <span className="team-name-long">{teamName(kamp.homeTeam)}</span>
+                    <span className="team-name-short">{kamp.homeTeam}</span>
+                  </span>
+                </div>
+              </TeamLink>
 
               {/* Dato + resultat/tid */}
               <div className="group-match__center">
@@ -144,13 +149,15 @@ function GruppeKort({ gruppenavn, kampe }) {
               </div>
 
               {/* Udehold */}
-              <div className="group-match__team group-match__team--away">
-                <span className="group-match__team-name" style={{ textAlign: 'right' }}>
-                  <span className="team-name-long">{teamName(kamp.awayTeam)}</span>
-                  <span className="team-name-short">{kamp.awayTeam}</span>
-                </span>
-                <Flag code={kamp.awayTeam} size={20} />
-              </div>
+              <TeamLink code={kamp.awayTeam} style={{ display: 'flex' }}>
+                <div className="group-match__team group-match__team--away">
+                  <span className="group-match__team-name" style={{ textAlign: 'right' }}>
+                    <span className="team-name-long">{teamName(kamp.awayTeam)}</span>
+                    <span className="team-name-short">{kamp.awayTeam}</span>
+                  </span>
+                  <Flag code={kamp.awayTeam} size={20} />
+                </div>
+              </TeamLink>
             </div>
           );
         })}
@@ -187,10 +194,10 @@ function KnockoutKampKort({ kamp }) {
       <div className={`ko-match__team ${hjemmeVinder ? 'ko-match__team--winner' : ''}`}>
         <div className="ko-match__team-info">
           {kamp.homeTeam ? (
-            <>
+            <TeamLink code={kamp.homeTeam} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
               <Flag code={kamp.homeTeam} size={22} />
               <span className="ko-match__team-name">{teamName(kamp.homeTeam)}</span>
-            </>
+            </TeamLink>
           ) : (
             <span className="ko-match__team-name ko-match__team-name--placeholder">
               {kamp.homePlaceholder || 'TBD'}
@@ -208,10 +215,10 @@ function KnockoutKampKort({ kamp }) {
       <div className={`ko-match__team ${udeVinder ? 'ko-match__team--winner' : ''}`}>
         <div className="ko-match__team-info">
           {kamp.awayTeam ? (
-            <>
+            <TeamLink code={kamp.awayTeam} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
               <Flag code={kamp.awayTeam} size={22} />
               <span className="ko-match__team-name">{teamName(kamp.awayTeam)}</span>
-            </>
+            </TeamLink>
           ) : (
             <span className="ko-match__team-name ko-match__team-name--placeholder">
               {kamp.awayPlaceholder || 'TBD'}

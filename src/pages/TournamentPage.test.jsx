@@ -3,8 +3,13 @@
  * Mocker useMatches fuldstændigt og Firebase.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import TournamentPage from './TournamentPage';
+
+// TournamentPage indeholder <TeamLink> (et <Link>), så render kræver en Router.
+const render = (ui, opts) =>
+  rtlRender(ui, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>, ...opts });
 
 // ── Mock firebase (TournamentPage bruger useMatches som bruger Firebase) ──────
 vi.mock('../firebase', () => ({ db: {} }));

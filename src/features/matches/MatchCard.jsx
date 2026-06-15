@@ -15,6 +15,7 @@ import {
 } from './matchHelpers';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
+import TeamLink from '../../components/TeamLink';
 import ScoreInput from './ScoreInput';
 import Countdown from './Countdown';
 import MatchTips from './MatchTips';
@@ -182,8 +183,10 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
       >
         {/* Hjemmehold */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flex: 1, minWidth: 90 }}>
-          {match.homeTeam ? <Flag code={match.homeTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
-          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{homeName}</span>
+          <TeamLink code={match.homeTeam} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+            {match.homeTeam ? <Flag code={match.homeTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
+            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{homeName}</span>
+          </TeamLink>
         </div>
 
         {/* Resultat (live eller afsluttet) eller "vs" */}
@@ -223,8 +226,10 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
             justifyContent: 'flex-end',
           }}
         >
-          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{awayName}</span>
-          {match.awayTeam ? <Flag code={match.awayTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
+          <TeamLink code={match.awayTeam} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{awayName}</span>
+            {match.awayTeam ? <Flag code={match.awayTeam} size={28} /> : <span style={{ fontSize: '1.4rem' }}>❓</span>}
+          </TeamLink>
         </div>
       </div>
 
