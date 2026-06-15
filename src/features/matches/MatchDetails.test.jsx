@@ -23,6 +23,22 @@ describe('MatchDetails', () => {
     expect(screen.getByText(/50.000 tilskuere/)).toBeInTheDocument();
   });
 
+  it('viser løbende stilling ved hvert mål', () => {
+    const match = { ...base, details: {
+      goals: [
+        { minute: 10, type: 'REGULAR', side: 'home', scorer: 'A' },
+        { minute: 20, type: 'REGULAR', side: 'away', scorer: 'B' },
+        { minute: 30, type: 'OWN', side: 'away', scorer: 'C' },
+      ],
+      bookings: [{ minute: 25, side: 'home', player: 'D', card: 'YELLOW' }],
+      lineups: null,
+    } };
+    render(<MatchDetails match={match} homeName="BRA" awayName="ARG" />);
+    const scores = screen.getAllByTestId('running-score').map((el) => el.textContent);
+    // 1–0, 1–1, og selvmål af ude-spiller → hjemme fører 2–1. Kortet har ingen score.
+    expect(scores).toEqual(['1–0', '1–1', '2–1']);
+  });
+
   it('viser udskiftninger i tidslinjen med ind/ud-spiller', () => {
     const match = { ...base, details: {
       goals: [], bookings: [],

@@ -11,6 +11,8 @@ import {
   liveMinuteLabel,
   findCurrentMatchId,
   isDayGroupPast,
+  flipSide,
+  goalsWithRunningScore,
 } from './matchHelpers';
 
 // ---------------------------------------------------------------------------
@@ -435,5 +437,61 @@ describe('isDayGroupPast', () => {
       { kickoff: new Date('2026-06-14T17:00:00Z'), status: 'scheduled' },
     ] };
     expect(isDayGroupPast(group, 'i dag', now)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// goalsWithRunningScore (+ flipSide)
+// ---------------------------------------------------------------------------
+describe('flipSide', () => {
+  it('bytter side og bevarer ukendt', () => {
+    expect(flipSide('home')).toBe('away');
+    expect(flipSide('away')).toBe('home');
+    expect(flipSide(null)).toBeNull();
+  });
+});
+
+describe('goalsWithRunningScore', () => {
+  it('akkumulerer stillingen kronologisk', () => {
+    const goals = [
+      { minute: 10, side: 'home', type: 'REGULAR' },
+      { minute: 20, side: 'away', type: 'REGULAR' },
+      { minute: 30, side: 'home', type: 'REGULAR' },
+    ];
+    expect(goalsWithRunningScore(goals).map((g) => g.score)).toEqual([
+      { home: 1, away: 0 }, { home: 1, away: 1 }, { home: 2, away: 1 },
+    ]);
+  });
+
+  it('lader selvmål tælle for modstanderen', () => {
+    const goals = [{ minute: 7, side: 'home', type: 'OWN' }];
+    // Hjemmespillers selvmål → udeholdet fører.
+    expect(goalsWithRunningScore(goals)[0].score).toEqual({ home: 0, away: 1 });
+  });
+
+  it('tæller straffemål normalt og sorterer usorteret input', () => {
+    const goals = [
+      { minute: 30, side: 'home', type: 'REGULAR' },
+      { minute: 12, side: 'away', type: 'PENALTY' },
+    ];
+    const out = goalsWithRunningScore(goals);
+    expect(out[0]).toMatchObject({ minute: 12, score: { home: 0, away: 1 } });
+    expect(out[1]).toMatchObject({ minute: 30, score: { home: 1, away: 1 } });
+  });
+
+  it('sorterer på tillægstid som sekundær nøgle', () => {
+    const goals = [
+      { minute: 45, injuryTime: 3, side: 'away', type: 'REGULAR' },
+      { minute: 45, injuryTime: 1, side: 'home', type: 'REGULAR' },
+    ];
+    const out = goalsWithRunningScore(goals);
+    expect(out[0]).toMatchObject({ injuryTime: 1, score: { home: 1, away: 0 } });
+    expect(out[1]).toMatchObject({ injuryTime: 3, score: { home: 1, away: 1 } });
+  });
+
+  it('håndterer ukendt side og tomt input', () => {
+    expect(goalsWithRunningScore([])).toEqual([]);
+    expect(goalsWithRunningScore([{ minute: 5, side: null, type: 'REGULAR' }])[0].score)
+      .toEqual({ home: 0, away: 0 });
   });
 });
