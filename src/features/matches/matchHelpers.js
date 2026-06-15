@@ -151,6 +151,27 @@ export function isDayGroupPast(group, todayLabel, now = new Date()) {
 }
 
 /**
+ * Udfald af en kamp set fra ét holds perspektiv.
+ * @param {object} match  kamp med result + homeTeam/awayTeam
+ * @param {string} code    holdkode
+ * @returns {'win'|'draw'|'loss'|null}  null hvis ikke spillet eller holdet ikke er med
+ */
+export function teamMatchOutcome(match, code) {
+  if (!match || !match.result) return null;
+  const r = match.result;
+  const isHome = match.homeTeam === code;
+  const isAway = match.awayTeam === code;
+  if (!isHome && !isAway) return null;
+  // Knockout afgjort (evt. på straffe): det hold der gik videre, vandt.
+  if (r.advance) return r.advance === code ? 'win' : 'loss';
+  const gf = isHome ? r.home : r.away;
+  const ga = isHome ? r.away : r.home;
+  if (gf > ga) return 'win';
+  if (gf < ga) return 'loss';
+  return 'draw';
+}
+
+/**
  * Returnerer rundens fulde danske navn.
  * @param {string} round
  * @returns {string}
