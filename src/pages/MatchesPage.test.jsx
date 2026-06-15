@@ -119,6 +119,12 @@ describe('MatchesPage – visning af kampe', () => {
     const toggle = screen.getByTestId('toggle-past');
     expect(toggle).toHaveTextContent('Vis tidligere kampe (1)');
     fireEvent.click(toggle);
+    // Tidligere kamp vises kompakt (kun hold + resultat), ikke som fuldt kort.
+    expect(screen.getAllByTestId('match-card').length).toBe(1);
+    const compact = screen.getByTestId('match-row-compact');
+    expect(screen.getByTestId('compact-result')).toHaveTextContent('2–1');
+    // Klik folder den ud til fuldt kort.
+    fireEvent.click(compact);
     expect(screen.getAllByTestId('match-card').length).toBe(2);
   });
 
@@ -173,10 +179,11 @@ describe('MatchesPage – filtre', () => {
     fireEvent.click(screen.getByTestId('filter-kommende'));
     expect(screen.getAllByTestId('match-card').length).toBe(1);
     fireEvent.click(screen.getByTestId('filter-alle'));
-    // Aktiv kamp vises straks; tidligere kan foldes ud.
+    // Aktiv kamp vises straks; tidligere kan foldes ud (kompakt).
     expect(screen.getAllByTestId('match-card').length).toBe(1);
     fireEvent.click(screen.getByTestId('toggle-past'));
-    expect(screen.getAllByTestId('match-card').length).toBe(2);
+    expect(screen.getByTestId('match-row-compact')).toBeInTheDocument();
+    expect(screen.getAllByTestId('match-card').length).toBe(1);
   });
 
   it('filter "I dag" returnerer tom tilstand for historiske/fremtidige kampe', () => {

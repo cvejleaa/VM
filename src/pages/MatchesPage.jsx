@@ -18,6 +18,7 @@ import {
   isDayGroupPast,
 } from '../features/matches/matchHelpers';
 import MatchCard from '../features/matches/MatchCard';
+import MatchRowCompact from '../features/matches/MatchRowCompact';
 import { useStandings } from '../features/leaderboard/useStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
 import { buildContactLeagues } from '../features/comments/contactLeagues';
@@ -120,6 +121,15 @@ export default function MatchesPage() {
     [pastGroups],
   );
 
+  // Hvilke tidligere kampe er foldet ud til fuldt kort (klik på den kompakte række).
+  const [expandedPast, setExpandedPast] = useState(() => new Set());
+  const togglePastMatch = (id) =>
+    setExpandedPast((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
   // Tæl utippede kampe til filterlabel (kun kampe der faktisk kan tippes)
   const untippedCount = useMemo(
     () =>
@@ -139,9 +149,39 @@ export default function MatchesPage() {
     }
   }, [isLoading, filter, currentMatchId]);
 
-  // Render én dag-gruppe (overskrift + runde-undergrupper + kampkort).
-  // Kampkortet for den aktuelle kamp får id="aktuel-kamp" (mål for auto-scroll).
-  const renderDayGroup = (group) => {
+  // Render én kamp. Tidligere kampe vises kompakt (kun hold + resultat), indtil
+  // man klikker dem ud; aktive/kommende — og udfoldede tidligere — vises som fuldt kort.
+  const renderMatch = (match, { past }) => {
+    const isCurrent = match.id === currentMatchId;
+    const wrap = (children) => (
+      <div
+        key={match.id}
+        id={isCurrent ? 'aktuel-kamp' : undefined}
+        style={isCurrent ? { scrollMarginTop: '4.5rem' } : undefined}
+      >
+        {children}
+      </div>
+    );
+
+    if (past && !expandedPast.has(match.id)) {
+      return wrap(
+        <MatchRowCompact match={match} onClick={() => togglePastMatch(match.id)} />,
+      );
+    }
+    return wrap(
+      <MatchCard
+        match={match}
+        uid={uid}
+        bet={bets.get(match.id) ?? null}
+        usersByUid={usersByUid}
+        visibleUids={visibleUids}
+      />,
+    );
+  };
+
+  // Render én dag-gruppe (overskrift + runde-undergrupper + kampe).
+  // Kampen for den aktuelle kamp får id="aktuel-kamp" (mål for auto-scroll).
+  const renderDayGroup = (group, { past = false } = {}) => {
     // Grupper yderligere per runde inden for dagen
     const roundGroups = group.matches.reduce((acc, m) => {
       const key = m.round;
@@ -186,21 +226,7 @@ export default function MatchesPage() {
                 {roundLabel(round)}
               </p>
             )}
-            {roundMatches.map((match) => (
-              <div
-                key={match.id}
-                id={match.id === currentMatchId ? 'aktuel-kamp' : undefined}
-                style={match.id === currentMatchId ? { scrollMarginTop: '4.5rem' } : undefined}
-              >
-                <MatchCard
-                  match={match}
-                  uid={uid}
-                  bet={bets.get(match.id) ?? null}
-                  usersByUid={usersByUid}
-                  visibleUids={visibleUids}
-                />
-              </div>
-            ))}
+            {roundMatches.map((match) => renderMatch(match, { past }))}
           </div>
         ))}
       </div>
@@ -279,12 +305,12 @@ export default function MatchesPage() {
           >
             {showPast ? '▾ Skjul tidligere kampe' : `▸ Vis tidligere kampe (${pastCount})`}
           </button>
-          {showPast && pastGroups.map(renderDayGroup)}
+          {showPast && pastGroups.map((g) => renderDayGroup(g, { past: true }))}
         </div>
       )}
 
       {/* Aktuelle og kommende kampe */}
-      {!isLoading && activeGroups.map(renderDayGroup)}
+      {!isLoading && activeGroups.map((g) => renderDayGroup(g, { past: false }))}
     </div>
   );
 }
