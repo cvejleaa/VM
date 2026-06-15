@@ -265,10 +265,12 @@ synlige. (Service-account og SMTP-/football-data-nøgler forbliver **secrets**.)
 Deployet stopper med en tydelig fejl, hvis `VITE_FIREBASE_PROJECT_ID` mangler.
 
 ### B) Slå App Check til (anbefalet før public)
-1. **reCAPTCHA v3-nøgle:** Firebase Console → **App Check** → registrér din
-   web-app med udbyderen **reCAPTCHA v3** → kopiér **site-key**.
-2. Sæt den som repo-variabel `VITE_RECAPTCHA_SITE_KEY` (og evt. i din lokale
-   `.env`). Koden aktiverer automatisk App Check, når nøglen er sat.
+1. **reCAPTCHA Enterprise-nøgle:** Firebase Console → **App Check** → registrér
+   web-appen med udbyderen **reCAPTCHA Enterprise**. Site-key'en er **Key-ID'et**
+   (starter med `6L…`) fra Google Cloud → reCAPTCHA. Enterprise bruger **kun** en
+   site-key — ingen secret-key.
+2. Sæt den som repo-variabel `VITE_RECAPTCHA_SITE_KEY`. Koden aktiverer automatisk
+   App Check (Enterprise-provider), når nøglen er sat.
 3. Deploy frontend, åbn siden et par gange, og tjek i **App Check** at der
    kommer "verified" trafik ind.
 4. Når trafikken ser rigtig ud: tryk **Enforce** på **Firestore** og
