@@ -222,22 +222,22 @@ function SeasonTab({ matches, betsByMatch, usersById }) {
 }
 
 export default function StatsPage() {
-  const [tab, setTab] = useState(TAB_TODAY);
+  const [tab, setTab] = useState(TAB_SEASON);
   const { todayMatches, matches, betsByMatch, usersById, pointsByUidToday, loading, error } = useStatsData();
 
   return (
     <div className="container">
       <Hero
         title="Statistik"
-        subtitle="Se hvordan kampene gik – hvem der rammer skarpest, dagens overblik og hele turneringens facts."
+        subtitle="Se hvordan kampene gik – hvem der rammer skarpest, hele turneringens facts og dagens overblik."
       />
 
       <div className="tabs" role="tablist">
-        <button role="tab" className={`tab${tab === TAB_TODAY ? ' tab--active' : ''}`} aria-selected={tab === TAB_TODAY} onClick={() => setTab(TAB_TODAY)}>
-          📅 I dag
-        </button>
         <button role="tab" className={`tab${tab === TAB_SEASON ? ' tab--active' : ''}`} aria-selected={tab === TAB_SEASON} onClick={() => setTab(TAB_SEASON)}>
           🏆 Hele turneringen
+        </button>
+        <button role="tab" className={`tab${tab === TAB_TODAY ? ' tab--active' : ''}`} aria-selected={tab === TAB_TODAY} onClick={() => setTab(TAB_TODAY)}>
+          📅 I dag
         </button>
       </div>
 
