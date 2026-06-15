@@ -1,5 +1,6 @@
 // Central Firebase-initialisering. Bruger miljøvariabler fra .env (se .env.example).
 import { initializeApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
@@ -14,6 +15,23 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
+
+// App Check beskytter Firestore/Functions mod misbrug fra ikke-app-klienter.
+// Aktiveres kun når et reCAPTCHA v3-site-key er sat (VITE_RECAPTCHA_SITE_KEY),
+// så lokal udvikling/emulator og tests ikke kræver det. Slå håndhævelse til i
+// Firebase Console, når nøglen er på plads.
+const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+if (appCheckSiteKey && import.meta.env.VITE_USE_EMULATORS !== 'true') {
+  // Valgfri debug-token til lokal kørsel uden rigtigt reCAPTCHA.
+  if (import.meta.env.VITE_APPCHECK_DEBUG_TOKEN) {
+    globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APPCHECK_DEBUG_TOKEN;
+  }
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(appCheckSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app, 'europe-west1');

@@ -235,3 +235,48 @@ peger på. Vigtigt: konfigurér serveren til at sende alle ukendte stier til
 - **Sæt bonus-facit** (topscorer/gruppevindere) når de er afgjort.
 
 Se [admin-guide.md](admin-guide.md) for den daglige brug.
+
+---
+
+## 11. Offentligt repo: deploy-variabler & App Check
+
+`.env` ligger **ikke** længere i git (kun den offentlige web-config, men vi
+holder repoet rent). Derfor henter `deploy.yml` web-konfigurationen fra
+**GitHub repo-variabler** ved deploy.
+
+### A) Tilføj repo-variabler (engang)
+GitHub → repoet → **Settings → Secrets and variables → Actions → fanen
+"Variables" → New repository variable**. Opret disse (værdierne er de samme
+offentlige værdier som i din lokale `.env` / Firebase Console → Projektindstillinger):
+
+| Navn | Eksempel |
+|------|----------|
+| `VITE_FIREBASE_API_KEY` | `AIza…` |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `vm2026-tip.firebaseapp.com` |
+| `VITE_FIREBASE_PROJECT_ID` | `vm2026-tip` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `vm2026-tip.appspot.com` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `000000000000` |
+| `VITE_FIREBASE_APP_ID` | `1:000…:web:…` |
+| `VITE_OWNER_EMAIL` | `cvejleaa@gmail.com` |
+| `VITE_RECAPTCHA_SITE_KEY` | (valgfri — udfyld når App Check er sat op) |
+
+Disse er **variabler**, ikke secrets — værdierne er offentlige og må gerne være
+synlige. (Service-account og SMTP-/football-data-nøgler forbliver **secrets**.)
+Deployet stopper med en tydelig fejl, hvis `VITE_FIREBASE_PROJECT_ID` mangler.
+
+### B) Slå App Check til (anbefalet før public)
+1. **reCAPTCHA v3-nøgle:** Firebase Console → **App Check** → registrér din
+   web-app med udbyderen **reCAPTCHA v3** → kopiér **site-key**.
+2. Sæt den som repo-variabel `VITE_RECAPTCHA_SITE_KEY` (og evt. i din lokale
+   `.env`). Koden aktiverer automatisk App Check, når nøglen er sat.
+3. Deploy frontend, åbn siden et par gange, og tjek i **App Check** at der
+   kommer "verified" trafik ind.
+4. Når trafikken ser rigtig ud: tryk **Enforce** på **Firestore** og
+   **Cloud Functions** i App Check. (Gør det først efter et par dage, så du
+   ikke låser rigtige brugere ude.)
+5. Lokal udvikling: hent en **debug-token** fra browser-konsollen og læg den i
+   `VITE_APPCHECK_DEBUG_TOKEN`, eller lad `VITE_RECAPTCHA_SITE_KEY` stå tom.
+
+### C) Sæt et budget-loft (Blaze)
+Google Cloud Console → **Billing → Budgets & alerts** → opret et budget med
+e-mail-alarm (fx 50 kr./md.), så evt. misbrug ikke kan løbe løbsk.
