@@ -14,6 +14,7 @@ import {
   flipSide,
   goalsWithRunningScore,
   teamMatchOutcome,
+  tournamentDays,
 } from './matchHelpers';
 
 // ---------------------------------------------------------------------------
@@ -518,5 +519,23 @@ describe('teamMatchOutcome', () => {
   it('returnerer null uden resultat eller hvis holdet ikke er med', () => {
     expect(teamMatchOutcome({ homeTeam: 'BRA', awayTeam: 'ARG', result: null }, 'BRA')).toBeNull();
     expect(teamMatchOutcome(m, 'DEN')).toBeNull();
+  });
+});
+
+describe('tournamentDays', () => {
+  it('returnerer unikke dage kronologisk', () => {
+    const days = tournamentDays([
+      { id: 'a', kickoff: new Date('2026-06-11T18:00:00Z') },
+      { id: 'b', kickoff: new Date('2026-06-11T20:00:00Z') },
+      { id: 'c', kickoff: new Date('2026-06-12T18:00:00Z') },
+    ]);
+    expect(days).toHaveLength(2);
+    expect(days[0]).toMatch(/11\. juni/);
+    expect(days[1]).toMatch(/12\. juni/);
+  });
+
+  it('håndterer tomt input', () => {
+    expect(tournamentDays([])).toEqual([]);
+    expect(tournamentDays(null)).toEqual([]);
   });
 });

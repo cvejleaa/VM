@@ -75,6 +75,16 @@ export function groupMatchesByDay(matches) {
 }
 
 /**
+ * Ordnet liste af dagsnøgler (labels) der har kampe – kronologisk.
+ * Bruges til dag-for-dag-navigation.
+ * @param {Array} matches
+ * @returns {string[]}
+ */
+export function tournamentDays(matches) {
+  return groupMatchesByDay(matches ?? []).map((g) => g.label);
+}
+
+/**
  * Formaterer kickoff-tidspunkt til "HH:mm" (Copenhagen-tid).
  * @param {*} kickoff
  * @returns {string}

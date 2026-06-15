@@ -4,16 +4,19 @@
 //   "Hele turneringen" – samlet overblik, mest overraskende resultat,
 //                        bedst forudsagte kamp, og per-spiller træfsikkerhed.
 // ---------------------------------------------------------------------------
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStatsData } from '../features/stats/useStatsData';
 import {
   computeMatchStats, topScorersOfDay, maxPointsForMatch,
   computeSeasonOverview, computePlayerAccuracy, mostSurprising, bestPredicted,
+  pointsByUidForMatches,
 } from '../features/stats/statsUtils';
+import { dayKey, tournamentDays } from '../features/matches/matchHelpers';
 import { teamName } from '../lib/teams';
 import { ROUNDS } from '../lib/constants';
 import Flag from '../components/Flag';
 import Hero from '../components/Hero';
+import DaySelector from '../components/DaySelector';
 
 const TAB_TODAY = 'today';
 const TAB_SEASON = 'season';
@@ -92,21 +95,40 @@ function MatchStatCard({ match, bets, usersById }) {
   );
 }
 
-// ─── "I dag"-fane ───────────────────────────────────────────────────────────
-function TodayTab({ todayMatches, betsByMatch, usersById, pointsByUidToday }) {
-  const topScorers = useMemo(() => topScorersOfDay(pointsByUidToday, usersById, 3), [pointsByUidToday, usersById]);
+// ─── "I dag"-fane (kan bladre dag for dag) ──────────────────────────────────
+function TodayTab({ matches, betsByMatch, usersById }) {
+  const days = useMemo(() => tournamentDays(matches), [matches]);
+  const [day, setDay] = useState(null);
+
+  // Vælg standard-dag når kampene er klar: i dag hvis muligt, ellers seneste dag.
+  useEffect(() => {
+    if (day == null && days.length > 0) {
+      const today = dayKey(new Date());
+      setDay(days.includes(today) ? today : days[days.length - 1]);
+    }
+  }, [days, day]);
+
+  const dayMatches = useMemo(
+    () => matches.filter((m) => dayKey(m.kickoff) === day),
+    [matches, day],
+  );
+  const finishedToday = useMemo(() => dayMatches.filter((m) => m.result), [dayMatches]);
+  const pointsByUid = useMemo(() => pointsByUidForMatches(dayMatches, betsByMatch), [dayMatches, betsByMatch]);
+  const topScorers = useMemo(() => topScorersOfDay(pointsByUid, usersById, 3), [pointsByUid, usersById]);
   const totalTips = useMemo(
-    () => todayMatches.reduce((s, m) => s + (betsByMatch.get(m.id)?.length ?? 0), 0),
-    [todayMatches, betsByMatch],
+    () => finishedToday.reduce((s, m) => s + (betsByMatch.get(m.id)?.length ?? 0), 0),
+    [finishedToday, betsByMatch],
   );
 
   return (
     <>
+      <DaySelector days={days} value={day} onChange={setDay} />
+
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card__header"><h2 className="card__title">Dagens overblik</h2></div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: topScorers.length ? '0.75rem' : 0 }}>
-          <span className="badge badge--blue">{todayMatches.length} afgjorte kampe</span>
-          <span className="badge badge--muted">{totalTips} tips i dag</span>
+          <span className="badge badge--blue">{finishedToday.length} afgjorte kampe</span>
+          <span className="badge badge--muted">{totalTips} tips</span>
         </div>
         {topScorers.length > 0 ? (
           <div>
@@ -122,18 +144,18 @@ function TodayTab({ todayMatches, betsByMatch, usersById, pointsByUidToday }) {
             ))}
           </div>
         ) : (
-          <p style={{ color: 'var(--c-muted)', fontSize: '0.85rem', margin: 0 }}>Ingen point uddelt i dag endnu.</p>
+          <p style={{ color: 'var(--c-muted)', fontSize: '0.85rem', margin: 0 }}>Ingen point uddelt denne dag endnu.</p>
         )}
       </div>
 
       <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.6rem' }}>Dagens kampe</h2>
-      {todayMatches.length === 0 ? (
+      {finishedToday.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', color: 'var(--c-muted)' }}>
           <div style={{ fontSize: '2rem' }}>📅</div>
-          Ingen afgjorte kampe i dag endnu. Kom tilbage, når resultaterne er indtastet!
+          Ingen afgjorte kampe på denne dag. Vælg en anden dag, eller kom tilbage når resultaterne er indtastet!
         </div>
       ) : (
-        todayMatches.map((m) => (
+        finishedToday.map((m) => (
           <MatchStatCard key={m.id} match={m} bets={betsByMatch.get(m.id) ?? []} usersById={usersById} />
         ))
       )}
@@ -223,7 +245,7 @@ function SeasonTab({ matches, betsByMatch, usersById }) {
 
 export default function StatsPage() {
   const [tab, setTab] = useState(TAB_SEASON);
-  const { todayMatches, matches, betsByMatch, usersById, pointsByUidToday, loading, error } = useStatsData();
+  const { matches, betsByMatch, usersById, loading, error } = useStatsData();
 
   return (
     <div className="container">
@@ -246,7 +268,7 @@ export default function StatsPage() {
 
       {!loading && !error && (
         tab === TAB_TODAY
-          ? <TodayTab todayMatches={todayMatches} betsByMatch={betsByMatch} usersById={usersById} pointsByUidToday={pointsByUidToday} />
+          ? <TodayTab matches={matches} betsByMatch={betsByMatch} usersById={usersById} />
           : <SeasonTab matches={matches} betsByMatch={betsByMatch} usersById={usersById} />
 
       )}

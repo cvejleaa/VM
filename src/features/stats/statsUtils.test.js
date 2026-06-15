@@ -4,7 +4,7 @@ import {
   computeSeasonOverview, computePlayerAccuracy, mostSurprising, bestPredicted,
   computeDiscipline,
   computeGoalsByInterval, computeTournamentFacts, computeSecondHalfStats,
-  computeFieryMatches, computeRefereeStats,
+  computeFieryMatches, computeRefereeStats, pointsByUidForMatches,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -259,5 +259,28 @@ describe('computeFieryMatches & computeRefereeStats', () => {
   it('samler dommerstatistik', () => {
     const refs = computeRefereeStats(matches);
     expect(refs[0]).toMatchObject({ name: 'Dommer A', matches: 2, yellow: 2, red: 1 });
+  });
+});
+
+describe('pointsByUidForMatches', () => {
+  it('summerer point pr. spiller for afsluttede kampe', () => {
+    const matches = [
+      { id: '1', round: 'group', result: { home: 2, away: 1 } },
+      { id: '2', round: 'group', result: { home: 0, away: 0 } },
+      { id: '3', round: 'group', result: null }, // ikke afsluttet → ignoreres
+    ];
+    const bets = new Map([
+      ['1', [{ uid: 'u1', home: 2, away: 1 }, { uid: 'u2', home: 1, away: 0 }]],
+      ['2', [{ uid: 'u1', home: 0, away: 0 }]],
+      ['3', [{ uid: 'u1', home: 3, away: 3 }]],
+    ]);
+    const pts = pointsByUidForMatches(matches, bets);
+    // u1 rammer eksakt i kamp 1 og 2; u2 rammer udfald i kamp 1.
+    expect(pts.u1).toBeGreaterThan(pts.u2);
+    expect(pts.u2).toBeGreaterThan(0);
+  });
+
+  it('håndterer tomt input', () => {
+    expect(pointsByUidForMatches([], new Map())).toEqual({});
   });
 });
