@@ -14,6 +14,8 @@ import { tryLogActivity, ACTIVITY } from '../leagues/activityActions';
 
 export default function LeagueWall({ leagueId, meUid, myName, myEmoji = null, myTeam = null, isOwner = false, isAdmin = false }) {
   const { comments, loading, error } = useLeagueComments(leagueId);
+  // Vis nyeste besked øverst (hook'en henter dem ældste-først).
+  const ordered = [...comments].reverse();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [postError, setPostError] = useState('');
@@ -62,7 +64,7 @@ export default function LeagueWall({ leagueId, meUid, myName, myEmoji = null, my
         </p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-          {comments.map((c) => {
+          {ordered.map((c) => {
             const mine = c.uid === meUid;
             const canDelete = mine || isOwner || isAdmin;
             return (
