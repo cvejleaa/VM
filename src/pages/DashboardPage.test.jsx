@@ -7,7 +7,15 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'me' }, profile: { displayName: 'Carsten', totalPoints: 12 } }),
 }));
 vi.mock('../features/leaderboard/useStandings', () => ({
-  useStandings: () => ({ standings: [{ uid: 'x', totalPoints: 30 }, { uid: 'me', totalPoints: 12 }] }),
+  useStandings: () => ({ standings: [
+    { uid: 'x', displayName: 'Xenia', totalPoints: 30 },
+    { uid: 'me', displayName: 'Carsten', totalPoints: 12 },
+    { uid: 'z', displayName: 'Zlatan', totalPoints: 99 },
+  ] }),
+}));
+// Jeg er kun i liga med 'x' — 'z' er udenfor og må ikke vises på forsiden.
+vi.mock('../features/leagues/useLeagues', () => ({
+  useLeagues: () => ({ leagues: [{ id: 'L', memberUids: ['me', 'x'] }], loading: false, error: null }),
 }));
 vi.mock('../features/matches/useMatches', () => ({
   useMatches: () => ({ matches: [], loading: false, error: null }),
@@ -31,10 +39,17 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/Hej, Carsten/)).toBeInTheDocument();
   });
 
-  it('viser mærket placering og point som chips', () => {
+  it('viser mærket placering og point som chips (kun blandt liga-medspillere)', () => {
     renderPage();
+    // Placering regnes blandt liga-medspillere (me + x), ikke alle (z udenfor).
     expect(screen.getByText('Placering: #2 af 2')).toBeInTheDocument();
     expect(screen.getByText('Point: 12')).toBeInTheDocument();
+  });
+
+  it('viser kun liga-medspillere i forsidens stilling – ikke alle brugere', () => {
+    renderPage();
+    expect(screen.getByText('Xenia')).toBeInTheDocument();        // i min liga
+    expect(screen.queryByText('Zlatan')).not.toBeInTheDocument();  // udenfor min liga
   });
 
   it('viser "Mine opgaver"-kortet', () => {

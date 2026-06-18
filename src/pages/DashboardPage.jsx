@@ -7,6 +7,8 @@ import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useStandings } from '../features/leaderboard/useStandings';
+import { collectVisibleUids } from '../features/leaderboard/standingsUtils';
+import { useLeagues } from '../features/leagues/useLeagues';
 import { useMatches } from '../features/matches/useMatches';
 import { useMyBets } from '../features/matches/useMyBets';
 import Hero from '../components/Hero';
@@ -22,23 +24,33 @@ export default function DashboardPage() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { standings } = useStandings();
+  const { leagues, loading: leaguesLoading } = useLeagues(user?.uid);
   const { matches, loading: matchesLoading, error } = useMatches();
   const { bets } = useMyBets(user?.uid ?? null);
 
   const name = profile?.displayName || 'spiller';
 
-  // Min placering + point ud fra samlet pointstilling.
+  // Forsidens stilling viser kun de spillere, man deler en liga med (plus én selv) —
+  // samme afgrænsning som Stilling-siden bruger som standard.
+  const visibleStandings = useMemo(() => {
+    const visible = new Set(collectVisibleUids(leagues, user?.uid));
+    return standings.filter((u) => visible.has(u.uid));
+  }, [standings, leagues, user?.uid]);
+
+  // Min placering + point blandt mine liga-medspillere.
   // Ægte konkurrence-placering: deler man point, deler man plads
   // (alle på 0 point → alle nr. 1).
   const { rank, points, playerCount } = useMemo(() => {
-    const mine = standings.find((u) => u.uid === user?.uid);
+    const mine = visibleStandings.find((u) => u.uid === user?.uid);
     const myPoints = mine?.totalPoints ?? profile?.totalPoints ?? 0;
-    const ahead = standings.filter((u) => (u.totalPoints ?? 0) > myPoints).length;
-    return { rank: ahead + 1, points: myPoints, playerCount: standings.length };
-  }, [standings, user?.uid, profile?.totalPoints]);
+    const ahead = visibleStandings.filter((u) => (u.totalPoints ?? 0) > myPoints).length;
+    return { rank: ahead + 1, points: myPoints, playerCount: visibleStandings.length };
+  }, [visibleStandings, user?.uid, profile?.totalPoints]);
 
   const chips = [
-    playerCount > 0 ? `Placering: #${rank} af ${playerCount}` : 'Placering: –',
+    leaguesLoading
+      ? 'Placering: …'
+      : (playerCount > 0 ? `Placering: #${rank} af ${playerCount}` : 'Placering: –'),
     `Point: ${points}`,
   ];
 
@@ -64,7 +76,7 @@ export default function DashboardPage() {
 
       {!matchesLoading && !error && <DayMatchesCard matches={matches} />}
 
-      <MiniStandings standings={standings} uid={user?.uid} />
+      {!leaguesLoading && <MiniStandings standings={visibleStandings} uid={user?.uid} />}
 
       {!matchesLoading && !error && (
         <div className="dashboard-stats-grid" style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
