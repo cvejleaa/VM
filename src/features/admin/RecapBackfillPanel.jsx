@@ -1,6 +1,7 @@
 // Engangs-værktøj (kun ejer): genskriv VM-Bottens gamle opslag med den korrekte
 // logik og stillingen, som den var dengang. Kun teksten ændres — tidspunkterne
-// (createdAt) røres ikke. Tør-kør viser forhåndsvisninger før noget gemmes.
+// (createdAt) røres ikke. Kører i små bidder (timer ikke ud), kan genoptages og
+// nulstilles. Tør-kør viser eksempler uden at gemme.
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { callRegenerateRecaps } from './adminActions';
@@ -13,21 +14,50 @@ export default function RecapBackfillPanel() {
 
   if (!isOwner) return null;
 
-  async function run(apply) {
-    if (apply && !window.confirm('Gem de genskrevne tekster på alle bottens opslag? Tidspunkterne røres ikke.')) return;
+  async function dryRun() {
     setBusy(true);
     setMsg('');
-    const res = await callRegenerateRecaps({ apply });
+    setPreviews(null);
+    const res = await callRegenerateRecaps({ apply: false });
     setBusy(false);
     if (!res.ok) { setMsg(`Fejl: ${res.error}`); return; }
     const d = res.data || {};
-    if (apply) {
-      setPreviews(null);
-      setMsg(`Gemt: ${d.updated} opslag opdateret i ${d.leagues} liga(er).`);
-    } else {
-      setPreviews(d.previews || []);
-      setMsg(`Tør-kør: ${d.posts} opslag i ${d.leagues} liga(er). Gennemse nedenfor, og tryk "Gem alle", hvis det ser rigtigt ud.`);
+    setPreviews(d.previews || []);
+    setMsg(`Eksempler på ${d.previews?.length ?? 0} af i alt ${d.totalBot ?? 0} opslag. Ser det rigtigt ud, så tryk "Gem alle".`);
+  }
+
+  async function saveAll() {
+    if (!window.confirm('Genskriv og gem teksten på alle bottens opslag? Tidspunkterne røres ikke.')) return;
+    setBusy(true);
+    setPreviews(null);
+    let total = 0;
+    // Gemmer i bidder, indtil der ikke er flere tilbage (eller intet kan genskrives).
+    for (;;) {
+      setMsg(`Gemmer… (${total} gemt indtil nu)`);
+      const res = await callRegenerateRecaps({ apply: true });
+      if (!res.ok) { setMsg(`Fejl: ${res.error} (${total} nåede at blive gemt)`); setBusy(false); return; }
+      const d = res.data || {};
+      total += d.updated || 0;
+      if ((d.updated || 0) === 0 || (d.remaining || 0) <= 0) {
+        const left = d.remaining || 0;
+        setMsg(left > 0
+          ? `Stoppede ved ${total} opslag — ${left} kunne ikke genskrives lige nu (fx AI-grænse). Tryk "Gem alle" igen om lidt.`
+          : `Færdig ✅ ${total} opslag opdateret. Tidspunkterne er uændrede.`);
+        setBusy(false);
+        return;
+      }
     }
+  }
+
+  async function reset() {
+    if (!window.confirm('Nulstil genskrivnings-markeringen på alle bottens opslag? (Teksten ændres ikke nu, men "Gem alle" vil derefter genskrive dem alle igen.)')) return;
+    setBusy(true);
+    setMsg('');
+    setPreviews(null);
+    const res = await callRegenerateRecaps({ reset: true });
+    setBusy(false);
+    if (!res.ok) { setMsg(`Fejl: ${res.error}`); return; }
+    setMsg(`Nulstillet: ${res.data?.cleared ?? 0} opslag (af ${res.data?.totalBot ?? 0}). Tryk "Gem alle" for at genskrive forfra.`);
   }
 
   return (
@@ -35,14 +65,18 @@ export default function RecapBackfillPanel() {
       <h3 style={{ margin: '0 0 0.25rem', fontSize: '1rem' }}>🤖 Genskriv VM-Bottens gamle opslag</h3>
       <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--c-muted)' }}>
         Genskriver teksten på alle bottens opslag (alle ligaer) med stillingen, som den var, da opslaget blev lavet.
-        Kun teksten ændres — tidspunkterne røres ikke. Tør-kør gemmer intet.
+        Kun teksten ændres — tidspunkterne røres ikke. Kører i små bidder, så det ikke timer ud; allerede genskrevne
+        springes over. Tør-kør gemmer intet.
       </p>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button className="btn btn--ghost btn--sm" onClick={() => run(false)} disabled={busy}>
-          {busy ? 'Kører…' : '🔎 Tør-kør'}
+        <button className="btn btn--ghost btn--sm" onClick={dryRun} disabled={busy}>
+          {busy ? 'Kører…' : '🔎 Tør-kør (vis eksempler)'}
         </button>
-        <button className="btn btn--sm" onClick={() => run(true)} disabled={busy || !previews}>
+        <button className="btn btn--sm" onClick={saveAll} disabled={busy}>
           💾 Gem alle
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={reset} disabled={busy}>
+          ↺ Nulstil
         </button>
       </div>
 

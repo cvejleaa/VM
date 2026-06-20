@@ -1017,32 +1017,58 @@ async function gatherAllMatchesAndPoints(db) {
   return { all, finished, pointsByMatchUid };
 }
 
-async function runRegenerateRecaps(db, apiKey, { apply = false } = {}) {
-  const anthropic = new Anthropic({ apiKey });
-  const { all, finished, pointsByMatchUid } = await gatherAllMatchesAndPoints(db);
-
+// Genskriv bottens opslag i SMÅ BIDDER, så det ikke timer ud, kan genoptages,
+// og springer allerede-genskrevne over (markeret med regeneratedAt). reset=true
+// fjerner markeringen, så man kan starte forfra.
+async function runRegenerateRecaps(db, apiKey, { apply = false, reset = false, limit = 8 } = {}) {
   const usersSnap = await db.collection('users').get();
   const usersById = new Map(usersSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
-
   const leaguesSnap = await db.collection('leagues').where('status', '==', 'approved').get();
-  const previews = [];
-  let updated = 0;
+
+  // Byg pr-liga liste af bot-opslag (ældste først) med "done"-flag.
+  const leagueBlocks = [];
   for (const ld of leaguesSnap.docs) {
     const league = { id: ld.id, ...ld.data() };
     const memberDocs = (league.memberUids || []).map((uid) => usersById.get(uid)).filter(Boolean);
     if (memberDocs.length < 2) continue;
-    const memberIds = memberDocs.map((u) => u.id);
-
-    // Bot-opslag for ligaen, ældste først (filtrer i kode → intet composite-indeks).
     const postsSnap = await db.collection('leagueComments').where('leagueId', '==', league.id).get();
     const posts = postsSnap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((p) => p.uid === 'ai-bot' && tsToMs(p.createdAt) != null)
-      .map((p) => ({ id: p.id, createdAtMs: tsToMs(p.createdAt), oldText: p.text || '' }))
+      .map((p) => ({ id: p.id, createdAtMs: tsToMs(p.createdAt), oldText: p.text || '', done: !!p.regeneratedAt }))
       .sort((a, b) => a.createdAtMs - b.createdAtMs);
+    leagueBlocks.push({ league, memberDocs, memberIds: memberDocs.map((u) => u.id), posts });
+  }
+  const totalBot = leagueBlocks.reduce((n, b) => n + b.posts.length, 0);
 
+  if (reset) {
+    let cleared = 0;
+    for (const b of leagueBlocks) {
+      for (const p of b.posts) {
+        if (!p.done) continue;
+        await db.collection('leagueComments').doc(p.id).update({ regeneratedAt: FieldValue.delete() });
+        cleared++;
+      }
+    }
+    return { reset: true, cleared, totalBot };
+  }
+
+  const anthropic = new Anthropic({ apiKey });
+  const { all, finished, pointsByMatchUid } = await gatherAllMatchesAndPoints(db);
+
+  const previews = [];
+  let updated = 0;
+  let processed = 0;
+  let stop = false;
+  for (const blk of leagueBlocks) {
+    if (stop) break;
+    const { league, memberDocs, memberIds, posts } = blk;
     for (let i = 0; i < posts.length; i++) {
-      const T = posts[i].createdAtMs;
+      const p = posts[i];
+      if (apply && p.done) continue; // genoptagelig: spring allerede-genskrevne over
+      if (processed >= limit) { stop = true; break; }
+
+      const T = p.createdAtMs;
       const prevMs = i > 0 ? posts[i - 1].createdAtMs : (T - 26 * 3600 * 1000);
       const windowMatches = finished.filter((m) => m.kickoffMs > prevMs && m.kickoffMs <= T);
       const members = historicalMembers(memberDocs, finished, pointsByMatchUid, T);
@@ -1061,26 +1087,32 @@ async function runRegenerateRecaps(db, apiKey, { apply = false } = {}) {
       try {
         newText = await generateRecapText(anthropic, facts);
       } catch (err) {
-        console.error('regenerateRecaps: AI-fejl', league.id, posts[i].id, err?.message || err);
-        continue;
+        console.error('regenerateRecaps: AI-fejl', league.id, p.id, err?.message || err);
+        continue; // ikke markeret → prøves igen næste gang
       }
       if (!newText) continue;
 
+      processed++;
       const dateStr = new Date(T).toLocaleString('da-DK', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-      previews.push({ leagueName: league.name || 'ligaen', date: dateStr, oldText: posts[i].oldText, newText });
+      previews.push({ leagueName: league.name || 'ligaen', date: dateStr, oldText: p.oldText, newText });
 
       if (apply) {
-        await db.collection('leagueComments').doc(posts[i].id).update({
+        await db.collection('leagueComments').doc(p.id).update({
           text: newText, regeneratedAt: FieldValue.serverTimestamp(),
         });
         updated++;
+        p.done = true;
       }
     }
   }
-  return { apply, leagues: leaguesSnap.size, posts: previews.length, updated, previews };
+
+  const doneCount = leagueBlocks.reduce((n, b) => n + b.posts.filter((x) => x.done).length, 0);
+  const remaining = apply ? Math.max(totalBot - doneCount, 0) : 0;
+  return { apply, leagues: leagueBlocks.length, totalBot, processed, updated, remaining, previews };
 }
 
-// Owner-only engangsknap (tør-kør som standard; apply=true gemmer).
+// Owner-only. Tør-kør (apply=false) viser eksempler; apply=true gemmer i bidder
+// (kald gentagne gange til remaining=0); reset=true rydder genskrivnings-markeringen.
 exports.regenerateRecaps = onCall(
   { region: REGION, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 540, memory: '512MiB' },
   async (request) => {
@@ -1090,7 +1122,11 @@ exports.regenerateRecaps = onCall(
     if (role !== 'owner') throw new HttpsError('permission-denied', 'Kun ejeren kan genskrive botopslag.');
     const apiKey = ANTHROPIC_API_KEY.value();
     if (!apiKey) throw new HttpsError('failed-precondition', 'ANTHROPIC_API_KEY er ikke sat.');
-    return runRegenerateRecaps(db, apiKey, { apply: request.data?.apply === true });
+    return runRegenerateRecaps(db, apiKey, {
+      apply: request.data?.apply === true,
+      reset: request.data?.reset === true,
+      limit: Math.min(Math.max(Number(request.data?.limit) || 8, 1), 20),
+    });
   }
 );
 

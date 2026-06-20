@@ -328,14 +328,14 @@ export async function callGenerateLeagueRecapNow({ leagueId, dryRun = false } = 
 }
 
 /**
- * Genskriv ALLE VM-Bottens gamle opslag (engang, owner). apply=false er tør-kør
- * (returnerer forhåndsvisninger uden at gemme); apply=true overskriver teksten —
- * tidspunkterne (createdAt) røres ikke.
+ * Genskriv VM-Bottens gamle opslag (owner). apply=false = tør-kør (eksempler);
+ * apply=true gemmer i bidder (kald gentagne gange til remaining=0); reset=true
+ * rydder genskrivnings-markeringen. Tidspunkterne (createdAt) røres aldrig.
  */
-export async function callRegenerateRecaps({ apply = false } = {}) {
+export async function callRegenerateRecaps({ apply = false, reset = false } = {}) {
   try {
-    const fn = httpsCallable(functions, 'regenerateRecaps');
-    const res = await fn({ apply });
+    const fn = httpsCallable(functions, 'regenerateRecaps', { timeout: 540000 });
+    const res = await fn({ apply, reset });
     return { ok: true, data: res.data };
   } catch (err) {
     const msg =
