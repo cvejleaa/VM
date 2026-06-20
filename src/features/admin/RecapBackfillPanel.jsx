@@ -23,7 +23,11 @@ export default function RecapBackfillPanel() {
     if (!res.ok) { setMsg(`Fejl: ${res.error}`); return; }
     const d = res.data || {};
     setPreviews(d.previews || []);
-    setMsg(`Eksempler på ${d.previews?.length ?? 0} af i alt ${d.totalBot ?? 0} opslag. Ser det rigtigt ud, så tryk "Gem alle".`);
+    if ((d.previews?.length ?? 0) === 0 && d.lastError) {
+      setMsg(`Fejl: AI'en svarede ikke (${d.lastError}). Det er typisk rate-limit eller opbrugt kredit — vent lidt og prøv igen, eller tjek Anthropic-kontoen.`);
+    } else {
+      setMsg(`Eksempler på ${d.previews?.length ?? 0} af i alt ${d.totalBot ?? 0} opslag. Ser det rigtigt ud, så tryk "Gem alle".`);
+    }
   }
 
   async function saveAll() {
@@ -40,9 +44,12 @@ export default function RecapBackfillPanel() {
       total += d.updated || 0;
       if ((d.updated || 0) === 0 || (d.remaining || 0) <= 0) {
         const left = d.remaining || 0;
-        setMsg(left > 0
-          ? `Stoppede ved ${total} opslag — ${left} kunne ikke genskrives lige nu (fx AI-grænse). Tryk "Gem alle" igen om lidt.`
-          : `Færdig ✅ ${total} opslag opdateret. Tidspunkterne er uændrede.`);
+        if (left > 0) {
+          const why = d.lastError ? ` (AI-fejl: ${d.lastError})` : '';
+          setMsg(`Stoppede ved ${total} opslag — ${left} mangler endnu${why}. Det er typisk rate-limit/kredit; vent lidt og tryk "Gem alle" igen.`);
+        } else {
+          setMsg(`Færdig ✅ ${total} opslag opdateret. Tidspunkterne er uændrede.`);
+        }
         setBusy(false);
         return;
       }

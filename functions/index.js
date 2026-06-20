@@ -868,14 +868,29 @@ function recapAlreadyToday(ts, now) {
 }
 
 async function generateRecapText(anthropic, facts) {
-  const res = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 600,
-    thinking: { type: 'adaptive' },
-    system: RECAP_SYSTEM,
-    messages: [{ role: 'user', content: JSON.stringify(facts) }],
-  });
-  return (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  // Prøv igen ved midlertidige fejl (rate-limit/overbelastning) med backoff.
+  let attempt = 0;
+  for (;;) {
+    try {
+      const res = await anthropic.messages.create({
+        model: 'claude-opus-4-8',
+        max_tokens: 600,
+        thinking: { type: 'adaptive' },
+        system: RECAP_SYSTEM,
+        messages: [{ role: 'user', content: JSON.stringify(facts) }],
+      });
+      return (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    } catch (err) {
+      attempt += 1;
+      const status = err?.status;
+      const retryable = status === 429 || status === 500 || status === 503 || status === 529;
+      if (retryable && attempt < 4) {
+        await new Promise((r) => setTimeout(r, attempt * 5000)); // 5s, 10s, 15s
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = false, onlyLeagueId = null } = {}) {
@@ -1060,6 +1075,7 @@ async function runRegenerateRecaps(db, apiKey, { apply = false, reset = false, l
   let updated = 0;
   let processed = 0;
   let stop = false;
+  let lastError = null;
   for (const blk of leagueBlocks) {
     if (stop) break;
     const { league, memberDocs, memberIds, posts } = blk;
@@ -1087,7 +1103,8 @@ async function runRegenerateRecaps(db, apiKey, { apply = false, reset = false, l
       try {
         newText = await generateRecapText(anthropic, facts);
       } catch (err) {
-        console.error('regenerateRecaps: AI-fejl', league.id, p.id, err?.message || err);
+        lastError = err?.message || String(err);
+        console.error('regenerateRecaps: AI-fejl', league.id, p.id, lastError);
         continue; // ikke markeret → prøves igen næste gang
       }
       if (!newText) continue;
@@ -1108,7 +1125,7 @@ async function runRegenerateRecaps(db, apiKey, { apply = false, reset = false, l
 
   const doneCount = leagueBlocks.reduce((n, b) => n + b.posts.filter((x) => x.done).length, 0);
   const remaining = apply ? Math.max(totalBot - doneCount, 0) : 0;
-  return { apply, leagues: leagueBlocks.length, totalBot, processed, updated, remaining, previews };
+  return { apply, leagues: leagueBlocks.length, totalBot, processed, updated, remaining, previews, lastError };
 }
 
 // Owner-only. Tør-kør (apply=false) viser eksempler; apply=true gemmer i bidder
