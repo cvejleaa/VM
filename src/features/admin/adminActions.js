@@ -328,6 +328,25 @@ export async function callGenerateLeagueRecapNow({ leagueId, dryRun = false } = 
 }
 
 /**
+ * Genskriv ALLE VM-Bottens gamle opslag (engang, owner). apply=false er tør-kør
+ * (returnerer forhåndsvisninger uden at gemme); apply=true overskriver teksten —
+ * tidspunkterne (createdAt) røres ikke.
+ */
+export async function callRegenerateRecaps({ apply = false } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'regenerateRecaps');
+    const res = await fn({ apply });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "regenerateRecaps" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af regenerateRecaps.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */

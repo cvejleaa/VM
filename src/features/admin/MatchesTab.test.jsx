@@ -38,6 +38,7 @@ vi.mock('./adminActions', () => ({
   callSendTipRemindersNow: vi.fn().mockResolvedValue({ ok: true, data: { sent: 0 } }),
   callSendTestReminderToMe: vi.fn().mockResolvedValue({ ok: true, data: {} }),
   callPruneOrphanMatches: vi.fn().mockResolvedValue({ ok: true, data: { deleted: 0, remaining: 104 } }),
+  callRegenerateRecaps: vi.fn().mockResolvedValue({ ok: true, data: { previews: [], posts: 0, leagues: 0 } }),
   formatTimestamp: (...args) => mockFormatTimestamp(...args),
   saveMatchResult: vi.fn().mockResolvedValue(undefined),
   createMatch: vi.fn().mockResolvedValue(undefined),

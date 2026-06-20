@@ -1,7 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { leagueTotal, leagueMatchPoints, buildRecapFacts, RECAP_SYSTEM, parseHM, recapWindowOpen } = require('./leagueRecap');
+const {
+  leagueTotal, leagueMatchPoints, historicalMembers, windowDayPoints,
+  buildRecapFacts, RECAP_SYSTEM, parseHM, recapWindowOpen,
+} = require('./leagueRecap');
+
+const FIN = [
+  { id: 'm1', round: 'group', kickoffMs: 100 },
+  { id: 'm2', round: 'r16', kickoffMs: 200 },
+  { id: 'm3', round: 'group', kickoffMs: 300 },
+];
+const PTS = { m1: { a: 5, b: 2 }, m2: { a: 3, b: 0 }, m3: { a: 0, b: 4 } };
+
+describe('historicalMembers', () => {
+  it('summerer kun kampe spillet til og med untilMs, opdelt på gruppe/knockout', () => {
+    const out = historicalMembers([{ id: 'a', displayName: 'A' }, { id: 'b', displayName: 'B' }], FIN, PTS, 250);
+    // m1 (group) + m2 (r16) tæller, m3 (300) ikke.
+    expect(out[0]).toEqual({ id: 'a', displayName: 'A', groupPoints: 5, knockoutPoints: 3, bonusPoints: 0 });
+    expect(out[1]).toEqual({ id: 'b', displayName: 'B', groupPoints: 2, knockoutPoints: 0, bonusPoints: 0 });
+  });
+});
+
+describe('windowDayPoints', () => {
+  it('påfører ligaens scoring på vinduets kampe', () => {
+    expect(windowDayPoints(['a', 'b'], [FIN[2]], PTS, { group: true })).toEqual({ b: 4 });
+    expect(windowDayPoints(['a', 'b'], [FIN[1]], PTS, { knockout: true, doubleKnockout: true })).toEqual({ a: 6 });
+    expect(windowDayPoints(['a', 'b'], [FIN[2]], PTS, { group: false })).toEqual({});
+  });
+});
 
 describe('leagueTotal', () => {
   const u = { groupPoints: 10, knockoutPoints: 4, bonusPoints: 6 };
@@ -58,8 +85,20 @@ describe('buildRecapFacts', () => {
     expect(f.dayPoints).toEqual([{ name: 'Bente', dayPoints: 7 }, { name: 'Anders', dayPoints: 2 }]);
     // standout: nattens topscorer med BÅDE nattens point og nuværende total + placering.
     expect(f.standout).toEqual({ name: 'Bente', dayPoints: 7, points: 12, rank: 2 });
+    // Én klar dagsvinder → ikke uafgjort (drillende tone tilladt).
+    expect(f.standoutTie).toBe(false);
+    expect(f.dayWinners).toEqual(['Bente']);
     expect(f.matches).toHaveLength(1);
     expect(f.memberCount).toBe(3);
+  });
+
+  it('markerer uafgjort dagsvinder (standoutTie) når to deler nattens topscore', () => {
+    const f = buildRecapFacts({
+      league: { scoring: { group: true } }, members,
+      dayPointsByUid: { a: 7, b: 7, c: 0 }, matches: [], upcoming: [], now,
+    });
+    expect(f.standoutTie).toBe(true);
+    expect(f.dayWinners).toEqual(['Anders', 'Bente']);
   });
 
   it('totalen = forrige total + dayPoints (tal stemmer hele vejen)', () => {
