@@ -53,7 +53,7 @@ const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
-const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints } = require('./leagueRecap');
+const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints, historicalMembers, windowDayPoints } = require('./leagueRecap');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -984,6 +984,113 @@ exports.generateLeagueRecapNow = onCall(
       dryRun: request.data?.dryRun === true,
       onlyLeagueId: request.data?.leagueId || null,
     });
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Engangs: genskriv ALLE VM-Bottens gamle opslag med den korrekte logik, ud fra
+// stillingen som den var DA opslaget blev lavet. Kun teksten ændres — createdAt
+// (tidspunktet) røres aldrig. Totaler rekonstrueres fra kampresultater (bonus
+// medregnes ikke; forsvindende i gruppespillet).
+async function gatherAllMatchesAndPoints(db) {
+  const snap = await db.collection('matches').get();
+  const all = snap.docs.map((d) => {
+    const m = d.data();
+    return {
+      id: d.id, round: m.round || 'group', home: m.homeTeam, away: m.awayTeam,
+      status: m.status, result: m.result || null, kickoffMs: tsToMs(m.kickoff) ?? 0,
+    };
+  });
+  const finished = all
+    .filter((m) => m.status === 'finished' && m.result)
+    .map((m) => ({
+      id: m.id, round: m.round, home: m.home, away: m.away,
+      score: `${m.result.home}-${m.result.away}`, kickoffMs: m.kickoffMs,
+    }));
+  const pointsByMatchUid = {};
+  for (const m of finished) {
+    const bets = await db.collection('bets').where('matchId', '==', m.id).get();
+    const map = {};
+    for (const b of bets.docs) { const x = b.data(); map[x.uid] = Number(x.points || 0); }
+    pointsByMatchUid[m.id] = map;
+  }
+  return { all, finished, pointsByMatchUid };
+}
+
+async function runRegenerateRecaps(db, apiKey, { apply = false } = {}) {
+  const anthropic = new Anthropic({ apiKey });
+  const { all, finished, pointsByMatchUid } = await gatherAllMatchesAndPoints(db);
+
+  const usersSnap = await db.collection('users').get();
+  const usersById = new Map(usersSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+
+  const leaguesSnap = await db.collection('leagues').where('status', '==', 'approved').get();
+  const previews = [];
+  let updated = 0;
+  for (const ld of leaguesSnap.docs) {
+    const league = { id: ld.id, ...ld.data() };
+    const memberDocs = (league.memberUids || []).map((uid) => usersById.get(uid)).filter(Boolean);
+    if (memberDocs.length < 2) continue;
+    const memberIds = memberDocs.map((u) => u.id);
+
+    // Bot-opslag for ligaen, ældste først (filtrer i kode → intet composite-indeks).
+    const postsSnap = await db.collection('leagueComments').where('leagueId', '==', league.id).get();
+    const posts = postsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((p) => p.uid === 'ai-bot' && tsToMs(p.createdAt) != null)
+      .map((p) => ({ id: p.id, createdAtMs: tsToMs(p.createdAt), oldText: p.text || '' }))
+      .sort((a, b) => a.createdAtMs - b.createdAtMs);
+
+    for (let i = 0; i < posts.length; i++) {
+      const T = posts[i].createdAtMs;
+      const prevMs = i > 0 ? posts[i - 1].createdAtMs : (T - 26 * 3600 * 1000);
+      const windowMatches = finished.filter((m) => m.kickoffMs > prevMs && m.kickoffMs <= T);
+      const members = historicalMembers(memberDocs, finished, pointsByMatchUid, T);
+      const dayPointsByUid = windowDayPoints(memberIds, windowMatches, pointsByMatchUid, league.scoring);
+      const matches = windowMatches.map((m) => ({ home: m.home, away: m.away, score: m.score }));
+      const upcoming = all
+        .filter((m) => m.home && m.away && m.kickoffMs > T && m.kickoffMs <= T + 24 * 3600 * 1000)
+        .sort((a, b) => a.kickoffMs - b.kickoffMs)
+        .map((m) => ({
+          home: m.home, away: m.away,
+          time: new Date(m.kickoffMs).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: TZ }),
+        }));
+      const facts = buildRecapFacts({ league, members, dayPointsByUid, matches, upcoming, now: new Date(T) });
+
+      let newText;
+      try {
+        newText = await generateRecapText(anthropic, facts);
+      } catch (err) {
+        console.error('regenerateRecaps: AI-fejl', league.id, posts[i].id, err?.message || err);
+        continue;
+      }
+      if (!newText) continue;
+
+      const dateStr = new Date(T).toLocaleString('da-DK', { timeZone: TZ, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      previews.push({ leagueName: league.name || 'ligaen', date: dateStr, oldText: posts[i].oldText, newText });
+
+      if (apply) {
+        await db.collection('leagueComments').doc(posts[i].id).update({
+          text: newText, regeneratedAt: FieldValue.serverTimestamp(),
+        });
+        updated++;
+      }
+    }
+  }
+  return { apply, leagues: leaguesSnap.size, posts: previews.length, updated, previews };
+}
+
+// Owner-only engangsknap (tør-kør som standard; apply=true gemmer).
+exports.regenerateRecaps = onCall(
+  { region: REGION, secrets: [ANTHROPIC_API_KEY], timeoutSeconds: 540, memory: '512MiB' },
+  async (request) => {
+    const db = getFirestore();
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const role = (await db.collection('users').doc(request.auth.uid).get()).data()?.role;
+    if (role !== 'owner') throw new HttpsError('permission-denied', 'Kun ejeren kan genskrive botopslag.');
+    const apiKey = ANTHROPIC_API_KEY.value();
+    if (!apiKey) throw new HttpsError('failed-precondition', 'ANTHROPIC_API_KEY er ikke sat.');
+    return runRegenerateRecaps(db, apiKey, { apply: request.data?.apply === true });
   }
 );
 

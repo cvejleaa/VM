@@ -5,6 +5,7 @@ import { useMatches } from './useMatches';
 import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
+import RecapBackfillPanel from './RecapBackfillPanel';
 import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
@@ -252,6 +253,8 @@ export default function MatchesTab() {
       </div>
 
       <SyncHealthBanner />
+
+      <RecapBackfillPanel />
 
       {syncMsg && (
         <div role="alert" style={{ marginBottom: '1rem', padding: '0.5rem 0.8rem', borderRadius: 8, fontSize: '0.88rem',
