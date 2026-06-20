@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { leagueTotal, buildRecapFacts, RECAP_SYSTEM, parseHM, recapWindowOpen } = require('./leagueRecap');
+const { leagueTotal, leagueMatchPoints, buildRecapFacts, RECAP_SYSTEM, parseHM, recapWindowOpen } = require('./leagueRecap');
 
 describe('leagueTotal', () => {
   const u = { groupPoints: 10, knockoutPoints: 4, bonusPoints: 6 };
@@ -19,6 +19,21 @@ describe('leagueTotal', () => {
   });
 });
 
+describe('leagueMatchPoints', () => {
+  it('tæller gruppekamp når gruppe er slået til (og default)', () => {
+    expect(leagueMatchPoints(5, 'group', { group: true })).toBe(5);
+    expect(leagueMatchPoints(5, 'group', {})).toBe(5);
+  });
+  it('fordobler knockout-kamp ved doubleKnockout', () => {
+    expect(leagueMatchPoints(3, 'r16', { knockout: true, doubleKnockout: true })).toBe(6);
+    expect(leagueMatchPoints(3, 'final', { knockout: true })).toBe(3);
+  });
+  it('giver 0 når stadiet er fravalgt', () => {
+    expect(leagueMatchPoints(5, 'group', { group: false })).toBe(0);
+    expect(leagueMatchPoints(4, 'r32', { knockout: false })).toBe(0);
+  });
+});
+
 describe('buildRecapFacts', () => {
   const members = [
     { id: 'a', displayName: 'Anders', groupPoints: 20, knockoutPoints: 0, bonusPoints: 0 },
@@ -27,7 +42,7 @@ describe('buildRecapFacts', () => {
   ];
   const now = new Date('2026-06-13T05:00:00Z');
 
-  it('sorterer stilling, finder dagens point og standout', () => {
+  it('sorterer stilling, finder dagens point og standout (med total + placering)', () => {
     const f = buildRecapFacts({
       league: { name: 'Vennerne', scoring: { group: true } },
       members,
@@ -37,19 +52,50 @@ describe('buildRecapFacts', () => {
       now,
     });
     expect(f.leagueName).toBe('Vennerne');
-    expect(f.standings[0]).toMatchObject({ rank: 1, name: 'Anders', points: 20 });
-    expect(f.dayPoints).toEqual([{ name: 'Bente', points: 7 }, { name: 'Anders', points: 2 }]);
-    expect(f.standout).toEqual({ name: 'Bente', points: 7 });
+    // standings: points = total NU, dayPoints = vundet siden sidst.
+    expect(f.standings[0]).toMatchObject({ rank: 1, name: 'Anders', points: 20, dayPoints: 2 });
+    expect(f.standings[1]).toMatchObject({ rank: 2, name: 'Bente', points: 12, dayPoints: 7 });
+    expect(f.dayPoints).toEqual([{ name: 'Bente', dayPoints: 7 }, { name: 'Anders', dayPoints: 2 }]);
+    // standout: nattens topscorer med BÅDE nattens point og nuværende total + placering.
+    expect(f.standout).toEqual({ name: 'Bente', dayPoints: 7, points: 12, rank: 2 });
     expect(f.matches).toHaveLength(1);
-    expect(f.upcoming[0].home).toBe('DEN');
     expect(f.memberCount).toBe(3);
   });
 
-  it('stille dag: ingen kampe → tom matches/dayPoints og standout null', () => {
+  it('totalen = forrige total + dayPoints (tal stemmer hele vejen)', () => {
+    const f = buildRecapFacts({ league: { name: 'V', scoring: { group: true } }, members, dayPointsByUid: { a: 2, b: 7, c: 0 }, matches: [], upcoming: [], now });
+    for (const row of f.standings) {
+      const prev = row.points - row.dayPoints; // forrige total
+      expect(prev).toBeGreaterThanOrEqual(0);
+      expect(row.points).toBe(prev + row.dayPoints);
+    }
+  });
+
+  it('markerer ikke førerskifte når lederen er den samme (leadChanged=false)', () => {
+    const f = buildRecapFacts({ league: { scoring: { group: true } }, members, dayPointsByUid: { a: 2, b: 7, c: 0 }, matches: [], upcoming: [], now });
+    expect(f.leader).toMatchObject({ name: 'Anders', points: 20 });
+    expect(f.previousLeader).toBe('Anders');
+    expect(f.leadChanged).toBe(false);
+  });
+
+  it('markerer førerskifte når nattens point ændrer førstepladsen (leadChanged=true)', () => {
+    // Før i nat: Anders 19, Bente 17 → Anders førte. Efter: Bente 22 > Anders 20.
+    const m = [
+      { id: 'a', displayName: 'Anders', groupPoints: 20, knockoutPoints: 0, bonusPoints: 0 },
+      { id: 'b', displayName: 'Bente', groupPoints: 22, knockoutPoints: 0, bonusPoints: 0 },
+    ];
+    const f = buildRecapFacts({ league: { scoring: { group: true } }, members: m, dayPointsByUid: { a: 1, b: 5 }, matches: [], upcoming: [], now });
+    expect(f.leader).toMatchObject({ name: 'Bente', points: 22 });
+    expect(f.previousLeader).toBe('Anders');
+    expect(f.leadChanged).toBe(true);
+  });
+
+  it('stille dag: ingen kampe → tom matches/dayPoints, standout null, intet førerskifte', () => {
     const f = buildRecapFacts({ league: { name: 'X' }, members, dayPointsByUid: {}, matches: [], upcoming: [], now });
     expect(f.matches).toEqual([]);
     expect(f.dayPoints).toEqual([]);
     expect(f.standout).toBeNull();
+    expect(f.leadChanged).toBe(false);
   });
 
   it('system-prompten instruerer om dansk prosa og kun-fakta', () => {

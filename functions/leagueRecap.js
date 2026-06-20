@@ -6,16 +6,26 @@
 // ---------------------------------------------------------------------------
 
 const RECAP_SYSTEM = `Du er "VM-Botten", som skriver ét kort, varmt morgenopslag på dansk til en privat VM 2026-tippeliga.
-Skriv 70-150 ord i naturlig, sammenhængende prosa (ikke punktopstilling, ingen overskrift, ingen anførselstegn).
-Nævn døgnets udvikling og lykønsk den spiller, der gjorde det bedst i nat.
-Du må KUN bruge de oplyste fakta. Find ALDRIG på navne, kampe, resultater, point eller placeringer, og påstå ikke placeringsskift medmindre det tydeligt fremgår af tallene.
-Hold er angivet som FIFA-landekoder (fx BRA=Brasilien, ARG=Argentina, DEN=Danmark) — brug de danske landenavne.
-Hvis "matches" er tom (ingen kampe i nat), så skriv en kort, opmuntrende god-morgen-hilsen og mind venligt om at få tippet dagens kampe.
-Slut gerne med en lille optakt til dagens kampe, hvis "upcoming" har nogle. Brug 1-2 emojis.`;
+Skriv 70-150 ord i naturlig, sammenhængende prosa (ikke punktopstilling, ingen overskrift, ingen anførselstegn). Brug 1-2 emojis.
+
+Du får et JSON-faktaobjekt. Du må KUN bruge de oplyste fakta og tal. Find ALDRIG på navne, kampe, resultater, point eller placeringer, og lav ALDRIG dine egne udregninger.
+
+Felterne betyder:
+- "matches": kampene spillet SIDEN sidste opslag (med resultat) — beskriv kun dem.
+- "standings": den AKTUELLE samlede stilling NU (nattens point er allerede lagt til). For hver spiller er "points" deres TOTALE pointtal, og "dayPoints" er hvad de har vundet siden sidste opslag.
+- "standout": spilleren med FLEST "dayPoints" siden sidste opslag. Lykønsk denne spiller. "dayPoints" = nattens udbytte, "points" = vedkommendes nuværende total.
+- "leader": fører lige nu. "previousLeader": hvem der førte ved sidste opslag. "leadChanged": true hvis førstepladsen har skiftet.
+
+Ufravigelige regler:
+- "points" betyder ALTID totalen; "dayPoints" betyder ALTID nattens point. Forveksl dem ALDRIG. Når du nævner en total, så brug "points"; når du nævner nattens udbytte, så brug "dayPoints".
+- Skriv kun at nogen "overhalede"/"tog førstepladsen", hvis "leadChanged" er true. Er "leadChanged" false, kan du skrive at lederen "fører stadig".
+- Hold er FIFA-landekoder (fx BRA=Brasilien, ARG=Argentina, DEN=Danmark) — brug de danske landenavne.
+- Er "matches" tom (ingen kampe siden sidst), så skriv en kort, opmuntrende god-morgen-hilsen og mind venligt om at få tippet dagens kampe.
+- Slut gerne med en lille optakt til dagens kampe, hvis "upcoming" har nogle.`;
 
 /**
  * Minimal liga-scoring (spejler leagueScore i frontend; uden liga-bonus, som
- * beregnes klient-side). Bruges kun til at finde lederen i recap'en.
+ * beregnes klient-side). Bruges til at finde totaler og lederen i recap'en.
  */
 function leagueTotal(user, scoring) {
   const s = scoring || {};
@@ -27,6 +37,28 @@ function leagueTotal(user, scoring) {
   return t;
 }
 
+/** Er en runde knockout (alt undtagen 'group')? */
+function isKnockoutRound(round) {
+  return !!round && round !== 'group';
+}
+
+/**
+ * Point en spiller får for ÉN kamp i en given liga, med ligaens scoring-regler
+ * påført (gruppe/knockout til/fra + dobbelt-knockout). Bruges til at gøre
+ * "dayPoints" konsistent med totalen (leagueTotal) — samme grundlag.
+ * @param {number} rawPoints  rå tip-point for kampen (bet.points)
+ * @param {string} round      kampens runde ('group' | 'r32' | ...)
+ * @param {object} scoring    ligaens scoring-objekt
+ * @returns {number}
+ */
+function leagueMatchPoints(rawPoints, round, scoring) {
+  const s = scoring || {};
+  const on = (k) => s[k] !== false;
+  const p = Number(rawPoints || 0);
+  if (isKnockoutRound(round)) return on('knockout') ? p * (s.doubleKnockout ? 2 : 1) : 0;
+  return on('group') ? p : 0;
+}
+
 /** Saml fakta-objektet (kun tal/navne) som Claude skriver prosa ud fra. */
 function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], upcoming = [], now = new Date() }) {
   const date = now.toLocaleDateString('da-DK', {
@@ -34,16 +66,36 @@ function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], u
   });
   const scoring = league && league.scoring ? league.scoring : null;
 
-  const standings = members
-    .map((u) => ({ name: u.displayName || 'Spiller', points: leagueTotal(u, scoring) }))
-    .sort((a, b) => b.points - a.points)
-    .slice(0, 6)
-    .map((r, i) => ({ rank: i + 1, name: r.name, points: r.points }));
+  // Én fælles kilde: hver spillers total NU og point vundet siden sidste opslag.
+  // points = total (allerede inkl. dayPoints), dayPoints = vundet siden sidst.
+  const rows = members.map((u) => ({
+    name: u.displayName || 'Spiller',
+    points: leagueTotal(u, scoring),
+    dayPoints: Number(dayPointsByUid[u.id] || 0),
+  }));
 
-  const dayPoints = members
-    .map((u) => ({ name: u.displayName || 'Spiller', points: Number(dayPointsByUid[u.id] || 0) }))
-    .filter((x) => x.points > 0)
-    .sort((a, b) => b.points - a.points);
+  const byTotal = [...rows].sort((a, b) => b.points - a.points);
+  const standings = byTotal.slice(0, 6).map((r, i) => ({
+    rank: i + 1, name: r.name, points: r.points, dayPoints: r.dayPoints,
+  }));
+
+  // Stilling FØR dette døgns point (total minus dayPoints) → hvem førte sidst.
+  const byPrev = [...rows].sort((a, b) => (b.points - b.dayPoints) - (a.points - a.dayPoints));
+  const previousLeader = byPrev.length ? byPrev[0].name : null;
+  const leader = byTotal.length ? { name: byTotal[0].name, points: byTotal[0].points } : null;
+  const leadChanged = !!(leader && previousLeader && previousLeader !== leader.name);
+
+  const dayPoints = rows
+    .filter((r) => r.dayPoints > 0)
+    .sort((a, b) => b.dayPoints - a.dayPoints)
+    .map((r) => ({ name: r.name, dayPoints: r.dayPoints }));
+
+  let standout = null;
+  if (dayPoints.length) {
+    const top = byTotal.find((r) => r.name === dayPoints[0].name) || dayPoints[0];
+    const rank = byTotal.findIndex((r) => r.name === dayPoints[0].name) + 1;
+    standout = { name: dayPoints[0].name, dayPoints: dayPoints[0].dayPoints, points: top.points, rank };
+  }
 
   return {
     leagueName: (league && league.name) || 'ligaen',
@@ -51,7 +103,10 @@ function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], u
     matches,
     standings,
     dayPoints,
-    standout: dayPoints.length > 0 ? dayPoints[0] : null,
+    standout,
+    leader,
+    previousLeader,
+    leadChanged,
     upcoming,
     memberCount: members.length,
   };
@@ -86,4 +141,7 @@ function recapWindowOpen(currentHM, targetHM, windowMin = 60) {
   return cur >= tgt && cur < tgt + windowMin;
 }
 
-module.exports = { RECAP_SYSTEM, RECAP_DEFAULT_TIME, leagueTotal, buildRecapFacts, parseHM, recapWindowOpen };
+module.exports = {
+  RECAP_SYSTEM, RECAP_DEFAULT_TIME, leagueTotal, leagueMatchPoints,
+  isKnockoutRound, buildRecapFacts, parseHM, recapWindowOpen,
+};

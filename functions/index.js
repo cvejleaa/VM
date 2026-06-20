@@ -53,7 +53,7 @@ const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
-const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen } = require('./leagueRecap');
+const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints } = require('./leagueRecap');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -784,29 +784,46 @@ async function runSyncResults(db, token, { now = new Date(), dryRun = false, ful
 // vægopslag pr. liga om seneste døgns udvikling. Bruger Claude (Opus 4.8).
 // ---------------------------------------------------------------------------
 
-// Saml døgnets fakta ÉN gang (deles af alle ligaer): afsluttede kampe, point
-// pr. spiller, og dagens kommende kampe.
-async function gatherRecapDayData(db, now) {
-  const dayStartMs = now.getTime() - 30 * 3600 * 1000; // dækker aften-kampe der trak ud
+/** ms-tidsstempel fra et Firestore-Timestamp/Date/ms, ellers null. */
+function tsToMs(ts) {
+  if (!ts) return null;
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  const t = new Date(ts).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+// Saml fakta ÉN gang (deles af alle ligaer): afsluttede kampe (med runde +
+// kickoff) i et bredt vindue, rå tip-point pr. kamp/spiller, og kommende kampe.
+// Selve "siden sidste opslag"-afgrænsningen + ligaens scoring påføres pr. liga.
+async function gatherRecapData(db, now) {
+  const startMs = now.getTime() - 72 * 3600 * 1000; // bredt nok til 'siden sidste opslag'
   const finSnap = await db.collection('matches')
-    .where('kickoff', '>=', Timestamp.fromMillis(dayStartMs))
+    .where('kickoff', '>=', Timestamp.fromMillis(startMs))
     .where('kickoff', '<=', Timestamp.fromMillis(now.getTime()))
     .get();
   const finished = finSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((m) => m.status === 'finished' && m.result);
+    .filter((m) => m.status === 'finished' && m.result)
+    .map((m) => ({
+      id: m.id,
+      round: m.round || 'group',
+      home: m.homeTeam,
+      away: m.awayTeam,
+      score: `${m.result.home}-${m.result.away}`,
+      kickoffMs: tsToMs(m.kickoff) ?? 0,
+    }));
 
-  const dayPointsByUid = {};
+  // Rå tip-point pr. kamp pr. spiller (uden ligaens scoring-regler endnu).
+  const pointsByMatchUid = {};
   for (const m of finished) {
     const bets = await db.collection('bets').where('matchId', '==', m.id).get();
+    const map = {};
     for (const b of bets.docs) {
       const x = b.data();
-      dayPointsByUid[x.uid] = (dayPointsByUid[x.uid] || 0) + Number(x.points || 0);
+      map[x.uid] = Number(x.points || 0);
     }
+    pointsByMatchUid[m.id] = map;
   }
-  const matches = finished.map((m) => ({
-    home: m.homeTeam, away: m.awayTeam, score: `${m.result.home}-${m.result.away}`,
-  }));
 
   const upSnap = await db.collection('matches')
     .where('kickoff', '>=', Timestamp.fromMillis(now.getTime()))
@@ -820,7 +837,27 @@ async function gatherRecapDayData(db, now) {
       time: m.kickoff.toDate().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: TZ }),
     }));
 
-  return { dayPointsByUid, matches, upcoming };
+  return { finished, pointsByMatchUid, upcoming };
+}
+
+/**
+ * Afgræns til kampe siden ligaens sidste opslag og påfør ligaens scoring, så
+ * "dayPoints" hviler på samme grundlag som totalen (leagueTotal).
+ */
+function recapWindowForLeague({ league, finished, pointsByMatchUid, now }) {
+  const lastMs = tsToMs(league.lastRecapAt) ?? (now.getTime() - 26 * 3600 * 1000);
+  const windowMatches = finished.filter((m) => m.kickoffMs > lastMs);
+  const memberUids = league.memberUids || [];
+  const dayPointsByUid = {};
+  for (const m of windowMatches) {
+    const map = pointsByMatchUid[m.id] || {};
+    for (const uid of memberUids) {
+      const pts = leagueMatchPoints(map[uid], m.round, league.scoring);
+      if (pts) dayPointsByUid[uid] = (dayPointsByUid[uid] || 0) + pts;
+    }
+  }
+  const matches = windowMatches.map((m) => ({ home: m.home, away: m.away, score: m.score }));
+  return { dayPointsByUid, matches };
 }
 
 function recapAlreadyToday(ts, now) {
@@ -843,7 +880,7 @@ async function generateRecapText(anthropic, facts) {
 
 async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = false, onlyLeagueId = null } = {}) {
   const anthropic = new Anthropic({ apiKey });
-  const { dayPointsByUid, matches, upcoming } = await gatherRecapDayData(db, now);
+  const { finished, pointsByMatchUid, upcoming } = await gatherRecapData(db, now);
 
   const usersSnap = await db.collection('users').get();
   const usersById = new Map(usersSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
@@ -858,6 +895,8 @@ async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = 
     if (members.length < 2) continue;
     if (!dryRun && recapAlreadyToday(league.lastRecapAt, now)) continue;
 
+    // Kun kampe/point siden ligaens sidste opslag, med ligaens scoring påført.
+    const { dayPointsByUid, matches } = recapWindowForLeague({ league, finished, pointsByMatchUid, now });
     const facts = buildRecapFacts({ league, members, dayPointsByUid, matches, upcoming, now });
     let text;
     try {
