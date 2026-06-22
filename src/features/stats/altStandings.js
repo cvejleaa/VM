@@ -37,29 +37,38 @@ export function altMatchPoints(bet, result) {
 
 /**
  * Alternativ stilling pr. spiller over alle afsluttede kampe.
+ * Hver kamp en spiller IKKE har tippet (gyldigt) giver −2 point.
  * @param {Array<object>} matches  kampe med .id og .result
  * @param {Map<string,Array>|{get?:Function}} betsByMatch  matchId → bets[]
- * @param {Record<string,object>} usersById  uid → {displayName}
- * @returns {Array<{uid,name,points,matches,avg}>} sorteret faldende efter point
+ * @param {Array<{uid:string, name?:string}>} players  spillere der skal rangeres
+ * @returns {Array<{uid,name,points,matches,tipped,untipped,avg}>} sorteret faldende
  */
-export function computeAltStandings(matches, betsByMatch, usersById) {
-  const byUid = new Map();
-  for (const m of matches || []) {
-    if (!m || !m.result) continue;
-    const bets = betsByMatch?.get?.(m.id) || [];
-    for (const b of bets) {
-      if (!b.uid || !Number.isFinite(b.home) || !Number.isFinite(b.away)) continue;
-      const row = byUid.get(b.uid) || { uid: b.uid, points: 0, matches: 0 };
-      row.points += altMatchPoints(b, m.result);
-      row.matches += 1;
-      byUid.set(b.uid, row);
+export function computeAltStandings(matches, betsByMatch, players) {
+  const finished = (matches || []).filter((m) => m && m.result);
+  const rows = (players || []).map((p) => {
+    let points = 0;
+    let tipped = 0;
+    let untipped = 0;
+    for (const m of finished) {
+      const bets = betsByMatch?.get?.(m.id) || [];
+      const bet = bets.find((b) => b.uid === p.uid);
+      if (bet && Number.isFinite(bet.home) && Number.isFinite(bet.away)) {
+        points += altMatchPoints(bet, m.result);
+        tipped += 1;
+      } else {
+        points += -2; // ikke tippet → −2
+        untipped += 1;
+      }
     }
-  }
-  return [...byUid.values()]
-    .map((r) => ({
-      ...r,
-      name: usersById?.[r.uid]?.displayName || 'Spiller',
-      avg: r.matches ? Math.round((r.points / r.matches) * 10) / 10 : 0,
-    }))
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'));
+    return {
+      uid: p.uid,
+      name: p.name || 'Spiller',
+      points,
+      matches: finished.length,
+      tipped,
+      untipped,
+      avg: finished.length ? Math.round((points / finished.length) * 10) / 10 : 0,
+    };
+  });
+  return rows.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'));
 }

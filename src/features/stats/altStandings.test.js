@@ -40,7 +40,7 @@ describe('altMatchPoints (brugerens eksempler)', () => {
 });
 
 describe('computeAltStandings', () => {
-  const usersById = { u1: { displayName: 'Anna' }, u2: { displayName: 'Bo' } };
+  const players = [{ uid: 'u1', name: 'Anna' }, { uid: 'u2', name: 'Bo' }, { uid: 'u3', name: 'Cecilie' }];
   const matches = [
     { id: 'm1', result: { home: 2, away: 1 } },
     { id: 'm2', result: { home: 0, away: 2 } },
@@ -48,22 +48,28 @@ describe('computeAltStandings', () => {
   ];
   const betsByMatch = new Map([
     ['m1', [{ uid: 'u1', home: 2, away: 1 }, { uid: 'u2', home: 3, away: 1 }]], // u1: +2+1=3 ; u2: -1+1=0
-    ['m2', [{ uid: 'u1', home: 0, away: 2 }, { uid: 'u2', home: 2, away: 2 }]], // u1: +2+2=4 ; u2: -2+2=0
+    ['m2', [{ uid: 'u1', home: 0, away: 2 }]], // u1: +2+2=4 ; u2 har IKKE tippet → -2
     ['m3', [{ uid: 'u1', home: 1, away: 1 }]],
   ]);
 
-  it('summerer point pr. spiller og sorterer faldende', () => {
-    const rows = computeAltStandings(matches, betsByMatch, usersById);
-    expect(rows[0]).toMatchObject({ name: 'Anna', points: 7, matches: 2 });
-    expect(rows[1]).toMatchObject({ name: 'Bo', points: 0, matches: 2 });
+  it('summerer point og giver −2 for utippede kampe', () => {
+    const rows = computeAltStandings(matches, betsByMatch, players);
+    // u1: 3 + 4 = 7 (tippet begge)
+    expect(rows[0]).toMatchObject({ name: 'Anna', points: 7, matches: 2, tipped: 2, untipped: 0 });
+    // u2: 0 (m1) − 2 (m2 utippet) = −2
+    const bo = rows.find((r) => r.name === 'Bo');
+    expect(bo).toMatchObject({ points: -2, tipped: 1, untipped: 1 });
+    // u3: −2 − 2 = −4 (intet tippet)
+    const cecilie = rows.find((r) => r.name === 'Cecilie');
+    expect(cecilie).toMatchObject({ points: -4, tipped: 0, untipped: 2 });
   });
 
-  it('springer ugyldige tip over', () => {
+  it('ugyldigt tip (mangler away) tæller som ikke-tippet → −2', () => {
     const rows = computeAltStandings(
       [{ id: 'm1', result: { home: 1, away: 1 } }],
-      new Map([['m1', [{ uid: 'u1', home: 1 }]]]), // mangler away → tæller ikke
-      usersById,
+      new Map([['m1', [{ uid: 'u1', home: 1 }]]]),
+      [{ uid: 'u1', name: 'Anna' }],
     );
-    expect(rows).toEqual([]);
+    expect(rows[0]).toMatchObject({ name: 'Anna', points: -2, tipped: 0, untipped: 1 });
   });
 });
