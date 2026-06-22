@@ -17,7 +17,7 @@ function Pts({ value }) {
 export default function AltStandingsTab() {
   const { matches, betsByMatch, usersById, loading, error } = useStatsData();
   const [sortBy, setSortBy] = useState('sharp'); // 'hard' | 'sharp'
-  const [penalty, setPenalty] = useState(-2); // straf for utippet kamp (kan finjusteres)
+  const [penalty, setPenalty] = useState(2); // straf-størrelse (positivt tal; trækkes fra)
 
   const players = useMemo(
     () => Object.values(usersById || {})
@@ -26,7 +26,7 @@ export default function AltStandingsTab() {
     [usersById],
   );
   const rows = useMemo(() => {
-    const r = computeComparison(matches, betsByMatch, players, penalty);
+    const r = computeComparison(matches, betsByMatch, players, -penalty);
     return [...r].sort((a, b) => b[sortBy] - a[sortBy] || a.name.localeCompare(b.name, 'da'));
   }, [matches, betsByMatch, players, sortBy, penalty]);
 
@@ -66,18 +66,21 @@ export default function AltStandingsTab() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.7rem', fontSize: '0.82rem', flexWrap: 'wrap' }}>
-            <label htmlFor="untipped-penalty" style={{ color: 'var(--c-muted)' }}>Straf for utippet kamp:</label>
+            <label htmlFor="untipped-penalty" style={{ color: 'var(--c-muted)' }}>Straf for utippet kamp: −</label>
             <input
               id="untipped-penalty"
               className="input"
               type="number"
               step="0.5"
-              max="0"
+              min="0"
               value={penalty}
-              onChange={(e) => setPenalty(Number(e.target.value) || 0)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setPenalty(Number.isFinite(v) ? Math.abs(v) : 0);
+              }}
               style={{ width: '5.5rem' }}
             />
-            <span style={{ color: 'var(--c-muted)' }}>point pr. manglende kamp (decimaler ok, fx −1,5)</span>
+            <span style={{ color: 'var(--c-muted)' }}>point pr. manglende kamp (decimaler ok, fx 1,5)</span>
           </div>
 
           <div className="table-wrap">
@@ -98,7 +101,7 @@ export default function AltStandingsTab() {
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td className="text-center text-muted">
                       {r.tipped}/{r.matches}
-                      {r.untipped > 0 && penalty !== 0 && <span style={{ color: 'var(--c-err)' }}> ({fmt(r.untipped * penalty)})</span>}
+                      {r.untipped > 0 && penalty !== 0 && <span style={{ color: 'var(--c-err)' }}> ({fmt(-r.untipped * penalty)})</span>}
                     </td>
                     <td className="text-center"><Pts value={r.hard} /></td>
                     <td className="text-center"><Pts value={r.sharp} /></td>
