@@ -84,10 +84,11 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser alle ni faner for owner (inkl. Indstillinger)', () => {
+    it('viser alle ti faner for owner (inkl. Indstillinger)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(9);
+      expect(tabs).toHaveLength(10);
+      expect(screen.queryByTestId('tab-altstanding')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-preview')).toBeInTheDocument();
@@ -174,10 +175,11 @@ describe('AdminPage', () => {
       expect(screen.queryByTestId('tab-leagues')).toBeInTheDocument();
     });
 
-    it('viser præcis 8 faner for global admin (ingen Indstillinger)', () => {
+    it('viser præcis 9 faner for global admin (ingen Indstillinger)', () => {
       renderAdminPage();
       const tabs = screen.queryAllByTestId(/^tab-/);
-      expect(tabs).toHaveLength(8);
+      expect(tabs).toHaveLength(9);
+      expect(screen.queryByTestId('tab-altstanding')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-tests')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-runbook')).toBeInTheDocument();
       expect(screen.queryByTestId('tab-settings')).not.toBeInTheDocument();
