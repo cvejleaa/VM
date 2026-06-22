@@ -1,11 +1,11 @@
 // ---------------------------------------------------------------------------
-// Alternativt point-regnskab ("alt. stilling"): kig på hvert holds antal mål.
-//   - Rigtigt 0          → +2 point  (så man ikke for let havner i minus)
-//   - Rigtigt N (N>0)    → +N point
-//   - Forkert            → − |tip − faktisk|
-// Pr. kamp summeres hjemme- og udeholdets bidrag. Pr. spiller summeres alle
-// kampe, hvor spilleren har afgivet et gyldigt tip.
+// Alternative point-regnskaber baseret på antal mål pr. hold. To varianter:
+//   A) "Hård" (nuværende): rigtigt 0 → +2, rigtigt N → +N, forkert → −|forskel|.
+//   B) "🎯 Skarpskytten" (blødere + monoton): rigtigt N → +(N+1) (rigtigt 0 = +1),
+//      forkert → −min(forskel, 2) (kappet pr. hold), +1 hvis kampens udfald rammes.
+// I begge giver en kamp man IKKE har tippet −2 point.
 // ---------------------------------------------------------------------------
+import { outcome } from '../../lib/scoring';
 
 /**
  * Point for ÉT holds måltal.
@@ -71,4 +71,55 @@ export function computeAltStandings(matches, betsByMatch, players) {
     };
   });
   return rows.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'));
+}
+
+// ─── Variant B: "🎯 Skarpskytten" (blødere + monoton) ───────────────────────
+
+/** Point for ét holds måltal i Skarpskytten: rigtigt N → +(N+1); forkert → −min(forskel,2). */
+export function sharpTeamPoints(predicted, actual) {
+  if (predicted == null || actual == null) return 0;
+  const p = Number(predicted);
+  const a = Number(actual);
+  if (!Number.isFinite(p) || !Number.isFinite(a)) return 0;
+  const diff = Math.abs(p - a);
+  if (diff === 0) return a + 1; // monoton: rigtigt 0 = +1, rigtigt 1 = +2 …
+  return -Math.min(diff, 2); // blødere straf, højst −2 pr. hold
+}
+
+/** Point for én kamp i Skarpskytten (hjemme + ude + udfalds-bonus). */
+export function sharpMatchPoints(bet, result) {
+  if (!bet || !result) return 0;
+  if (!Number.isFinite(bet.home) || !Number.isFinite(bet.away)) return 0;
+  let pts = sharpTeamPoints(bet.home, result.home) + sharpTeamPoints(bet.away, result.away);
+  if (outcome(bet.home, bet.away) === outcome(result.home, result.away)) pts += 1; // rammer udfaldet
+  return pts;
+}
+
+/**
+ * Begge regnskaber pr. spiller i én udregning (til sammenligning på admin-fanen).
+ * En kamp man ikke har tippet (gyldigt) giver −2 i begge.
+ * @returns {Array<{uid,name,matches,tipped,untipped,hard,sharp}>}
+ */
+export function computeComparison(matches, betsByMatch, players) {
+  const finished = (matches || []).filter((m) => m && m.result);
+  return (players || []).map((p) => {
+    let hard = 0;
+    let sharp = 0;
+    let tipped = 0;
+    let untipped = 0;
+    for (const m of finished) {
+      const bet = (betsByMatch?.get?.(m.id) || []).find((b) => b.uid === p.uid);
+      const valid = bet && Number.isFinite(bet.home) && Number.isFinite(bet.away);
+      if (valid) {
+        hard += altMatchPoints(bet, m.result);
+        sharp += sharpMatchPoints(bet, m.result);
+        tipped += 1;
+      } else {
+        hard += -2;
+        sharp += -2;
+        untipped += 1;
+      }
+    }
+    return { uid: p.uid, name: p.name || 'Spiller', matches: finished.length, tipped, untipped, hard, sharp };
+  });
 }

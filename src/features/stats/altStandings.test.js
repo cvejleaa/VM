@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { altTeamPoints, altMatchPoints, computeAltStandings } from './altStandings';
+import {
+  altTeamPoints, altMatchPoints, computeAltStandings,
+  sharpTeamPoints, sharpMatchPoints, computeComparison,
+} from './altStandings';
 
 describe('altTeamPoints', () => {
   it('rigtigt giver +antal mål (og +2 for rigtigt 0)', () => {
@@ -71,5 +74,55 @@ describe('computeAltStandings', () => {
       [{ uid: 'u1', name: 'Anna' }],
     );
     expect(rows[0]).toMatchObject({ name: 'Anna', points: -2, tipped: 0, untipped: 1 });
+  });
+});
+
+describe('sharpTeamPoints (Skarpskytten)', () => {
+  it('rigtigt giver +(antal+1), monotont', () => {
+    expect(sharpTeamPoints(0, 0)).toBe(1);
+    expect(sharpTeamPoints(1, 1)).toBe(2);
+    expect(sharpTeamPoints(2, 2)).toBe(3);
+  });
+  it('forkert giver −min(forskel, 2)', () => {
+    expect(sharpTeamPoints(3, 2)).toBe(-1);
+    expect(sharpTeamPoints(5, 1)).toBe(-2); // forskel 4, kappet ved −2
+    expect(sharpTeamPoints(0, 3)).toBe(-2);
+  });
+});
+
+describe('sharpMatchPoints (Skarpskytten)', () => {
+  it('3-1 mod 2-1 → 2 (−1 +2 +1 udfald)', () => {
+    expect(sharpMatchPoints({ home: 3, away: 1 }, { home: 2, away: 1 })).toBe(2);
+  });
+  it('2-2 mod 0-2 → 1 (−2 +3, intet udfald)', () => {
+    expect(sharpMatchPoints({ home: 2, away: 2 }, { home: 0, away: 2 })).toBe(1);
+  });
+  it('0-0 mod 1-3 → −3 (blødere end hård −4)', () => {
+    expect(sharpMatchPoints({ home: 0, away: 0 }, { home: 1, away: 3 })).toBe(-3);
+  });
+  it('eksakt 2-2 → 7 (3 +3 +1)', () => {
+    expect(sharpMatchPoints({ home: 2, away: 2 }, { home: 2, away: 2 })).toBe(7);
+  });
+});
+
+describe('computeComparison', () => {
+  const players = [{ uid: 'u1', name: 'Anna' }, { uid: 'u2', name: 'Bo' }, { uid: 'u3', name: 'Cecilie' }];
+  const matches = [
+    { id: 'm1', result: { home: 2, away: 1 } },
+    { id: 'm2', result: { home: 0, away: 2 } },
+  ];
+  const betsByMatch = new Map([
+    ['m1', [{ uid: 'u1', home: 2, away: 1 }, { uid: 'u2', home: 3, away: 1 }]],
+    ['m2', [{ uid: 'u1', home: 0, away: 2 }]],
+  ]);
+
+  it('beregner hård og skarp pr. spiller (skarp er mildere)', () => {
+    const rows = computeComparison(matches, betsByMatch, players);
+    const a = rows.find((r) => r.name === 'Anna');
+    const b = rows.find((r) => r.name === 'Bo');
+    const c = rows.find((r) => r.name === 'Cecilie');
+    expect(a).toMatchObject({ hard: 7, sharp: 11, tipped: 2, untipped: 0 });
+    expect(b).toMatchObject({ hard: -2, sharp: 0, tipped: 1, untipped: 1 });
+    expect(c).toMatchObject({ hard: -4, sharp: -4, tipped: 0, untipped: 2 });
   });
 });
