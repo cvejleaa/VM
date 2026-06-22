@@ -445,6 +445,63 @@ exports.pruneOrphanMatches = onCall({ region: REGION }, async (request) => {
 });
 
 // ---------------------------------------------------------------------------
+// postSharpshooterNote — callable (kun owner): slå en fast, klar forklaring af
+// "🎯 Skarpskytten" op på væggen i alle ligaer, forfattet af VM-Botten.
+// dryRun=true poster ikke, men returnerer teksten + antal vægge til forhåndsvisning.
+// ---------------------------------------------------------------------------
+function fmtPenaltyText(penalty) {
+  const n = Math.abs(Number(penalty) || 0);
+  const rounded = Number.isInteger(n) ? n : Math.round(n * 10) / 10;
+  return rounded === 0 ? '0' : `−${rounded}`;
+}
+
+function buildSharpshooterNote(penalty) {
+  return [
+    '🎯 Ny stilling: Skarpskytten!',
+    '',
+    'Der er kommet en ny måde at score på under "Stilling" → fanen 🎯 Skarpskytten. Her belønnes du for at ramme antal mål for HVERT hold i hver afsluttede kamp — ikke kun hvem der vinder.',
+    '',
+    `• Rigtigt antal mål for et hold: +(antal + 1) point (rammer du fx 3 mål = +4). Rigtigt 0 = +1.`,
+    `• Forkert antal: minus forskellen — men højst −2 pr. hold, så én vild kamp ikke ødelægger alt.`,
+    `• +1 bonus hvis du rammer kampens udfald (hjemmesejr, uafgjort eller udesejr).`,
+    `• Ikke tippet en kamp: ${fmtPenaltyText(penalty)} point.`,
+    '',
+    'Point lægges sammen over alle afsluttede kampe, og hvert hold tæller for sig. Skarpe øjne belønnes — held og lykke! 🍀',
+  ].join('\n');
+}
+
+exports.postSharpshooterNote = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const userDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (userDoc.data()?.role !== 'owner') {
+    throw new HttpsError('permission-denied', 'Kun ejeren kan slå opslag op på alle vægge.');
+  }
+
+  const dryRun = request.data?.dryRun !== false; // default: tør-kør (sikkerhed)
+
+  const cfg = await db.collection('config').doc('settings').get();
+  const penalty = cfg.exists && Number.isFinite(Number(cfg.data().untippedPenalty))
+    ? Math.abs(Number(cfg.data().untippedPenalty)) : 2;
+  const text = buildSharpshooterNote(penalty);
+
+  const leaguesSnap = await db.collection('leagues').get();
+  if (dryRun) {
+    return { dryRun: true, text, leagues: leaguesSnap.size };
+  }
+
+  let posted = 0;
+  for (const league of leaguesSnap.docs) {
+    await db.collection('leagueComments').add({
+      leagueId: league.id, uid: 'ai-bot', displayName: 'VM-Botten', avatarEmoji: '🤖',
+      favoriteTeam: null, text, system: true, createdAt: FieldValue.serverTimestamp(),
+    });
+    posted += 1;
+  }
+  return { dryRun: false, text, leagues: posted };
+});
+
+// ---------------------------------------------------------------------------
 // Hjælpefunktion: genberegn totalPoints for en bruger
 // Summer alle bets.points + bonusBets.points for brugeren
 // ---------------------------------------------------------------------------

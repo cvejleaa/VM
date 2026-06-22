@@ -12,6 +12,7 @@ import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
 import { collectVisibleUids } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
+import SharpStandings from '../features/leaderboard/SharpStandings';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
 import { leagueScore, scoringLabel, normalizeScoring, isFullScoring } from '../features/leagues/leagueFormat';
 import { useLeagueBonus } from '../features/leagues/useLeagueBonus';
@@ -19,6 +20,7 @@ import { useLeagueBonus } from '../features/leagues/useLeagueBonus';
 // ── Fane-konstanter ──────────────────────────────────────────────────────────
 const TAB_OVERALL = 'overall';
 const TAB_DAILY = 'daily';
+const TAB_SHARP = 'sharp';
 
 export default function LeaderboardPage() {
   const { user } = useAuth();
@@ -114,6 +116,14 @@ export default function LeaderboardPage() {
         >
           📅 Dagens kampe
         </button>
+        <button
+          role="tab"
+          className={`tab${activeTab === TAB_SHARP ? ' tab--active' : ''}`}
+          aria-selected={activeTab === TAB_SHARP}
+          onClick={() => setActiveTab(TAB_SHARP)}
+        >
+          🎯 Skarpskytten
+        </button>
       </div>
 
       {/* Fejlbesked */}
@@ -181,6 +191,11 @@ export default function LeaderboardPage() {
             emptyMsg="Ingen point fra dagens kampe endnu."
           />
         </div>
+      )}
+
+      {/* ── 🎯 Skarpskytten ───────────────────────────────────────────── */}
+      {activeTab === TAB_SHARP && (
+        <SharpStandings meUid={user?.uid} memberUids={memberUids} />
       )}
     </div>
   );
