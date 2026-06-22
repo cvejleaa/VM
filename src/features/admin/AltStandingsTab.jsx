@@ -1,10 +1,12 @@
 // Admin-only: sammenligning af to mål-baserede point-regnskaber.
 //   "Hård" (nuværende): rigtigt 0 = +2, rigtigt N = +N, forkert = −forskel.
 //   "🎯 Skarpskytten": rigtigt N = +(N+1), forkert = −min(forskel,2), +1 for udfald.
-//   Begge: utippet kamp = −2. Summeret over alle afsluttede kampe.
+//   Begge: utippet kamp = straffen fra Indstillinger. Summeret over alle afsluttede kampe.
 import { useMemo, useState } from 'react';
 import { useStatsData } from '../stats/useStatsData';
 import { computeComparison } from '../stats/altStandings';
+import { useUntippedPenalty } from '../leaderboard/useUntippedPenalty';
+import { fmtPenalty } from '../leaderboard/sharpFormat';
 
 function Pts({ value }) {
   return (
@@ -17,7 +19,7 @@ function Pts({ value }) {
 export default function AltStandingsTab() {
   const { matches, betsByMatch, usersById, loading, error } = useStatsData();
   const [sortBy, setSortBy] = useState('sharp'); // 'hard' | 'sharp'
-  const [penalty, setPenalty] = useState(2); // straf-størrelse (positivt tal; trækkes fra)
+  const { penalty } = useUntippedPenalty(); // straf for utippet kamp (sættes under Indstillinger)
 
   const players = useMemo(
     () => Object.values(usersById || {})
@@ -38,7 +40,7 @@ export default function AltStandingsTab() {
       <div style={{ margin: '0 0 0.9rem', fontSize: '0.82rem', color: 'var(--c-muted)', lineHeight: 1.5 }}>
         <div><strong>Hård</strong> (nuværende): rigtigt holdtal = +antal mål (rigtigt 0 = +2); forkert = − forskellen.</div>
         <div><strong>🎯 Skarpskytten</strong>: rigtigt holdtal = +(antal+1) (rigtigt 0 = +1); forkert = − forskellen, men <strong>højst −2 pr. hold</strong>; <strong>+1</strong> hvis du rammer kampens udfald.</div>
-        <div>I begge: en kamp du <strong>ikke har tippet</strong> = straffen, du vælger nedenfor. Summeret over alle afsluttede kampe. (Kun admin.)</div>
+        <div>I begge: en kamp du <strong>ikke har tippet</strong> = straffen fra <strong>⚙️ Indstillinger</strong>. Summeret over alle afsluttede kampe. (Kun admin.)</div>
       </div>
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -65,22 +67,9 @@ export default function AltStandingsTab() {
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.7rem', fontSize: '0.82rem', flexWrap: 'wrap' }}>
-            <label htmlFor="untipped-penalty" style={{ color: 'var(--c-muted)' }}>Straf for utippet kamp: −</label>
-            <input
-              id="untipped-penalty"
-              className="input"
-              type="number"
-              step="0.5"
-              min="0"
-              value={penalty}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setPenalty(Number.isFinite(v) ? Math.abs(v) : 0);
-              }}
-              style={{ width: '5.5rem' }}
-            />
-            <span style={{ color: 'var(--c-muted)' }}>point pr. manglende kamp (decimaler ok, fx 1,5)</span>
+          <div style={{ marginBottom: '0.7rem', fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+            Straf for utippet kamp: <strong>{fmtPenalty(penalty)}</strong> point pr. manglende kamp.
+            {' '}Justeres under <strong>⚙️ Indstillinger</strong>.
           </div>
 
           <div className="table-wrap">

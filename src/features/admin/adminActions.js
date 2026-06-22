@@ -68,6 +68,37 @@ export async function setRecapTime(time) {
   await setDoc(ref, { recapTime: time }, { merge: true });
 }
 
+/**
+ * Sæt straffen for en utippet kamp i Skarpskytten-stillingen. Gemmes som et
+ * positivt tal (antal point der trækkes fra pr. manglende kamp) i config/settings.
+ * Læses live af stilling-siden og admin-fanen. Kun owner kan skrive iflg. reglerne.
+ * @param {number} penalty  positivt tal, fx 2 (= −2 pr. utippet kamp). Decimaler ok.
+ */
+export async function setUntippedPenalty(penalty) {
+  const ref = doc(db, COL.CONFIG, 'settings');
+  await setDoc(ref, { untippedPenalty: Math.abs(Number(penalty)) || 0 }, { merge: true });
+}
+
+/**
+ * Kald Cloud Function 'postSharpshooterNote' — slå en fast forklaring af
+ * Skarpskytten op på alle ligavægge (forfattet af VM-Botten). dryRun=true poster
+ * ikke, men returnerer teksten + antal vægge til forhåndsvisning. Kun owner.
+ * @param {{ dryRun?: boolean }} [opts]
+ */
+export async function callPostSharpshooterNote({ dryRun = false } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'postSharpshooterNote');
+    const res = await fn({ dryRun });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "postSharpshooterNote" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af postSharpshooterNote.';
+    return { ok: false, error: msg };
+  }
+}
+
 // ─── Kampstyring (global admin + owner) ──────────────────────────────────────
 
 /**
