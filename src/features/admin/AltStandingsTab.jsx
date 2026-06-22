@@ -17,6 +17,7 @@ function Pts({ value }) {
 export default function AltStandingsTab() {
   const { matches, betsByMatch, usersById, loading, error } = useStatsData();
   const [sortBy, setSortBy] = useState('sharp'); // 'hard' | 'sharp'
+  const [penalty, setPenalty] = useState(-2); // straf for utippet kamp (kan finjusteres)
 
   const players = useMemo(
     () => Object.values(usersById || {})
@@ -25,9 +26,11 @@ export default function AltStandingsTab() {
     [usersById],
   );
   const rows = useMemo(() => {
-    const r = computeComparison(matches, betsByMatch, players);
+    const r = computeComparison(matches, betsByMatch, players, penalty);
     return [...r].sort((a, b) => b[sortBy] - a[sortBy] || a.name.localeCompare(b.name, 'da'));
-  }, [matches, betsByMatch, players, sortBy]);
+  }, [matches, betsByMatch, players, sortBy, penalty]);
+
+  const fmt = (v) => (Number.isInteger(v) ? v : Math.round(v * 10) / 10);
 
   return (
     <div>
@@ -35,7 +38,7 @@ export default function AltStandingsTab() {
       <div style={{ margin: '0 0 0.9rem', fontSize: '0.82rem', color: 'var(--c-muted)', lineHeight: 1.5 }}>
         <div><strong>Hård</strong> (nuværende): rigtigt holdtal = +antal mål (rigtigt 0 = +2); forkert = − forskellen.</div>
         <div><strong>🎯 Skarpskytten</strong>: rigtigt holdtal = +(antal+1) (rigtigt 0 = +1); forkert = − forskellen, men <strong>højst −2 pr. hold</strong>; <strong>+1</strong> hvis du rammer kampens udfald.</div>
-        <div>I begge: en kamp du <strong>ikke har tippet</strong> = <strong>−2</strong>. Summeret over alle afsluttede kampe. (Kun admin.)</div>
+        <div>I begge: en kamp du <strong>ikke har tippet</strong> = straffen, du vælger nedenfor. Summeret over alle afsluttede kampe. (Kun admin.)</div>
       </div>
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -62,6 +65,21 @@ export default function AltStandingsTab() {
             </button>
           </div>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.7rem', fontSize: '0.82rem', flexWrap: 'wrap' }}>
+            <label htmlFor="untipped-penalty" style={{ color: 'var(--c-muted)' }}>Straf for utippet kamp:</label>
+            <input
+              id="untipped-penalty"
+              className="input"
+              type="number"
+              step="0.5"
+              max="0"
+              value={penalty}
+              onChange={(e) => setPenalty(Number(e.target.value) || 0)}
+              style={{ width: '5.5rem' }}
+            />
+            <span style={{ color: 'var(--c-muted)' }}>point pr. manglende kamp (decimaler ok, fx −1,5)</span>
+          </div>
+
           <div className="table-wrap">
             <table className="table" style={{ fontSize: '0.88rem' }}>
               <thead>
@@ -80,7 +98,7 @@ export default function AltStandingsTab() {
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td className="text-center text-muted">
                       {r.tipped}/{r.matches}
-                      {r.untipped > 0 && <span style={{ color: 'var(--c-err)' }}> (−{r.untipped * 2})</span>}
+                      {r.untipped > 0 && penalty !== 0 && <span style={{ color: 'var(--c-err)' }}> ({fmt(r.untipped * penalty)})</span>}
                     </td>
                     <td className="text-center"><Pts value={r.hard} /></td>
                     <td className="text-center"><Pts value={r.sharp} /></td>

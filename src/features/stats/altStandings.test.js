@@ -126,3 +126,20 @@ describe('computeComparison', () => {
     expect(c).toMatchObject({ hard: -4, sharp: -4, tipped: 0, untipped: 2 });
   });
 });
+
+describe('computeComparison – justerbar straf for utippet', () => {
+  const players = [{ uid: 'u2', name: 'Bo' }, { uid: 'u3', name: 'Cecilie' }];
+  const matches = [
+    { id: 'm1', result: { home: 2, away: 1 } },
+    { id: 'm2', result: { home: 0, away: 2 } },
+  ];
+  const betsByMatch = new Map([['m1', [{ uid: 'u2', home: 3, away: 1 }]]]);
+
+  it('bruger en decimal-straf for utippede kampe', () => {
+    const rows = computeComparison(matches, betsByMatch, players, -1.5);
+    const bo = rows.find((r) => r.name === 'Bo');
+    const cecilie = rows.find((r) => r.name === 'Cecilie');
+    expect(bo).toMatchObject({ hard: -1.5, sharp: 0.5, untipped: 1 });
+    expect(cecilie).toMatchObject({ hard: -3, sharp: -3, untipped: 2 });
+  });
+});

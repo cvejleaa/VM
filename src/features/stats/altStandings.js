@@ -100,7 +100,7 @@ export function sharpMatchPoints(bet, result) {
  * En kamp man ikke har tippet (gyldigt) giver −2 i begge.
  * @returns {Array<{uid,name,matches,tipped,untipped,hard,sharp}>}
  */
-export function computeComparison(matches, betsByMatch, players) {
+export function computeComparison(matches, betsByMatch, players, untippedPenalty = -2) {
   const finished = (matches || []).filter((m) => m && m.result);
   return (players || []).map((p) => {
     let hard = 0;
@@ -115,11 +115,16 @@ export function computeComparison(matches, betsByMatch, players) {
         sharp += sharpMatchPoints(bet, m.result);
         tipped += 1;
       } else {
-        hard += -2;
-        sharp += -2;
+        hard += untippedPenalty;
+        sharp += untippedPenalty;
         untipped += 1;
       }
     }
-    return { uid: p.uid, name: p.name || 'Spiller', matches: finished.length, tipped, untipped, hard, sharp };
+    // Afrund til 1 decimal (penalty kan vaere decimal).
+    const round1 = (v) => Math.round(v * 10) / 10;
+    return {
+      uid: p.uid, name: p.name || 'Spiller', matches: finished.length,
+      tipped, untipped, hard: round1(hard), sharp: round1(sharp),
+    };
   });
 }
