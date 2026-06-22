@@ -6,9 +6,15 @@ import { computeAltStandings } from '../stats/altStandings';
 
 export default function AltStandingsTab() {
   const { matches, betsByMatch, usersById, loading, error } = useStatsData();
+  const players = useMemo(
+    () => Object.values(usersById || {})
+      .filter((u) => u.status === 'approved')
+      .map((u) => ({ uid: u.id, name: u.displayName || 'Spiller' })),
+    [usersById],
+  );
   const rows = useMemo(
-    () => computeAltStandings(matches, betsByMatch, usersById),
-    [matches, betsByMatch, usersById],
+    () => computeAltStandings(matches, betsByMatch, players),
+    [matches, betsByMatch, players],
   );
 
   return (
@@ -16,8 +22,9 @@ export default function AltStandingsTab() {
       <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem' }}>🧮 Alternativ stilling (måltips)</h2>
       <p style={{ margin: '0 0 0.9rem', fontSize: '0.85rem', color: 'var(--c-muted)' }}>
         Pr. hold: rammer du holdets antal mål præcist, får du <strong>+antal mål</strong> (et rigtigt 0 giver +2);
-        rammer du forkert, får du <strong>− forskellen</strong> (|tip − faktisk|). Summeret over alle afsluttede
-        kampe. (Kun synlig for admin indtil videre.)
+        rammer du forkert, får du <strong>− forskellen</strong> (|tip − faktisk|). En kamp du <strong>ikke har
+        tippet</strong> giver <strong>−2</strong>. Summeret over alle afsluttede kampe. (Kun synlig for admin
+        indtil videre.)
       </p>
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -33,7 +40,7 @@ export default function AltStandingsTab() {
               <tr>
                 <th style={{ width: '2rem' }}>#</th>
                 <th>Spiller</th>
-                <th className="text-center">Kampe</th>
+                <th className="text-center">Tippet</th>
                 <th className="text-center">⌀/kamp</th>
                 <th className="text-center" style={{ color: 'var(--c-pitch)' }}>Point</th>
               </tr>
@@ -43,7 +50,10 @@ export default function AltStandingsTab() {
                 <tr key={r.uid} data-testid="alt-standings-row">
                   <td className="text-muted">{i + 1}</td>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
-                  <td className="text-center text-muted">{r.matches}</td>
+                  <td className="text-center text-muted">
+                    {r.tipped}/{r.matches}
+                    {r.untipped > 0 && <span style={{ color: 'var(--c-err)' }}> (−{r.untipped * 2})</span>}
+                  </td>
                   <td className="text-center text-muted">{r.avg}</td>
                   <td className="text-center">
                     <strong style={{ color: r.points < 0 ? 'var(--c-err)' : 'var(--c-text)' }}>
