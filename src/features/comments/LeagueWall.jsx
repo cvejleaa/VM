@@ -55,6 +55,27 @@ export default function LeagueWall({ leagueId, meUid, myName, myEmoji = null, my
 
       {error && <p className="form-error mb-1" role="alert">{error}</p>}
 
+      {/* Skriv-formular — øverst, lige over væggen */}
+      <form onSubmit={handleSubmit} style={{ marginBottom: '0.85rem' }}>
+        <textarea
+          className="input"
+          rows={2}
+          placeholder="Skriv en besked til ligaen…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={1000}
+          aria-label="Ny besked til liga-væggen"
+          style={{ resize: 'vertical' }}
+        />
+        {postError && <p className="form-error mt-1">{postError}</p>}
+        <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
+          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
+          <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
+            {busy ? 'Sender…' : 'Send'}
+          </button>
+        </div>
+      </form>
+
       {/* Besked-liste */}
       {loading ? (
         <div className="spinner" role="status" aria-label="Indlæser" />
@@ -110,27 +131,6 @@ export default function LeagueWall({ leagueId, meUid, myName, myEmoji = null, my
           })}
         </ul>
       )}
-
-      {/* Skriv-formular */}
-      <form onSubmit={handleSubmit} style={{ marginTop: '0.75rem' }}>
-        <textarea
-          className="input"
-          rows={2}
-          placeholder="Skriv en besked til ligaen…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          maxLength={1000}
-          aria-label="Ny besked til liga-væggen"
-          style={{ resize: 'vertical' }}
-        />
-        {postError && <p className="form-error mt-1">{postError}</p>}
-        <div className="flex gap-1 mt-1" style={{ alignItems: 'center' }}>
-          <EmojiPicker onSelect={(e) => setText((t) => t + e)} />
-          <button className="btn btn--sm" type="submit" disabled={busy || !text.trim()}>
-            {busy ? 'Sender…' : 'Send'}
-          </button>
-        </div>
-      </form>
     </div>
   );
 }
