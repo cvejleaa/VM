@@ -8,7 +8,32 @@ import {
   collectVisibleUids,
   sortByPoints,
   computeDailyPoints,
+  tippedFinishedCounts,
 } from './standingsUtils';
+
+// ── tippedFinishedCounts ─────────────────────────────────────────────────────
+describe('tippedFinishedCounts', () => {
+  const matches = [
+    { id: 'm1', status: 'finished' },
+    { id: 'm2', status: 'finished' },
+    { id: 'm3', status: 'scheduled' }, // ikke afsluttet → tæller ikke
+  ];
+  const byMatch = new Map([
+    ['m1', new Set(['a', 'b'])],
+    ['m2', new Set(['a'])],
+    ['m3', new Set(['a', 'b'])], // ignoreres (scheduled)
+  ]);
+
+  it('tæller kun tippede, afsluttede kampe pr. spiller', () => {
+    expect(tippedFinishedCounts(matches, byMatch)).toEqual({ a: 2, b: 1 });
+  });
+
+  it('robust over for tomme/manglende input', () => {
+    expect(tippedFinishedCounts([], new Map())).toEqual({});
+    expect(tippedFinishedCounts(null, null)).toEqual({});
+    expect(tippedFinishedCounts(matches, new Map())).toEqual({});
+  });
+});
 
 // ── getTodayInCPH ────────────────────────────────────────────────────────────
 describe('getTodayInCPH', () => {

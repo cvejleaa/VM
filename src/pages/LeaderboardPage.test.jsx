@@ -36,6 +36,29 @@ vi.mock('../features/leagues/useLeagueBonus', () => ({
   useLeagueBonus: () => ({ questions: [], myAnswers: {}, pointsByUid: {}, answersByQid: {}, loading: false }),
 }));
 
+// Kampe + tip-deltagelse til gns.-kolonnen
+vi.mock('../features/matches/useMatches', () => ({
+  useMatches: () => ({
+    matches: [
+      { id: 'm1', status: 'finished' },
+      { id: 'm2', status: 'finished' },
+    ],
+    loading: false,
+    error: null,
+  }),
+}));
+
+vi.mock('../features/leagues/useTipParticipation', () => ({
+  useTipParticipation: () => ({
+    // Alice (uid-1) har tippet 2 kampe (50/2 = 25,0); Mig (me-uid) 1 kamp (30/1 = 30,0)
+    byMatch: new Map([
+      ['m1', new Set(['uid-1', 'me-uid'])],
+      ['m2', new Set(['uid-1'])],
+    ]),
+    loading: false,
+  }),
+}));
+
 vi.mock('../features/leagues/useLeagues', () => ({
   useLeagues: () => ({
     leagues: [
@@ -149,6 +172,23 @@ describe('LeaderboardPage', () => {
     // Tilbage til netværket: Alice vises, men Charlie (ingen fælles liga) gør ikke
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
+  });
+
+  it('viser gns.-kolonne med point pr. tippet kamp', () => {
+    render(<LeaderboardPage />);
+    // Alice: 50 point / 2 tippede = 25,0 ; Mig: 30 / 1 = 30,0
+    expect(screen.getByText('25,0')).toBeInTheDocument();
+    expect(screen.getByText('30,0')).toBeInTheDocument();
+  });
+
+  it('kan sortere efter gns. og total', () => {
+    render(<LeaderboardPage />);
+    const totalBtn = screen.getByRole('button', { name: /^total$/i });
+    const avgBtn = screen.getByRole('button', { name: /^gns\.$/i });
+    expect(totalBtn).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(avgBtn);
+    expect(avgBtn).toHaveAttribute('aria-pressed', 'true');
+    expect(totalBtn).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('viser ThemeToggle-knap', () => {

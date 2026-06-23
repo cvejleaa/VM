@@ -27,6 +27,9 @@ function MovementArrow({ delta }) {
  * @param {function} [props.getPoints]  – fn(uid) → number; overskriver totalPoints-feltet
  * @param {boolean}  [props.loading]    – vis spinner
  * @param {string}   [props.emptyMsg]   – tekst når listen er tom
+ * @param {boolean}  [props.showAvg]    – vis "Gns."-kolonne (point pr. tippet kamp)
+ * @param {function} [props.getTipped]  – fn(uid) → antal tippede kampe (nævner i gns.)
+ * @param {'total'|'avg'} [props.sortMode] – sortér efter total eller gennemsnit
  */
 export default function StandingsTable({
   users = [],
@@ -36,21 +39,34 @@ export default function StandingsTable({
   loading = false,
   emptyMsg = 'Ingen spillere at vise.',
   showMovement = false,
+  showAvg = false,
+  getTipped = null,
+  sortMode = 'total',
 }) {
   // Filtrer og sorter brugerene
   const rows = useMemo(() => {
     // Filtrer til medlemmer af valgt liga
     const filtered = filterByMembers(users, memberUids);
 
-    // Beregn point (evt. fra ekstern funktion, f.eks. dagspoint)
-    const withPoints = filtered.map((u) => ({
-      ...u,
-      displayPoints: getPoints ? (getPoints(u.uid) ?? 0) : (u.totalPoints ?? 0),
-    }));
+    // Beregn point (evt. fra ekstern funktion, f.eks. dagspoint) + gns. pr. tippet kamp
+    const withPoints = filtered.map((u) => {
+      const displayPoints = getPoints ? (getPoints(u.uid) ?? 0) : (u.totalPoints ?? 0);
+      const tipped = getTipped ? (getTipped(u.uid) ?? 0) : 0;
+      const avg = tipped > 0 ? Math.round((displayPoints / tipped) * 10) / 10 : null;
+      return { ...u, displayPoints, tipped, avg };
+    });
 
-    // Sortér faldende efter point
-    return withPoints.sort((a, b) => b.displayPoints - a.displayPoints);
-  }, [users, memberUids, getPoints]);
+    // Sortér faldende — efter gns. når valgt, ellers efter total. Tiebreak: total, så navn.
+    return withPoints.sort((a, b) => {
+      if (showAvg && sortMode === 'avg') {
+        const av = a.avg ?? -Infinity;
+        const bv = b.avg ?? -Infinity;
+        if (bv !== av) return bv - av;
+      }
+      if (b.displayPoints !== a.displayPoints) return b.displayPoints - a.displayPoints;
+      return (a.displayName || '').localeCompare(b.displayName || '', 'da');
+    });
+  }, [users, memberUids, getPoints, getTipped, showAvg, sortMode]);
 
   if (loading) {
     return <div className="spinner" role="status" aria-label="Indlæser" />;
@@ -74,6 +90,7 @@ export default function StandingsTable({
             {showMovement && <th style={{ width: '2.5rem' }} title="Bevægelse siden i går">±</th>}
             <th>Spiller</th>
             <th style={{ textAlign: 'right' }}>Point</th>
+            {showAvg && <th style={{ textAlign: 'right' }} title="Gennemsnitlige point pr. tippet kamp">Gns.</th>}
           </tr>
         </thead>
         <tbody>
@@ -121,6 +138,15 @@ export default function StandingsTable({
                 <td style={{ textAlign: 'right' }}>
                   <span className="pts">{u.displayPoints}</span>
                 </td>
+
+                {/* Gns. point pr. tippet kamp */}
+                {showAvg && (
+                  <td style={{ textAlign: 'right' }} title={u.tipped ? `${u.displayPoints} point på ${u.tipped} tippede kampe` : 'Ingen tippede kampe endnu'}>
+                    <span className="text-muted" style={{ fontSize: '0.9rem' }}>
+                      {u.avg === null ? '–' : u.avg.toFixed(1).replace('.', ',')}
+                    </span>
+                  </td>
+                )}
               </tr>
             );
           })}

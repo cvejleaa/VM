@@ -60,6 +60,26 @@ export function sortByPoints(users) {
 }
 
 /**
+ * Antal afsluttede kampe hver spiller har tippet — bruges til "gns. point pr.
+ * tippet kamp". Bygger på tipParticipation (matchId → Set(uids)) krydset med de
+ * afsluttede kampe, så kun kampe der har givet point tæller med.
+ *
+ * @param {Array<object>} matches             – alle kampe (skal have .id og .status)
+ * @param {Map<string, Set<string>>} byMatch  – matchId → Set(uids) der har tippet
+ * @returns {Record<string, number>}          – uid → antal tippede, afsluttede kampe
+ */
+export function tippedFinishedCounts(matches, byMatch) {
+  const counts = {};
+  for (const m of matches ?? []) {
+    if (!m || m.status !== 'finished') continue;
+    const set = byMatch?.get?.(m.id);
+    if (!set) continue;
+    for (const uid of set) counts[uid] = (counts[uid] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
  * Beregner point pr. spiller fra dagens afsluttede kampe.
  * Rent klient-baseret: matcher (finished + kickoff i dag) + bets.
  *
