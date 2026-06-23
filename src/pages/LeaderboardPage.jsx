@@ -10,7 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import { useStandings } from '../features/leaderboard/useStandings';
 import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
-import { collectVisibleUids } from '../features/leaderboard/standingsUtils';
+import { useMatches } from '../features/matches/useMatches';
+import { useTipParticipation } from '../features/leagues/useTipParticipation';
+import { collectVisibleUids, tippedFinishedCounts } from '../features/leaderboard/standingsUtils';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import SharpStandings from '../features/leaderboard/SharpStandings';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
@@ -26,6 +28,7 @@ export default function LeaderboardPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(TAB_OVERALL);
   const [selectedLeagueId, setSelectedLeagueId] = useState(''); // '' = alle
+  const [sortMode, setSortMode] = useState('total'); // 'total' | 'avg' (samlet stilling)
 
   // Hooks
   const { standings, loading: loadingStandings, error: errorStandings } = useStandings();
@@ -48,6 +51,15 @@ export default function LeaderboardPage() {
     (uid) => pointsByUid[uid] ?? 0,
     [pointsByUid],
   );
+
+  // Antal tippede (afsluttede) kampe pr. spiller → gns. point pr. tippet kamp.
+  const { matches: allMatches } = useMatches();
+  const { byMatch: tipByMatch } = useTipParticipation();
+  const tippedByUid = useMemo(
+    () => tippedFinishedCounts(allMatches, tipByMatch),
+    [allMatches, tipByMatch],
+  );
+  const getTipped = useCallback((uid) => tippedByUid[uid] ?? 0, [tippedByUid]);
 
   // Når en liga er valgt, rangeres efter dens scoring-valg — inkl. liga-bonus,
   // så forsidens filter matcher ligaens egen side præcist.
@@ -150,13 +162,36 @@ export default function LeaderboardPage() {
               Rangeret efter ligaens format: <strong>{scoringLabel(leagueScoring)}</strong>
             </p>
           )}
+
+          {/* Sortér: total eller gns. point pr. tippet kamp */}
+          <div className="flex items-center gap-1 mb-2" style={{ fontSize: '0.82rem' }}>
+            <span style={{ color: 'var(--c-muted)' }}>Sortér efter:</span>
+            <button
+              className={`btn btn--sm${sortMode === 'total' ? '' : ' btn--ghost'}`}
+              onClick={() => setSortMode('total')}
+              aria-pressed={sortMode === 'total'}
+            >
+              Total
+            </button>
+            <button
+              className={`btn btn--sm${sortMode === 'avg' ? '' : ' btn--ghost'}`}
+              onClick={() => setSortMode('avg')}
+              aria-pressed={sortMode === 'avg'}
+            >
+              Gns.
+            </button>
+          </div>
+
           <StandingsTable
             users={standings}
             meUid={user?.uid}
             memberUids={memberUids}
             getPoints={useLeagueScoring ? getLeaguePoints : null}
             loading={loadingStandings}
-            showMovement={!selectedLeagueId}
+            showMovement={!selectedLeagueId && sortMode === 'total'}
+            showAvg
+            getTipped={getTipped}
+            sortMode={sortMode}
             emptyMsg="Ingen godkendte spillere endnu."
           />
         </div>
