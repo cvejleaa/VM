@@ -109,6 +109,16 @@ export default function MatchesTab() {
     setSyncMsg(`Synk: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
   }
 
+  async function handleSyncFull() {
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callSyncResultsNow({ dryRun: false, full: true });
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    if (d.reason === 'no-unfinished-matches') { setSyncMsg('Ingen uafsluttede kampe at synke.'); return; }
+    setSyncMsg(`Fuld synk: ${d.updated ?? 0} opdateret af ${d.checked ?? 0} (${d.review ?? 0} til tjek).`);
+  }
+
   async function handleSyncFixtures() {
     if (!window.confirm('Map alle vores kampe til football-data.org-id\'er?')) return;
     setSyncBusy(true); setSyncMsg('');
@@ -229,6 +239,10 @@ export default function MatchesTab() {
         <button className="btn btn--ghost btn--sm" onClick={handleSyncNow} disabled={syncBusy}
           title="Hent live/afsluttede resultater fra football-data.org nu">
           {syncBusy ? '…' : '⚽ Synk nu'}
+        </button>
+        <button className="btn btn--ghost btn--sm" onClick={handleSyncFull} disabled={syncBusy}
+          title="Tjek ALLE uafsluttede kampe mod football-data.org — uanset tidspunkt. Brug hvis en kamp hænger (fx afbrudt og genoptaget)">
+          {syncBusy ? '…' : '🔄 Fuld synk'}
         </button>
         <button className="btn btn--ghost btn--sm" onClick={handleSyncFixtures} disabled={syncBusy}
           title="Map vores kampe til football-data.org-id'er (kør efter lodtrækning / når knockout-kampe får hold)">
