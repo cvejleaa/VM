@@ -167,8 +167,20 @@ describe('computeDiscipline', () => {
   });
 
   it('håndterer tomt input', () => {
-    expect(computeDiscipline([])).toEqual({ teams: [], players: [], totals: { yellow: 0, red: 0 } });
+    expect(computeDiscipline([])).toEqual({ teams: [], players: [], totals: { yellow: 0, red: 0 }, allTeams: [] });
     expect(computeDiscipline(null).totals).toEqual({ yellow: 0, red: 0 });
+  });
+
+  it('allTeams indeholder ALLE deltagende nationer — også dem med 0 kort', () => {
+    const { allTeams } = computeDiscipline(matches);
+    const codes = allTeams.map((t) => t.code);
+    // Kun gyldige landekoder (i TEAMS) fra kampene: BRA, ARG, FRA, ENG.
+    expect(new Set(codes)).toEqual(new Set(['BRA', 'ARG', 'FRA', 'ENG']));
+    // ENG spillede uden kort → 0/0, men er stadig med
+    const eng = allTeams.find((t) => t.code === 'ENG');
+    expect(eng).toMatchObject({ code: 'ENG', yellow: 0, red: 0 });
+    // ARG (rødt kort) ligger før de kortløse nationer
+    expect(codes.indexOf('ARG')).toBeLessThan(codes.indexOf('ENG'));
   });
 });
 
