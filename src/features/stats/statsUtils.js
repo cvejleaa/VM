@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 import { outcome, scoreMatch, scoreKnockout, POINTS } from '../../lib/scoring';
 import { ROUNDS } from '../../lib/constants';
+import { TEAMS, teamName } from '../../lib/teams';
 
 /**
  * Beregner statistik for én afgjort kamp ud fra spillernes tips.
@@ -245,14 +246,28 @@ export function computeDiscipline(matches) {
     }
   }
   const score = (x) => x.red * 2 + x.yellow; // røde kort vægter tungest
-  const bySeverity = (a, b) => score(b) - score(a) || b.red - a.red;
+  const bySeverity = (a, b) => score(b) - score(a) || b.red - a.red
+    || teamName(a.code).localeCompare(teamName(b.code), 'da');
   const teams = Object.values(byTeam).sort(bySeverity);
   const players = Object.values(byPlayer).sort(bySeverity);
   const totals = teams.reduce(
     (acc, t) => ({ yellow: acc.yellow + t.yellow, red: acc.red + t.red }),
     { yellow: 0, red: 0 },
   );
-  return { teams, players, totals };
+
+  // Alle deltagende nationer (gyldige landekoder fra kampene) med deres kort —
+  // også dem med 0, så man kan se hele feltet.
+  const nationCodes = new Set();
+  for (const m of matches ?? []) {
+    for (const code of [m?.homeTeam, m?.awayTeam]) {
+      if (code && TEAMS[code]) nationCodes.add(code);
+    }
+  }
+  const allTeams = [...nationCodes]
+    .map((code) => byTeam[code] || { code, yellow: 0, red: 0 })
+    .sort(bySeverity);
+
+  return { teams, players, totals, allTeams };
 }
 
 // ─── Turnerings-fakta (uafhængigt af vores tip-spil) ────────────────────────
