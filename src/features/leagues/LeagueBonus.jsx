@@ -175,8 +175,67 @@ function ApprovalList({ q, submissions }) {
   );
 }
 
+// ── Afsløring: alles svar (efter låsning for alle; altid for manager) ─────────
+function AllAnswers({ q, meUid, submissions, usersByUid, isManager }) {
+  const [open, setOpen] = useState(false);
+  const isFinished = q.facit != null && q.facit !== '';
+  const nameOf = (uid) => usersByUid[uid]?.displayName || 'Spiller';
+
+  const sorted = [...submissions].sort((a, b) => {
+    if (isFinished) {
+      const pb = scoreLeagueBonus(q, b.answer);
+      const pa = scoreLeagueBonus(q, a.answer);
+      if (pb !== pa) return pb - pa;
+    }
+    return nameOf(a.uid).localeCompare(nameOf(b.uid), 'da');
+  });
+
+  return (
+    <div style={{ marginTop: '0.5rem' }}>
+      <button
+        className="btn btn--ghost btn--sm"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        data-testid="reveal-league-bonus-answers-btn"
+      >
+        {open ? 'Skjul alles svar' : '👀 Se alles svar'}
+        {isManager && !open && <span className="badge badge--blue" style={{ marginLeft: '0.4rem', fontSize: '0.65rem' }}>manager</span>}
+      </button>
+      {open && (
+        sorted.length === 0 ? (
+          <p style={{ fontSize: '0.83rem', color: 'var(--c-muted)', marginTop: '0.4rem' }}>Ingen svar på dette spørgsmål.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            {sorted.map((s) => {
+              const mine = s.uid === meUid;
+              const pts = isFinished ? scoreLeagueBonus(q, s.answer) : null;
+              return (
+                <li
+                  key={s.uid}
+                  data-testid="league-bonus-answer-row"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', borderBottom: '1px solid var(--c-border)', paddingBottom: '0.35rem' }}
+                >
+                  <span style={{ fontSize: '0.86rem', fontWeight: 600 }}>
+                    {nameOf(s.uid)}{mine && <span className="badge badge--blue" style={{ marginLeft: '0.3rem' }}>dig</span>}
+                  </span>
+                  <span style={{ fontSize: '0.86rem' }}>{displayAnswer(s.answer)}</span>
+                  {pts !== null && (
+                    <span className={`badge ${pts > 0 ? 'badge--green' : 'badge--muted'}`} style={{ fontSize: '0.7rem', marginLeft: 'auto' }}>
+                      {pts > 0 ? `+${pts}` : '0'}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )
+      )}
+    </div>
+  );
+}
+
 // ── Ét spørgsmål ──────────────────────────────────────────────────────────────
-function QuestionCard({ q, meUid, isManager, initialAnswer, submissions = [] }) {
+function QuestionCard({ q, meUid, isManager, initialAnswer, submissions = [], usersByUid = {} }) {
   const [editing, setEditing] = useState(false);
   const locked = isBonusLocked(q.deadline);
   const empty = q.type === LEAGUE_BONUS_TYPE.TOPLIST ? [] : '';
@@ -283,6 +342,11 @@ function QuestionCard({ q, meUid, isManager, initialAnswer, submissions = [] }) 
         </p>
       )}
 
+      {/* Alle svar — efter låsning for alle, altid for manager */}
+      {(locked || isManager) && (
+        <AllAnswers q={q} meUid={meUid} submissions={submissions} usersByUid={usersByUid} isManager={isManager} />
+      )}
+
       {/* Manager: sæt facit */}
       {isManager && (
         <div style={{ marginTop: '0.6rem', padding: '0.5rem 0.75rem', background: 'var(--c-surface-2, rgba(0,0,0,0.04))', borderRadius: 8 }}>
@@ -360,7 +424,7 @@ function CreateForm({ leagueId, meUid }) {
   );
 }
 
-export default function LeagueBonus({ leagueId, meUid, isManager, questions, myAnswers, answersByQid = {} }) {
+export default function LeagueBonus({ leagueId, meUid, isManager, questions, myAnswers, answersByQid = {}, usersByUid = {} }) {
   // #6: hvor mange åbne spørgsmål mangler jeg at svare på?
   const unanswered = questions.filter(
     (q) => !isBonusLocked(q.deadline) && !hasAnswer(myAnswers[q.id]),
@@ -388,6 +452,7 @@ export default function LeagueBonus({ leagueId, meUid, isManager, questions, myA
             <QuestionCard
               key={q.id} q={q} meUid={meUid} isManager={isManager}
               initialAnswer={myAnswers[q.id]} submissions={answersByQid[q.id] ?? []}
+              usersByUid={usersByUid}
             />
           ))}
         </ul>

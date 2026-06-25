@@ -22,7 +22,7 @@ function toMillis(ts) {
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-export function useLeagueBonus(leagueId, meUid) {
+export function useLeagueBonus(leagueId, meUid, isManager = false) {
   const [questions, setQuestions] = useState([]);
   const [myAnswers, setMyAnswers] = useState({}); // qid -> answer
   const [othersByQid, setOthersByQid] = useState({}); // qid -> [{uid, answer}]
@@ -55,18 +55,22 @@ export function useLeagueBonus(leagueId, meUid) {
     return unsub;
   }, [meUid, leagueId]);
 
-  // Alle svar for spørgsmål hvis deadline er passeret (til point-beregning)
-  const pastQids = useMemo(() => {
+  // Alle svar til point-beregning + afsløring. Reglerne tillader at læse andres
+  // svar efter deadline (alle) eller altid (manager) — så managere henter alle
+  // spørgsmål, mens menige kun henter de låste.
+  const loadQids = useMemo(() => {
     const now = Date.now();
-    return questions.filter((q) => toMillis(q.deadline) <= now).map((q) => q.id);
-  }, [questions]);
-  const pastKey = pastQids.join(',');
+    return questions
+      .filter((q) => isManager || toMillis(q.deadline) <= now)
+      .map((q) => q.id);
+  }, [questions, isManager]);
+  const pastKey = loadQids.join(',');
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       const result = {};
-      for (const qid of pastQids) {
+      for (const qid of loadQids) {
         try {
           const snap = await getDocs(query(
             collection(db, COL.LEAGUE_BONUS_ANSWERS),
@@ -79,7 +83,7 @@ export function useLeagueBonus(leagueId, meUid) {
       }
       if (!cancelled) setOthersByQid(result);
     }
-    if (pastQids.length) load(); else setOthersByQid({});
+    if (loadQids.length) load(); else setOthersByQid({});
     return () => { cancelled = true; };
   }, [pastKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
