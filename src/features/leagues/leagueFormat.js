@@ -90,3 +90,26 @@ export function leagueScore(user, scoring, leagueBonusPoints = 0) {
   if (s.leagueBonus) total += leagueBonusPoints;
   return total;
 }
+
+/**
+ * Opdel en spillers liga-point i "kampe" og "bonus" (samme grundlag som
+ * leagueScore, så match + bonus === total). Respekterer ligaens scoring-valg:
+ * dele der er slået fra tæller 0.
+ * @param {object} user – med groupPoints/knockoutPoints/bonusPoints
+ * @param {object} scoring – kombinerbart scoring-objekt
+ * @param {number} [leagueBonusPoints] – point fra ligaens egne bonusspørgsmål
+ * @returns {{match:number, bonus:number, total:number}}
+ */
+export function leagueBreakdown(user, scoring, leagueBonusPoints = 0) {
+  const s = scoring || DEFAULT_SCORING;
+  const group = user?.groupPoints ?? 0;
+  const knockout = user?.knockoutPoints ?? 0;
+  const officialBonus = user?.bonusPoints ?? 0;
+  let match = 0;
+  if (s.group) match += group;
+  if (s.knockout) match += knockout * (s.doubleKnockout ? 2 : 1);
+  let bonus = 0;
+  if (s.bonus) bonus += officialBonus;
+  if (s.leagueBonus) bonus += leagueBonusPoints;
+  return { match, bonus, total: match + bonus };
+}

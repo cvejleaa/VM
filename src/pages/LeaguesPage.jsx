@@ -26,7 +26,7 @@ import {
 } from '../features/leagues/leagueActions';
 import { callGenerateLeagueRecapNow } from '../features/admin/adminActions';
 import {
-  normalizeScoring, scoringLabel, isFullScoring, SCORING_COMPONENTS, DEFAULT_SCORING, leagueScore,
+  normalizeScoring, scoringLabel, isFullScoring, SCORING_COMPONENTS, DEFAULT_SCORING, leagueScore, leagueBreakdown,
 } from '../features/leagues/leagueFormat';
 import { useLeagueBonus } from '../features/leagues/useLeagueBonus';
 import LeagueBonus from '../features/leagues/LeagueBonus';
@@ -370,6 +370,8 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
           meUid={meUid}
           memberUids={league.memberUids}
           getPoints={(uid) => leagueScore(standings.find((u) => u.uid === uid), scoring, bonusPointsByUid[uid] || 0)}
+          showBreakdown
+          getBreakdown={(u) => leagueBreakdown(u, scoring, bonusPointsByUid[u.uid] || 0)}
           emptyMsg="Ingen spillere i ligaen."
         />
       </div>

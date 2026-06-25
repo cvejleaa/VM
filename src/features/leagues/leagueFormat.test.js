@@ -1,10 +1,29 @@
 import { describe, it, expect } from 'vitest';
 import {
-  leagueScore, scoringLabel, isFullScoring, normalizeScoring, DEFAULT_SCORING,
+  leagueScore, leagueBreakdown, scoringLabel, isFullScoring, normalizeScoring, DEFAULT_SCORING,
 } from './leagueFormat';
 import { LEAGUE_FORMAT } from '../../lib/constants';
 
 const user = { totalPoints: 100, groupPoints: 60, knockoutPoints: 30, bonusPoints: 10 };
+
+describe('leagueBreakdown', () => {
+  it('opdeler i kampe + bonus så summen = total (alt til)', () => {
+    expect(leagueBreakdown(user, DEFAULT_SCORING, 7)).toEqual({ match: 90, bonus: 17, total: 107 });
+  });
+  it('respekterer fravalgte dele', () => {
+    const s = { group: false, knockout: true, bonus: true, leagueBonus: false, doubleKnockout: false };
+    expect(leagueBreakdown(user, s, 7)).toEqual({ match: 30, bonus: 10, total: 40 });
+  });
+  it('dobbelt slutspil tæller med i kampe-delen', () => {
+    const s = { group: true, knockout: true, bonus: false, leagueBonus: true, doubleKnockout: true };
+    expect(leagueBreakdown(user, s, 5)).toEqual({ match: 120, bonus: 5, total: 125 });
+  });
+  it('match + bonus === leagueScore', () => {
+    const s = { group: true, knockout: true, bonus: true, leagueBonus: true, doubleKnockout: false };
+    const bd = leagueBreakdown(user, s, 4);
+    expect(bd.total).toBe(leagueScore(user, s, 4));
+  });
+});
 
 describe('leagueScore (kombinerbar)', () => {
   it('alt slået til = alle komponenter', () => {

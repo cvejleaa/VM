@@ -31,6 +31,7 @@ function MovementArrow({ delta }) {
  * @param {function} [props.getTipped]  – fn(uid) → antal tippede kampe (nævner i gns.)
  * @param {'total'|'avg'} [props.sortMode] – sortér efter total eller gennemsnit
  * @param {boolean}  [props.showBreakdown] – vis "Kampe"- og "Bonus"-kolonner (kun global total)
+ * @param {function} [props.getBreakdown] – fn(user) → {match, bonus}; overstyrer standard-opdelingen (fx liga-scoring)
  */
 export default function StandingsTable({
   users = [],
@@ -44,6 +45,7 @@ export default function StandingsTable({
   getTipped = null,
   sortMode = 'total',
   showBreakdown = false,
+  getBreakdown = null,
 }) {
   // Filtrer og sorter brugerene
   const rows = useMemo(() => {
@@ -55,8 +57,9 @@ export default function StandingsTable({
       const displayPoints = getPoints ? (getPoints(u.uid) ?? 0) : (u.totalPoints ?? 0);
       const tipped = getTipped ? (getTipped(u.uid) ?? 0) : 0;
       const avg = tipped > 0 ? Math.round((displayPoints / tipped) * 10) / 10 : null;
-      const matchPoints = (u.groupPoints ?? 0) + (u.knockoutPoints ?? 0);
-      const bonus = u.bonusPoints ?? 0;
+      const bd = getBreakdown ? getBreakdown(u) : null;
+      const matchPoints = bd ? bd.match : (u.groupPoints ?? 0) + (u.knockoutPoints ?? 0);
+      const bonus = bd ? bd.bonus : (u.bonusPoints ?? 0);
       return { ...u, displayPoints, tipped, avg, matchPoints, bonus };
     });
 
@@ -70,7 +73,7 @@ export default function StandingsTable({
       if (b.displayPoints !== a.displayPoints) return b.displayPoints - a.displayPoints;
       return (a.displayName || '').localeCompare(b.displayName || '', 'da');
     });
-  }, [users, memberUids, getPoints, getTipped, showAvg, sortMode]);
+  }, [users, memberUids, getPoints, getTipped, showAvg, sortMode, getBreakdown]);
 
   if (loading) {
     return <div className="spinner" role="status" aria-label="Indlæser" />;

@@ -53,6 +53,22 @@ describe('StandingsTable', () => {
     expect(row).toHaveTextContent('29'); // total
   });
 
+  it('getBreakdown overstyrer standard-opdelingen (fx liga-scoring)', () => {
+    const users = [{ uid: 'u', displayName: 'Eva', groupPoints: 18, knockoutPoints: 4, bonusPoints: 7 }];
+    render(
+      <StandingsTable
+        users={users}
+        showBreakdown
+        getPoints={() => 90}
+        getBreakdown={() => ({ match: 80, bonus: 10 })}
+      />,
+    );
+    const row = screen.getByText('Eva').closest('tr');
+    expect(row).toHaveTextContent('80'); // kampe fra override
+    expect(row).toHaveTextContent('10'); // bonus fra override
+    expect(row).toHaveTextContent('90'); // total fra getPoints
+  });
+
   it('andre rækker har IKKE is-me-klassen', () => {
     render(<StandingsTable users={testUsers} meUid="uid-1" />);
     const bobRow = screen.getByText('Bob').closest('tr');
