@@ -30,6 +30,7 @@ function MovementArrow({ delta }) {
  * @param {boolean}  [props.showAvg]    – vis "Gns."-kolonne (point pr. tippet kamp)
  * @param {function} [props.getTipped]  – fn(uid) → antal tippede kampe (nævner i gns.)
  * @param {'total'|'avg'} [props.sortMode] – sortér efter total eller gennemsnit
+ * @param {boolean}  [props.showBreakdown] – vis "Kampe"- og "Bonus"-kolonner (kun global total)
  */
 export default function StandingsTable({
   users = [],
@@ -42,6 +43,7 @@ export default function StandingsTable({
   showAvg = false,
   getTipped = null,
   sortMode = 'total',
+  showBreakdown = false,
 }) {
   // Filtrer og sorter brugerene
   const rows = useMemo(() => {
@@ -53,7 +55,9 @@ export default function StandingsTable({
       const displayPoints = getPoints ? (getPoints(u.uid) ?? 0) : (u.totalPoints ?? 0);
       const tipped = getTipped ? (getTipped(u.uid) ?? 0) : 0;
       const avg = tipped > 0 ? Math.round((displayPoints / tipped) * 10) / 10 : null;
-      return { ...u, displayPoints, tipped, avg };
+      const matchPoints = (u.groupPoints ?? 0) + (u.knockoutPoints ?? 0);
+      const bonus = u.bonusPoints ?? 0;
+      return { ...u, displayPoints, tipped, avg, matchPoints, bonus };
     });
 
     // Sortér faldende — efter gns. når valgt, ellers efter total. Tiebreak: total, så navn.
@@ -89,7 +93,9 @@ export default function StandingsTable({
             <th style={{ width: '2.5rem' }}>#</th>
             {showMovement && <th style={{ width: '2.5rem' }} title="Bevægelse siden i går">±</th>}
             <th>Spiller</th>
-            <th style={{ textAlign: 'right' }}>Point</th>
+            {showBreakdown && <th style={{ textAlign: 'right' }} title="Point fra kampe (gruppe + slutspil)">Kampe</th>}
+            {showBreakdown && <th style={{ textAlign: 'right' }} title="Point fra bonusspørgsmål">Bonus</th>}
+            <th style={{ textAlign: 'right' }}>{showBreakdown ? 'Total' : 'Point'}</th>
             {showAvg && <th style={{ textAlign: 'right' }} title="Gennemsnitlige point pr. tippet kamp">Gns.</th>}
           </tr>
         </thead>
@@ -134,7 +140,19 @@ export default function StandingsTable({
                   </span>
                 </td>
 
-                {/* Point */}
+                {/* Point fra kampe / bonus (kun global total) */}
+                {showBreakdown && (
+                  <td style={{ textAlign: 'right' }}>
+                    <span className="text-muted" style={{ fontSize: '0.9rem' }}>{u.matchPoints}</span>
+                  </td>
+                )}
+                {showBreakdown && (
+                  <td style={{ textAlign: 'right' }}>
+                    <span className="text-muted" style={{ fontSize: '0.9rem' }}>{u.bonus}</span>
+                  </td>
+                )}
+
+                {/* Total (eller point når breakdown er skjult) */}
                 <td style={{ textAlign: 'right' }}>
                   <span className="pts">{u.displayPoints}</span>
                 </td>

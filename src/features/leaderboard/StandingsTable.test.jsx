@@ -41,6 +41,18 @@ describe('StandingsTable', () => {
     expect(meRow).toHaveClass('is-me');
   });
 
+  it('viser Kampe/Bonus/Total-kolonner med showBreakdown', () => {
+    const users = [{ uid: 'u', displayName: 'Eva', groupPoints: 18, knockoutPoints: 4, bonusPoints: 7, totalPoints: 29 }];
+    render(<StandingsTable users={users} showBreakdown />);
+    expect(screen.getByText('Kampe')).toBeInTheDocument();
+    expect(screen.getByText('Bonus')).toBeInTheDocument();
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    const row = screen.getByText('Eva').closest('tr');
+    expect(row).toHaveTextContent('22'); // 18 + 4 fra kampe
+    expect(row).toHaveTextContent('7');  // bonus
+    expect(row).toHaveTextContent('29'); // total
+  });
+
   it('andre rækker har IKKE is-me-klassen', () => {
     render(<StandingsTable users={testUsers} meUid="uid-1" />);
     const bobRow = screen.getByText('Bob').closest('tr');
