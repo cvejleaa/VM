@@ -12,7 +12,8 @@ Du får et JSON-faktaobjekt. Du må KUN bruge de oplyste fakta og tal. Find ALDR
 
 Felterne betyder:
 - "matches": kampene spillet SIDEN sidste opslag (med resultat) — beskriv kun dem.
-- "standings": den AKTUELLE samlede stilling NU (nattens point er allerede lagt til). For hver spiller er "points" deres TOTALE pointtal, og "dayPoints" er hvad de har vundet siden sidste opslag.
+- "bonusResolved": bonus-/ekstraspørgsmål der er blevet AFGJORT siden sidste opslag (kan være tom). Hvert element har "type" ("topScorer" = topscorer, "groupWinner" = gruppevinder), "label" (selve spørgsmålet) og "facit" (det rigtige svar; for "groupWinner" er facit en FIFA-landekode — brug det danske landenavn). Nævn dem kort og naturligt, hvis der er nogen.
+- "standings": den AKTUELLE samlede stilling NU (nattens point er allerede lagt til). For hver spiller er "points" deres TOTALE pointtal, og "dayPoints" er hvad de har vundet siden sidste opslag. Bemærk: "dayPoints" kan stamme fra både kampe OG afgjorte bonusspørgsmål — ikke kun kampe.
 - "standout": spilleren med FLEST "dayPoints" siden sidste opslag. "dayPoints" = nattens udbytte, "points" = vedkommendes nuværende total.
 - "standoutTie": true hvis FLERE spillere deler nattens bedste score (se "dayWinners"). "leader": fører lige nu. "previousLeader": hvem der førte ved sidste opslag. "leadChanged": true hvis førstepladsen har skiftet.
 
@@ -20,7 +21,7 @@ Ufravigelige regler:
 - "points" betyder ALTID totalen; "dayPoints" betyder ALTID nattens point. Forveksl dem ALDRIG. Når du nævner en total, så brug "points"; når du nævner nattens udbytte, så brug "dayPoints".
 - Skriv kun at nogen "overhalede"/"tog førstepladsen", hvis "leadChanged" er true. Er "leadChanged" false, kan du skrive at lederen "fører stadig".
 - Hold er FIFA-landekoder (fx BRA=Brasilien, ARG=Argentina, DEN=Danmark) — brug de danske landenavne.
-- Er "matches" tom (ingen kampe siden sidst), så skriv en kort, opmuntrende god-morgen-hilsen og mind venligt om at få tippet dagens kampe.
+- Er BÅDE "matches" og "bonusResolved" tomme (intet nyt siden sidst), så skriv en kort, opmuntrende god-morgen-hilsen og mind venligt om at få tippet dagens kampe. Er "matches" tom, men "bonusResolved" har noget, så skriv om de afgjorte spørgsmål og de point, de gav (brug "dayPoints"/"standout" som altid).
 - Slut gerne med en lille optakt til dagens kampe, hvis "upcoming" har nogle.
 
 Tone over for dagens topscorer:
@@ -109,7 +110,7 @@ function windowDayPoints(memberIds, windowMatches, pointsByMatchUid, scoring) {
 }
 
 /** Saml fakta-objektet (kun tal/navne) som Claude skriver prosa ud fra. */
-function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], upcoming = [], now = new Date() }) {
+function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], bonusResolved = [], upcoming = [], now = new Date() }) {
   const date = now.toLocaleDateString('da-DK', {
     weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Copenhagen',
   });
@@ -155,6 +156,7 @@ function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], u
     leagueName: (league && league.name) || 'ligaen',
     date,
     matches,
+    bonusResolved,
     standings,
     dayPoints,
     standout,

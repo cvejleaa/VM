@@ -110,6 +110,18 @@ describe('buildRecapFacts', () => {
     }
   });
 
+  it('inkluderer bonusResolved i fakta (default tom)', () => {
+    const f = buildRecapFacts({ league: { scoring: { group: true } }, members, dayPointsByUid: {}, matches: [], now });
+    expect(f.bonusResolved).toEqual([]);
+
+    const bonus = [{ type: 'topScorer', label: 'Hvem topscorer?', facit: 'Mbappé' }];
+    const f2 = buildRecapFacts({
+      league: { scoring: { group: true } }, members,
+      dayPointsByUid: { a: 5 }, matches: [], bonusResolved: bonus, now,
+    });
+    expect(f2.bonusResolved).toEqual(bonus);
+  });
+
   it('markerer ikke førerskifte når lederen er den samme (leadChanged=false)', () => {
     const f = buildRecapFacts({ league: { scoring: { group: true } }, members, dayPointsByUid: { a: 2, b: 7, c: 0 }, matches: [], upcoming: [], now });
     expect(f.leader).toMatchObject({ name: 'Anders', points: 20 });
