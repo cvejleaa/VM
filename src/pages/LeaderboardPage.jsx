@@ -192,6 +192,7 @@ export default function LeaderboardPage() {
             showAvg
             getTipped={getTipped}
             sortMode={sortMode}
+            showBreakdown={!useLeagueScoring}
             emptyMsg="Ingen godkendte spillere endnu."
           />
         </div>

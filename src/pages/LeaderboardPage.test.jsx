@@ -13,9 +13,9 @@ vi.mock('../context/AuthContext', () => ({
 
 // ── Mock hooks ────────────────────────────────────────────────────────────────
 const mockStandings = [
-  { uid: 'uid-1', displayName: 'Alice', totalPoints: 50 },
-  { uid: 'me-uid', displayName: 'Mig', totalPoints: 30 },
-  { uid: 'uid-3', displayName: 'Charlie', totalPoints: 10 },
+  { uid: 'uid-1', displayName: 'Alice', totalPoints: 50, groupPoints: 33, knockoutPoints: 7, bonusPoints: 10 },
+  { uid: 'me-uid', displayName: 'Mig', totalPoints: 30, groupPoints: 25, knockoutPoints: 0, bonusPoints: 5 },
+  { uid: 'uid-3', displayName: 'Charlie', totalPoints: 10, groupPoints: 10, knockoutPoints: 0, bonusPoints: 0 },
 ];
 
 vi.mock('../features/leaderboard/useStandings', () => ({
@@ -179,6 +179,17 @@ describe('LeaderboardPage', () => {
     // Alice: 50 point / 2 tippede = 25,0 ; Mig: 30 / 1 = 30,0
     expect(screen.getByText('25,0')).toBeInTheDocument();
     expect(screen.getByText('30,0')).toBeInTheDocument();
+  });
+
+  it('viser point fra kampe og bonus + total i samlet stilling', () => {
+    render(<LeaderboardPage />);
+    expect(screen.getByRole('columnheader', { name: 'Kampe' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Bonus' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Total' })).toBeInTheDocument();
+    // Alice: 33 + 7 = 40 fra kampe, 10 bonus, 50 total
+    const aliceRow = screen.getByText('Alice').closest('tr');
+    expect(aliceRow).toHaveTextContent('40');
+    expect(aliceRow).toHaveTextContent('50');
   });
 
   it('kan sortere efter gns. og total', () => {
