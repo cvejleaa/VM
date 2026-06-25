@@ -20,6 +20,13 @@ vi.mock('firebase/firestore', () => ({
 vi.mock('../features/bonus/useBonusData', () => ({
   useBonusQuestions: vi.fn(),
   useMyBonusBets: vi.fn(),
+  useBonusBets: vi.fn(() => ({ bets: [], loading: false })),
+}));
+vi.mock('../features/leaderboard/useStandings', () => ({
+  useStandings: () => ({ standings: [], loading: false, error: null }),
+}));
+vi.mock('../features/leagues/useLeagues', () => ({
+  useLeagues: () => ({ leagues: [], loading: false, error: null }),
 }));
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),

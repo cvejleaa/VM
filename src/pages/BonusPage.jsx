@@ -2,17 +2,33 @@
 // BonusPage – bonus-spørgsmål (topscorer, gruppevinder).
 // Brugeren kan svare inden deadline; derefter vises facit + point.
 // ---------------------------------------------------------------------------
+import { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useBonusQuestions, useMyBonusBets } from '../features/bonus/useBonusData';
 import BonusQuestion from '../features/bonus/BonusQuestion';
 import { isBonusLocked, sortBonusQuestions } from '../features/bonus/bonusHelpers';
+import { useStandings } from '../features/leaderboard/useStandings';
+import { useLeagues } from '../features/leagues/useLeagues';
+import { collectVisibleUids } from '../features/leaderboard/standingsUtils';
 import { POINTS } from '../lib/scoring';
 
 export default function BonusPage() {
-  const { user } = useAuth();
+  const { user, isGlobalAdmin } = useAuth();
   const { questions: rawQuestions, loading, error } = useBonusQuestions();
   const questions = sortBonusQuestions(rawQuestions);
   const { bonusBets, loading: betsLoading } = useMyBonusBets(user?.uid ?? null);
+
+  // Til at vise hvem der har svaret (navne/avatarer) + liga-afgrænsning.
+  const { standings } = useStandings();
+  const { leagues } = useLeagues(user?.uid);
+  const usersByUid = useMemo(
+    () => Object.fromEntries((standings || []).map((u) => [u.uid, u])),
+    [standings],
+  );
+  const visibleUids = useMemo(
+    () => new Set(collectVisibleUids(leagues, user?.uid)),
+    [leagues, user?.uid],
+  );
 
   const uid = user?.uid ?? '';
   const isLoading = loading || betsLoading;
@@ -124,6 +140,9 @@ export default function BonusPage() {
                     question={q}
                     uid={uid}
                     existingBet={bonusBets.get(q.id) ?? null}
+                    isAdmin={isGlobalAdmin}
+                    usersByUid={usersByUid}
+                    visibleUids={visibleUids}
                   />
                 ))}
             </section>
@@ -152,6 +171,9 @@ export default function BonusPage() {
                     question={q}
                     uid={uid}
                     existingBet={bonusBets.get(q.id) ?? null}
+                    isAdmin={isGlobalAdmin}
+                    usersByUid={usersByUid}
+                    visibleUids={visibleUids}
                   />
                 ))}
             </section>

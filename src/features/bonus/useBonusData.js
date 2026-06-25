@@ -41,6 +41,38 @@ export function useBonusQuestions() {
 }
 
 /**
+ * Henter ALLE svar på ét bonusspørgsmål. Kun aktiveret når man må læse dem
+ * (spørgsmålet er låst, eller man er admin) — ellers afviser reglerne læsningen.
+ * @param {string|null} questionId
+ * @param {boolean} enabled
+ * @returns {{ bets: Array, loading: boolean }}
+ */
+export function useBonusBets(questionId, enabled = false) {
+  const [bets, setBets] = useState([]);
+  const [loading, setLoading] = useState(enabled);
+
+  useEffect(() => {
+    if (!enabled || !questionId) { setBets([]); setLoading(false); return undefined; }
+    setLoading(true);
+    const q = query(collection(db, COL.BONUS_BETS), where('questionId', '==', questionId));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setBets(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      (err) => {
+        console.error('useBonusBets fejl:', err);
+        setLoading(false);
+      },
+    );
+    return unsub;
+  }, [questionId, enabled]);
+
+  return { bets, loading };
+}
+
+/**
  * Henter brugerens egne bonus-svar.
  * Returnerer en Map: questionId → bonusBet-objekt.
  * @param {string|null} uid

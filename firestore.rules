@@ -152,9 +152,13 @@ service cloud.firestore {
     // bonusBets/{bonusBetId}  (bonusBetId = uid_questionId)
     // -----------------------------------------------------------------------
     match /bonusBets/{bonusBetId} {
-      // Bruger kan læse egne bonusbets; globalAdmin/owner kan læse alle
-      // (til at se og godkende indsendte topscorer-svar)
-      allow read: if isGlobalAdmin() || (isSignedIn() && request.auth.uid == resource.data.uid);
+      // Egne bonus-svar kan altid læses. Admin kan altid læse alle (se hvem der
+      // har svaret + godkende stavemåder). Andres svar kan først læses EFTER
+      // spørgsmålet er låst (deadline passeret) — som med kamp-tips efter kickoff.
+      allow read: if isGlobalAdmin()
+        || (isSignedIn() && request.auth.uid == resource.data.uid)
+        || (isApproved()
+            && request.time >= get(/databases/$(database)/documents/bonusQuestions/$(resource.data.questionId)).data.deadline);
 
       // Opret bonusbet: kun eget, points må ikke sættes, og kun FØR deadline
       allow create: if isSignedIn()
