@@ -410,6 +410,69 @@ describe('bonusBets/{betId} — sikkerhedsregler', () => {
       })
     );
   });
+
+  it('spiller KAN IKKE læse andres bonusbet FØR deadline', async () => {
+    const uid1 = 'bonusReader1';
+    const uid2 = 'bonusReader2';
+    const questionId = 'groupWinner_open';
+    const futureDeadline = new Date(Date.now() + 60 * 60 * 1000);
+
+    await createUser(uid1, 'player', 'approved');
+    await createUser(uid2, 'player', 'approved');
+    await createBonusQuestion(questionId, futureDeadline);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('bonusBets').doc(`${uid1}_${questionId}`).set({
+        uid: uid1, questionId, answer: 'BRA',
+      });
+    });
+
+    const ctx = testEnv.authenticatedContext(uid2);
+    await assertFails(
+      getDoc(doc(ctx.firestore(), 'bonusBets', `${uid1}_${questionId}`))
+    );
+  });
+
+  it('spiller KAN læse andres bonusbet EFTER deadline (låst)', async () => {
+    const uid1 = 'bonusReader3';
+    const uid2 = 'bonusReader4';
+    const questionId = 'groupWinner_locked';
+    const pastDeadline = new Date(Date.now() - 60 * 60 * 1000);
+
+    await createUser(uid1, 'player', 'approved');
+    await createUser(uid2, 'player', 'approved');
+    await createBonusQuestion(questionId, pastDeadline);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('bonusBets').doc(`${uid1}_${questionId}`).set({
+        uid: uid1, questionId, answer: 'BRA',
+      });
+    });
+
+    const ctx = testEnv.authenticatedContext(uid2);
+    await assertSucceeds(
+      getDoc(doc(ctx.firestore(), 'bonusBets', `${uid1}_${questionId}`))
+    );
+  });
+
+  it('admin KAN læse andres bonusbet FØR deadline', async () => {
+    const uid1 = 'bonusReader5';
+    const adminUid = 'bonusAdmin1';
+    const questionId = 'groupWinner_admin';
+    const futureDeadline = new Date(Date.now() + 60 * 60 * 1000);
+
+    await createUser(uid1, 'player', 'approved');
+    await createUser(adminUid, 'globalAdmin', 'approved');
+    await createBonusQuestion(questionId, futureDeadline);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('bonusBets').doc(`${uid1}_${questionId}`).set({
+        uid: uid1, questionId, answer: 'BRA',
+      });
+    });
+
+    const ctx = testEnv.authenticatedContext(adminUid);
+    await assertSucceeds(
+      getDoc(doc(ctx.firestore(), 'bonusBets', `${uid1}_${questionId}`))
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -9,15 +9,19 @@ import { POINTS } from '../../lib/scoring';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
 import { isBonusLocked, formatDeadline } from './bonusHelpers';
+import BonusAnswers from './BonusAnswers';
 
 /**
  * @param {{
  *   question: object,
  *   uid: string,
  *   existingBet: object|null,
+ *   isAdmin?: boolean,
+ *   usersByUid?: object,
+ *   visibleUids?: Set<string>|null,
  * }} props
  */
-export default function BonusQuestion({ question, uid, existingBet }) {
+export default function BonusQuestion({ question, uid, existingBet, isAdmin = false, usersByUid = {}, visibleUids = null }) {
   const locked = isBonusLocked(question.deadline);
   const [answer, setAnswer] = useState(existingBet?.answer ?? '');
   const [saving, setSaving] = useState(false);
@@ -207,6 +211,17 @@ export default function BonusQuestion({ question, uid, existingBet }) {
         <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'var(--c-muted)' }}>
           Korrekt svar giver {POINTS.BONUS} point. Låses ved deadline (den første relevante kamps start).
         </p>
+      )}
+
+      {/* Alle svar — efter låsning for alle, altid for admin (som med kamp-tips) */}
+      {(locked || isAdmin) && (
+        <BonusAnswers
+          question={question}
+          meUid={uid}
+          usersByUid={usersByUid}
+          visibleUids={visibleUids}
+          isAdmin={isAdmin}
+        />
       )}
     </div>
   );
