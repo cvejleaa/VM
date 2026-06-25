@@ -681,10 +681,33 @@ describe('leagueBonus / leagueBonusAnswers — sikkerhedsregler', () => {
     }));
   });
 
-  // Bemærk: "andres svar skjult før deadline / synligt efter" følger præcis
-  // samme read-mønster som bets/messages (allerede dækket), og udelades her for
-  // at undgå en miljø-flakiness i emulatoren (Firestore settings deles på tværs
-  // af testfiler i samme proces).
+  it('en liga-manager KAN læse et medlems svar FØR deadline', async () => {
+    await createUser('mgr', 'player', 'approved');
+    await createUser('m', 'player', 'approved');
+    await seedLeague2('lb5', { ownerUid: 'mgr', memberUids: ['mgr', 'm'] });
+    await seedQuestion('q5', { leagueId: 'lb5', createdBy: 'mgr', deadline: future() });
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueBonusAnswers').doc('q5_m').set({
+        questionId: 'q5', leagueId: 'lb5', uid: 'm', answer: 'Messi',
+      });
+    });
+    const ctx = testEnv.authenticatedContext('mgr');
+    await assertSucceeds(getDoc(doc(ctx.firestore(), 'leagueBonusAnswers', 'q5_m')));
+  });
+
+  it('et almindeligt medlem KAN IKKE læse andres svar FØR deadline', async () => {
+    await createUser('m', 'player', 'approved');
+    await createUser('m2', 'player', 'approved');
+    await seedLeague2('lb6', { ownerUid: 'x', memberUids: ['x', 'm', 'm2'] });
+    await seedQuestion('q6', { leagueId: 'lb6', createdBy: 'x', deadline: future() });
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagueBonusAnswers').doc('q6_m').set({
+        questionId: 'q6', leagueId: 'lb6', uid: 'm', answer: 'Messi',
+      });
+    });
+    const ctx = testEnv.authenticatedContext('m2');
+    await assertFails(getDoc(doc(ctx.firestore(), 'leagueBonusAnswers', 'q6_m')));
+  });
 });
 
 // ---------------------------------------------------------------------------

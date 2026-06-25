@@ -7,7 +7,7 @@
  *  - Tilmeld dig via join-kode
  *  - Åbn detaljevisning: ligaens rangering + admin-muligheder for ejere
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../context/TasksContext';
 import { useLeagues } from '../features/leagues/useLeagues';
@@ -142,7 +142,11 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
   const {
     questions: bonusQuestions, myAnswers: bonusAnswers,
     pointsByUid: bonusPointsByUid, answersByQid: bonusAnswersByQid,
-  } = useLeagueBonus(league.id, meUid);
+  } = useLeagueBonus(league.id, meUid, isManager);
+  const usersByUid = useMemo(
+    () => Object.fromEntries((standings || []).map((u) => [u.uid, u])),
+    [standings],
+  );
 
   async function handleScoringToggle(nextScoring) {
     setSavingFormat(true); setActionError('');
@@ -384,6 +388,7 @@ function LeagueDetail({ league, standings, meUid, meName, meEmoji = null, meTeam
         questions={bonusQuestions}
         myAnswers={bonusAnswers}
         answersByQid={bonusAnswersByQid}
+        usersByUid={usersByUid}
       />
 
       {/* Hvem har tippet på de kommende kampe */}

@@ -3,7 +3,7 @@
  * Firebase-handlinger mockes.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import LeagueBonus from './LeagueBonus';
 import { LEAGUE_BONUS_TYPE } from '../../lib/constants';
 
@@ -68,5 +68,28 @@ describe('LeagueBonus', () => {
   it('viser opret-knap for managere', () => {
     renderBonus({ isManager: true });
     expect(screen.getByText(/Nyt bonusspørgsmål/i)).toBeInTheDocument();
+  });
+
+  it('afslører alles svar på låst spørgsmål med navne', () => {
+    renderBonus({
+      answersByQid: { q2: [{ uid: 'me', answer: 'Messi' }, { uid: 'u2', answer: 'Ronaldo' }] },
+      usersByUid: { me: { displayName: 'Mig' }, u2: { displayName: 'Uffe' } },
+    });
+    // Kun det låste spørgsmål (q2) har afslørings-knap
+    const btns = screen.getAllByTestId('reveal-league-bonus-answers-btn');
+    expect(btns).toHaveLength(1);
+    fireEvent.click(btns[0]);
+    expect(screen.getAllByTestId('league-bonus-answer-row')).toHaveLength(2);
+    expect(screen.getByText('Uffe')).toBeInTheDocument();
+  });
+
+  it('manager kan afsløre svar også på åbne spørgsmål', () => {
+    renderBonus({
+      isManager: true,
+      answersByQid: { q1: [{ uid: 'u2', answer: 'Haaland' }] },
+      usersByUid: { u2: { displayName: 'Uffe' } },
+    });
+    // Både åbent (q1) og låst (q2) har afslørings-knap for manager
+    expect(screen.getAllByTestId('reveal-league-bonus-answers-btn')).toHaveLength(2);
   });
 });

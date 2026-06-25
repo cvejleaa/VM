@@ -356,9 +356,11 @@ service cloud.firestore {
     // leagueBonusAnswers/{id}  (id = qid_uid) — svar på liga-bonusspørgsmål
     // -----------------------------------------------------------------------
     match /leagueBonusAnswers/{ansId} {
-      // Eget svar kan altid læses; andres først EFTER spørgsmålets deadline.
+      // Eget svar kan altid læses; manager/admin altid (følge deltagelse);
+      // andres svar først EFTER spørgsmålets deadline.
       allow read: if isGlobalAdmin()
         || (isSignedIn() && request.auth.uid == resource.data.uid)
+        || isLeagueManager(resource.data.leagueId)
         || (isApproved()
             && request.time >= get(/databases/$(database)/documents/leagueBonus/$(resource.data.questionId)).data.deadline);
 
