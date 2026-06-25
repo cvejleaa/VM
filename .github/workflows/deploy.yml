@@ -78,7 +78,24 @@ jobs:
             functions)     ONLY="functions" ;;
             all)           ONLY="hosting,firestore:rules,firestore:indexes,functions" ;;
           esac
-          firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive --force
+          # Firebase-deploy fejler en gang imellem med en forbigående
+          # "Failed to authenticate" — prøv igen med backoff i stedet for at
+          # kræve manuel genkørsel.
+          n=0; max=3
+          until [ "$n" -ge "$max" ]; do
+            n=$((n + 1))
+            echo "::group::Deploy-forsøg $n/$max"
+            if firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive --force; then
+              echo "::endgroup::"
+              echo "Deploy lykkedes på forsøg $n/$max."
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::Deploy fejlede på forsøg $n/$max."
+            [ "$n" -lt "$max" ] && sleep $((n * 15))
+          done
+          echo "::error::Deploy fejlede efter $max forsøg."
+          exit 1
 
       - name: Seed database (valgfrit)
         if: ${{ inputs.seed }}
