@@ -145,6 +145,14 @@ exports.recomputeBonus = onDocumentWritten(
     const after = event.data?.after?.data();
     if (!after?.facit) return; // Facit ikke sat endnu
 
+    // Stempl tidspunktet for afgørelsen første gang facit sættes — bruges af
+    // VM-Botten til at fortælle, at et bonusspørgsmål er blevet afgjort.
+    // (Sættet udløser funktionen igen, men da facit/accepted er uændret,
+    // returnerer den hurtigt nedenfor — ingen løkke.)
+    if (!after.resolvedAt && event.data?.after?.ref) {
+      await event.data.after.ref.set({ resolvedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+
     const before = event.data?.before?.data();
     // Genberegn hvis facit ELLER de admin-godkendte svar er ændret
     const acceptedJSON = JSON.stringify(after.acceptedAnswers ?? []);
@@ -894,14 +902,36 @@ async function gatherRecapData(db, now) {
       time: m.kickoff.toDate().toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: TZ }),
     }));
 
-  return { finished, pointsByMatchUid, upcoming };
+  // Officielle bonusspørgsmål (topscorer/gruppevinder) afgjort i vinduet, så
+  // VM-Botten kan nævne dem og lade nattens point afspejle dem.
+  const bqSnap = await db.collection('bonusQuestions').get();
+  const resolvedBonus = [];
+  for (const d of bqSnap.docs) {
+    const q = d.data();
+    const resolvedMs = tsToMs(q.resolvedAt);
+    if (!q.facit || resolvedMs == null || resolvedMs < startMs) continue;
+    resolvedBonus.push({ id: d.id, type: q.type || null, label: q.label || '', facit: q.facit, resolvedMs });
+  }
+  // Point pr. spiller for hvert afgjort spørgsmål (til at fordele nattens bonus).
+  const bonusPtsByQ = {};
+  for (const q of resolvedBonus) {
+    const bets = await db.collection('bonusBets').where('questionId', '==', q.id).get();
+    const map = {};
+    for (const b of bets.docs) {
+      const x = b.data();
+      if (x.points) map[x.uid] = Number(x.points);
+    }
+    bonusPtsByQ[q.id] = map;
+  }
+
+  return { finished, pointsByMatchUid, upcoming, resolvedBonus, bonusPtsByQ };
 }
 
 /**
  * Afgræns til kampe siden ligaens sidste opslag og påfør ligaens scoring, så
  * "dayPoints" hviler på samme grundlag som totalen (leagueTotal).
  */
-function recapWindowForLeague({ league, finished, pointsByMatchUid, now }) {
+function recapWindowForLeague({ league, finished, pointsByMatchUid, resolvedBonus = [], bonusPtsByQ = {}, now }) {
   const lastMs = tsToMs(league.lastRecapAt) ?? (now.getTime() - 26 * 3600 * 1000);
   const windowMatches = finished.filter((m) => m.kickoffMs > lastMs);
   const memberUids = league.memberUids || [];
@@ -913,8 +943,21 @@ function recapWindowForLeague({ league, finished, pointsByMatchUid, now }) {
       if (pts) dayPointsByUid[uid] = (dayPointsByUid[uid] || 0) + pts;
     }
   }
+
+  // Officiel bonus tæller kun, hvis ligaen ikke har slået den fra (default til).
+  const countsBonus = !league.scoring || league.scoring.bonus !== false;
+  const windowBonus = countsBonus ? resolvedBonus.filter((q) => q.resolvedMs > lastMs) : [];
+  for (const q of windowBonus) {
+    const map = bonusPtsByQ[q.id] || {};
+    for (const uid of memberUids) {
+      const pts = Number(map[uid] || 0);
+      if (pts) dayPointsByUid[uid] = (dayPointsByUid[uid] || 0) + pts;
+    }
+  }
+
   const matches = windowMatches.map((m) => ({ home: m.home, away: m.away, score: m.score }));
-  return { dayPointsByUid, matches };
+  const bonusResolved = windowBonus.map((q) => ({ type: q.type, label: q.label, facit: q.facit }));
+  return { dayPointsByUid, matches, bonusResolved };
 }
 
 function recapAlreadyToday(ts, now) {
@@ -952,7 +995,7 @@ async function generateRecapText(anthropic, facts) {
 
 async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = false, onlyLeagueId = null } = {}) {
   const anthropic = new Anthropic({ apiKey });
-  const { finished, pointsByMatchUid, upcoming } = await gatherRecapData(db, now);
+  const { finished, pointsByMatchUid, upcoming, resolvedBonus, bonusPtsByQ } = await gatherRecapData(db, now);
 
   const usersSnap = await db.collection('users').get();
   const usersById = new Map(usersSnap.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
@@ -968,8 +1011,10 @@ async function runGenerateLeagueRecaps(db, apiKey, { now = new Date(), dryRun = 
     if (!dryRun && recapAlreadyToday(league.lastRecapAt, now)) continue;
 
     // Kun kampe/point siden ligaens sidste opslag, med ligaens scoring påført.
-    const { dayPointsByUid, matches } = recapWindowForLeague({ league, finished, pointsByMatchUid, now });
-    const facts = buildRecapFacts({ league, members, dayPointsByUid, matches, upcoming, now });
+    const { dayPointsByUid, matches, bonusResolved } = recapWindowForLeague({
+      league, finished, pointsByMatchUid, resolvedBonus, bonusPtsByQ, now,
+    });
+    const facts = buildRecapFacts({ league, members, dayPointsByUid, matches, bonusResolved, upcoming, now });
     let text;
     try {
       text = await generateRecapText(anthropic, facts);
