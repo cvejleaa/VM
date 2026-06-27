@@ -80,17 +80,27 @@ jobs:
           esac
           # Firebase-deploy fejler en gang imellem med en forbigående
           # "Failed to authenticate" — prøv igen med backoff i stedet for at
-          # kræve manuel genkørsel.
+          # kræve manuel genkørsel. Hvis et tidligere forsøg allerede har
+          # udgivet versionen, svarer CLI'en "is the current active version"
+          # på næste forsøg; det er idempotent og behandles som succes.
           n=0; max=3
           until [ "$n" -ge "$max" ]; do
             n=$((n + 1))
             echo "::group::Deploy-forsøg $n/$max"
-            if firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive --force; then
-              echo "::endgroup::"
+            set +e
+            out=$(firebase deploy --only "$ONLY" --project "$PROJECT_ID" --non-interactive --force 2>&1)
+            code=$?
+            set -e
+            echo "$out"
+            echo "::endgroup::"
+            if [ "$code" -eq 0 ]; then
               echo "Deploy lykkedes på forsøg $n/$max."
               exit 0
             fi
-            echo "::endgroup::"
+            if echo "$out" | grep -q "is the current active version"; then
+              echo "Versionen er allerede live (idempotent) — behandler som succes."
+              exit 0
+            fi
             echo "::warning::Deploy fejlede på forsøg $n/$max."
             [ "$n" -lt "$max" ] && sleep $((n * 15))
           done
