@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe07a"/>
+      <stop offset="1" stop-color="#e0a526"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#ffffff"/>
+  <rect x="2.5" y="2.5" width="59" height="59" rx="12" fill="none" stroke="#0b6e4f" stroke-width="2.5"/>
+  <text x="32" y="26" font-family="Arial Black, Arial, sans-serif" font-size="21" font-weight="900"
+        text-anchor="middle" fill="#0b6e4f" letter-spacing="-1">VM</text>
+  <g fill="url(#gold)" stroke="#a9781a" stroke-width="0.8" stroke-linejoin="round">
+    <path d="M24 33 h16 v3 a8 8 0 0 1 -16 0 z"/>
+    <rect x="30.4" y="44" width="3.2" height="5"/>
+    <rect x="26" y="49" width="12" height="3" rx="1"/>
+    <rect x="23.5" y="52" width="17" height="3.2" rx="1.5"/>
+  </g>
+  <path d="M24 35 h-3.5 a4.5 4.5 0 0 0 4.5 5.5" fill="none" stroke="url(#gold)" stroke-width="2"/>
+  <path d="M40 35 h3.5 a4.5 4.5 0 0 1 -4.5 5.5" fill="none" stroke="url(#gold)" stroke-width="2"/>
+  <circle cx="29.5" cy="36" r="1.3" fill="#fff" opacity="0.8"/>
+</svg>
