@@ -50,7 +50,7 @@ const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
-const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout } = require('./fixtureImport');
+const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -1451,6 +1451,67 @@ exports.importKnockoutFromFootballData = onCall(
     } catch (err) {
       console.error('importKnockout: behandlings-/skrivefejl', err);
       throw new HttpsError('internal', `Import fejlede: ${err?.message || err}`);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// syncKnockoutTeams — løbende, IKKE-destruktiv auto-udfyldning af knockout.
+// Henter de aktuelle hold fra football-data og fylder næste runde ind, så snart
+// holdene er kendt — uden manuel import. Sletter aldrig, og rører ikke kampe der
+// er manuelt låst eller allerede spillet.
+// ---------------------------------------------------------------------------
+async function runSyncKnockoutTeams(db, token, { now = new Date() } = {}) {
+  const client = createClient({ token });
+  const season = now.getUTCFullYear();
+  const data = await client.getSeasonMatches(season);
+  const fdMatches = data.matches || [];
+
+  const snap = await db.collection('matches').get();
+  const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const ourGroup = ours.filter((m) => m.round === 'group' && m.homeTeam && m.awayTeam);
+  const ourKnockout = ours.filter((m) => m.round && m.round !== 'group');
+
+  const learned = learnCodes(ourGroup, fdMatches, matchFixture);
+  const desired = buildDesiredKnockout(fdMatches, (t) => resolveCode(t, learned));
+  const updates = knockoutTeamUpdates(ourKnockout, desired);
+  if (updates.length === 0) return { updated: 0, ids: [] };
+
+  const existingById = new Map(ourKnockout.map((e) => [e.id, e]));
+  const batch = db.batch();
+  for (const d of updates) {
+    const e = existingById.get(d.id);
+    const sameTeams = e && e.homeTeam === d.homeTeam && e.awayTeam === d.awayTeam;
+    batch.set(db.collection('matches').doc(d.id), {
+      round: d.round,
+      groupName: null,
+      homeTeam: d.homeTeam,
+      awayTeam: d.awayTeam,
+      homePlaceholder: null,
+      awayPlaceholder: null,
+      kickoff: d.kickoffISO ? Timestamp.fromMillis(Date.parse(d.kickoffISO)) : null,
+      externalId: d.externalId,
+      status: 'scheduled',
+      result: sameTeams ? (e.result ?? null) : null,
+    }, { merge: true });
+  }
+  await batch.commit();
+  return { updated: updates.length, ids: updates.map((u) => u.id) };
+}
+
+// Skemalagt: hvert 5. minut. Fylder næste runde ind kort efter football-data
+// afgør den. Idempotent og billig (intet at gøre når der ikke er nyt).
+exports.syncKnockoutTeams = onSchedule(
+  { schedule: 'every 5 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async () => {
+    const db = getFirestore();
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) { console.log('syncKnockoutTeams: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    try {
+      const res = await runSyncKnockoutTeams(db, token);
+      if (res.updated) console.log(`syncKnockoutTeams: udfyldte ${res.updated} knockout-kamp(e)`, res.ids);
+    } catch (err) {
+      console.error('syncKnockoutTeams: fejl', err?.message || err);
     }
   }
 );

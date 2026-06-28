@@ -3,7 +3,37 @@ import pkg from './fixtureImport.js';
 
 const {
   stageToRound, learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, differs,
+  knockoutTeamUpdates,
 } = pkg;
+
+describe('knockoutTeamUpdates (ikke-destruktiv auto-synk)', () => {
+  const desired = [
+    { id: 'ko_9', round: 'r16', homeTeam: 'BRA', awayTeam: 'ARG', externalId: '9', status: 'scheduled', kickoffISO: '2026-07-04T19:00:00Z' },
+    { id: 'ko_10', round: 'r16', homeTeam: null, awayTeam: null, externalId: '10', status: 'pendingTeams', kickoffISO: '2026-07-04T22:00:00Z' },
+  ];
+  it('udfylder kun kampe hvor begge hold nu er kendt og afviger', () => {
+    const existing = [
+      { id: 'ko_9', round: 'r16', homeTeam: null, awayTeam: null, status: 'pendingTeams' }, // skal udfyldes
+      { id: 'ko_10', round: 'r16', homeTeam: null, awayTeam: null, status: 'pendingTeams' }, // desired har stadig TBD → spring over
+    ];
+    const u = knockoutTeamUpdates(existing, desired);
+    expect(u.map((x) => x.id)).toEqual(['ko_9']);
+  });
+  it('rører ALDRIG manuelt låste eller spillede kampe', () => {
+    const existing = [
+      { id: 'ko_9', round: 'r16', homeTeam: 'BRA', awayTeam: 'GER', manualLock: true },
+    ];
+    expect(knockoutTeamUpdates(existing, desired)).toEqual([]);
+    const played = [
+      { id: 'ko_9', round: 'r16', homeTeam: 'BRA', awayTeam: 'GER', result: { home: 1, away: 0 } },
+    ];
+    expect(knockoutTeamUpdates(played, desired)).toEqual([]);
+  });
+  it('springer uændrede kampe over', () => {
+    const existing = [{ id: 'ko_9', round: 'r16', homeTeam: 'BRA', awayTeam: 'ARG' }];
+    expect(knockoutTeamUpdates(existing, [desired[0]])).toEqual([]);
+  });
+});
 
 describe('stageToRound', () => {
   it('mapper football-data stages til vores runder', () => {
