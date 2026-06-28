@@ -87,11 +87,27 @@ jobs:
               set -e
               echo "$out"
               echo "::endgroup::"
-              if [ "$code" -eq 0 ]; then echo "OK: '$only' (forsøg $n/$max)."; return 0; fi
+              # Gen2-functions kan ramme en concurrency-grænse (HTTP 409 "unable
+              # to queue") så ENKELTE funktioner ikke bliver færdige — selvom
+              # firebase deploy ender med exit 0. Det efterlader fx en ny funktion
+              # uden invoker-IAM (browseren får CORS-fejl). Prøv igen for at
+              # fuldføre de manglende funktioner.
+              partial=$(echo "$out" | grep -cE "failed to (create|update) function" || true)
+              if [ "$code" -eq 0 ] && [ "$partial" -eq 0 ]; then
+                echo "OK: '$only' (forsøg $n/$max)."; return 0
+              fi
               if echo "$out" | grep -q "is the current active version"; then
                 echo "OK: '$only' allerede live (idempotent)."; return 0
               fi
-              echo "::warning::Deploy af '$only' fejlede (forsøg $n/$max)."
+              if [ "$code" -eq 0 ] && [ "$partial" -gt 0 ]; then
+                echo "::warning::Delvis functions-fejl ($partial) — prøver igen for at fuldføre."
+                if [ "$n" -ge "$max" ]; then
+                  echo "::warning::Stadig delvise functions-fejl efter $max forsøg — fortsætter."
+                  return 0
+                fi
+              else
+                echo "::warning::Deploy af '$only' fejlede (forsøg $n/$max)."
+              fi
               [ "$n" -lt "$max" ] && sleep $((n * 15))
             done
             echo "::error::Deploy af '$only' fejlede efter $max forsøg."
