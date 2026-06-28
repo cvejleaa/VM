@@ -1380,10 +1380,18 @@ exports.importKnockoutFromFootballData = onCall(
     const dryRun = request.data?.dryRun !== false; // default: tør-kør (sikkerhed)
     const season = Number(request.data?.season) || new Date().getUTCFullYear();
 
+    // Hent kampene fra football-data og giv en LÆSBAR fejl (ikke nøgent "internal").
     const client = createClient({ token });
-    const data = await client.getSeasonMatches(season);
+    let data;
+    try {
+      data = await client.getSeasonMatches(season);
+    } catch (err) {
+      console.error('importKnockout: football-data-fejl', err);
+      throw new HttpsError('unavailable', `Kunne ikke hente fra football-data (sæson ${season}): ${err?.message || err}`);
+    }
     const fdMatches = data.matches || [];
 
+    try {
     const snap = await db.collection('matches').get();
     const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const ourGroup = ours.filter((m) => m.round === 'group' && m.homeTeam && m.awayTeam);
@@ -1440,6 +1448,10 @@ exports.importKnockoutFromFootballData = onCall(
     for (const b of batches) await b.commit();
 
     return { dryRun: false, ...summary, applied: summary.counts };
+    } catch (err) {
+      console.error('importKnockout: behandlings-/skrivefejl', err);
+      throw new HttpsError('internal', `Import fejlede: ${err?.message || err}`);
+    }
   }
 );
 
