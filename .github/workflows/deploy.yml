@@ -150,21 +150,33 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
         run: |
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
-          if [ -n "${{ inputs.onlyFunction }}" ]; then
-            # Cloud Run-servicenavnet er funktionsnavnet i små bogstaver.
-            services=$(echo "${{ inputs.onlyFunction }}" | tr '[:upper:]' '[:lower:]')
-          else
-            services=$(gcloud run services list --region=europe-west1 \
-              --project="$PROJECT_ID" --format='value(metadata.name)')
-          fi
-          for s in $services; do
-            echo "::group::allUsers/run.invoker → $s"
-            gcloud run services add-iam-policy-binding "$s" \
+          # KUN callable (onCall) funktioner må være allUsers-kaldbare fra browseren.
+          # Cloud Run-servicenavnet = funktionsnavnet i små bogstaver. Skemalagte og
+          # trigger-funktioner SKAL forblive private (de har ingen egne auth-tjek).
+          CALLABLES="adminsendpasswordreset backfilltipparticipation buildknockout generateleaguerecapnow importknockoutfromfootballdata inspectfootballdata postsharpshooternote previewfootballdata pruneorphanmatches redeeminvitecode regeneraterecaps sendtestremindertome sendtipremindersnow syncfixtures syncgroupwinnersnow syncmatchdetailsnow syncresultsnow syncscorersnow syncstandingsnow"
+          grant() {
+            gcloud run services add-iam-policy-binding "$1" \
               --region=europe-west1 --member=allUsers --role=roles/run.invoker \
               --project="$PROJECT_ID" --quiet \
-              || echo "::warning::Kunne ikke sætte invoker-IAM på $s"
-            echo "::endgroup::"
-          done
+              && echo "allUsers → $1" || echo "::warning::Kunne ikke sætte invoker-IAM på $1"
+          }
+          revoke() {
+            gcloud run services remove-iam-policy-binding "$1" \
+              --region=europe-west1 --member=allUsers --role=roles/run.invoker \
+              --project="$PROJECT_ID" --quiet >/dev/null 2>&1 \
+              && echo "fjernede allUsers fra $1" || true
+          }
+          if [ -n "${{ inputs.onlyFunction }}" ]; then
+            grant "$(echo "${{ inputs.onlyFunction }}" | tr '[:upper:]' '[:lower:]')"
+          else
+            # Selvhelende: callables får allUsers, alt andet får det fjernet.
+            for s in $(gcloud run services list --region=europe-west1 \
+                        --project="$PROJECT_ID" --format='value(metadata.name)'); do
+              echo "::group::IAM → $s"
+              if echo " $CALLABLES " | grep -q " $s "; then grant "$s"; else revoke "$s"; fi
+              echo "::endgroup::"
+            done
+          fi
 
       - name: Seed database (valgfrit)
         if: ${{ inputs.seed }}

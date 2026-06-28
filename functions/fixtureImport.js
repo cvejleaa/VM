@@ -131,6 +131,30 @@ function reconcileKnockout(existingKnockout, desired) {
   return { toCreate, toUpdate, toDelete };
 }
 
+/**
+ * Ikke-destruktiv variant til den løbende auto-synk: returnér kun knockout-kampe
+ * hvor BEGGE hold nu er kendt og afviger fra vores (eller hvor vi mangler kampen).
+ * Rører ALDRIG kampe med manuel lås eller med et resultat (spillede kampe), og
+ * sletter aldrig noget.
+ * @param {Array<object>} existingKnockout
+ * @param {Array<object>} desired  output fra buildDesiredKnockout
+ * @returns {Array<object>} delmængde af desired der skal skrives
+ */
+function knockoutTeamUpdates(existingKnockout, desired) {
+  const byId = new Map((existingKnockout || []).map((e) => [e.id, e]));
+  const updates = [];
+  for (const d of desired || []) {
+    if (!d.homeTeam || !d.awayTeam) continue; // kun når begge hold er kendt
+    const e = byId.get(d.id);
+    if (!e) { updates.push(d); continue; } // mangler hos os → tilføj
+    if (e.manualLock) continue;             // admin har låst → rør ikke
+    if (e.result) continue;                 // spillet kamp → rør ikke
+    if (e.homeTeam === d.homeTeam && e.awayTeam === d.awayTeam) continue; // uændret
+    updates.push(d);
+  }
+  return updates;
+}
+
 module.exports = {
   STAGE_TO_ROUND,
   stageToRound,
@@ -140,4 +164,5 @@ module.exports = {
   buildDesiredKnockout,
   differs,
   reconcileKnockout,
+  knockoutTeamUpdates,
 };
