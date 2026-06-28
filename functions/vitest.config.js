@@ -18,6 +18,7 @@ export default defineConfig({
       'pipeline.integration.test.js',
       'invites.test.js',
       'leagueRecap.test.js',
+      'fixtureImport.test.js',
     ],
     exclude: [
       'rules.test.js',

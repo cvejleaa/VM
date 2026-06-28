@@ -6,7 +6,7 @@ import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
 import RecapBackfillPanel from './RecapBackfillPanel';
-import { callBuildKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, clearManualLock, formatTimestamp } from './adminActions';
+import { callImportKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -41,6 +41,7 @@ export default function MatchesTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [knockoutMsg, setKnockoutMsg] = useState('');
   const [knockoutBusy, setKnockoutBusy] = useState(false);
+  const [koPreview, setKoPreview] = useState(null); // dry-run-resultat fra football-data-import
   const [backfillMsg, setBackfillMsg] = useState('');
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [reminderMsg, setReminderMsg] = useState('');
@@ -154,23 +155,29 @@ export default function MatchesTab() {
     setBackfillMsg(res.ok ? (res.data?.message ?? 'Backfill færdig!') : `Fejl: ${res.error}`);
   }
 
-  async function handleBuildKnockout() {
-    if (
-      !window.confirm(
-        'Er du sikker på, at du vil generere knockout-kampe? Dette kan ikke fortrydes.'
-      )
-    )
-      return;
-
-    setKnockoutBusy(true);
-    setKnockoutMsg('');
-    const res = await callBuildKnockout();
+  async function handleKnockoutPreview() {
+    setKnockoutBusy(true); setKnockoutMsg('');
+    const res = await callImportKnockout({ dryRun: true });
     setKnockoutBusy(false);
-    setKnockoutMsg(
-      res.ok
-        ? 'Knockout-kampe er oprettet!'
-        : `Fejl: ${res.error}`
-    );
+    if (!res.ok) { setKoPreview(null); setKnockoutMsg(`Fejl: ${res.error}`); return; }
+    setKoPreview(res.data);
+    if (res.data?.guardBlocked) {
+      setKnockoutMsg('Football-data har ingen knockout-kampe endnu — intet slettes. Prøv igen når bracketten er sat.');
+    }
+  }
+
+  async function handleKnockoutApply() {
+    const c = koPreview?.counts || {};
+    if (!window.confirm(
+      `Anvend football-data-importen?\n\nOpret: ${c.create ?? 0}\nOpdater: ${c.update ?? 0}\nSlet: ${c.delete ?? 0}\n\nDette overskriver knockout-kampene (kan ikke fortrydes).`,
+    )) return;
+    setKnockoutBusy(true); setKnockoutMsg('');
+    const res = await callImportKnockout({ dryRun: false });
+    setKnockoutBusy(false);
+    if (!res.ok) { setKnockoutMsg(`Fejl: ${res.error}`); return; }
+    setKoPreview(null);
+    const a = res.data?.applied || {};
+    setKnockoutMsg(`Importeret fra football-data: ${a.create ?? 0} oprettet, ${a.update ?? 0} opdateret, ${a.delete ?? 0} slettet.`);
   }
 
   if (loading) {
@@ -207,10 +214,11 @@ export default function MatchesTab() {
         <button
           className="btn"
           style={{ background: 'var(--c-accent-2)' }}
-          onClick={handleBuildKnockout}
+          onClick={handleKnockoutPreview}
           disabled={knockoutBusy}
+          title="Hent de rigtige knockout-kampe fra football-data (forhåndsvis først)"
         >
-          {knockoutBusy ? 'Genererer…' : 'Generer knockout-kampe'}
+          {knockoutBusy ? 'Henter…' : '🔄 Importér knockout (football-data)'}
         </button>
 
         <button
@@ -325,7 +333,7 @@ export default function MatchesTab() {
         </div>
       )}
 
-      {/* Feedback fra buildKnockout */}
+      {/* Feedback fra knockout-import */}
       {knockoutMsg && (
         <div
           role="alert"
@@ -340,6 +348,41 @@ export default function MatchesTab() {
           }}
         >
           {knockoutMsg}
+        </div>
+      )}
+
+      {/* Forhåndsvisning af football-data-knockout-import (dry-run) */}
+      {koPreview && (
+        <div style={{ marginBottom: '1rem', padding: '0.75rem 0.9rem', borderRadius: 8, border: '1px solid var(--c-border)', background: 'var(--c-surface-2, #f7f7f7)', fontSize: '0.85rem' }}>
+          <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>
+            Forhåndsvisning (football-data, sæson {koPreview.season})
+          </div>
+          <div style={{ color: 'var(--c-muted)', marginBottom: '0.5rem' }}>
+            {koPreview.fdTotal} kampe hentet · {koPreview.learnedTeams} hold genkendt · {koPreview.desiredKnockout} knockout-kampe.
+            {' '}Opret <strong>{koPreview.counts.create}</strong>, opdater <strong>{koPreview.counts.update}</strong>, slet <strong>{koPreview.counts.delete}</strong>.
+          </div>
+          {koPreview.toDelete?.length > 0 && (
+            <div style={{ marginBottom: '0.4rem' }}>
+              <span style={{ color: 'var(--c-err)' }}>Slettes:</span> {koPreview.toDelete.join(', ')}
+            </div>
+          )}
+          {[...(koPreview.toCreate || []), ...(koPreview.toUpdate || [])].length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.15rem', maxHeight: 220, overflow: 'auto' }}>
+              {[...(koPreview.toCreate || []), ...(koPreview.toUpdate || [])].map((d) => (
+                <li key={d.id} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ color: 'var(--c-muted)' }}>{ROUND_LABELS[d.round] || d.round}</span>{' '}
+                  {d.homeTeam || '—'} – {d.awayTeam || '—'}{' '}
+                  <span style={{ color: 'var(--c-muted)', fontSize: '0.78rem' }}>({d.status})</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!koPreview.guardBlocked && (koPreview.counts.create + koPreview.counts.update + koPreview.counts.delete) > 0 && (
+            <button className="btn btn--primary btn--sm" onClick={handleKnockoutApply} disabled={knockoutBusy}>
+              {knockoutBusy ? 'Anvender…' : 'Anvend ændringer'}
+            </button>
+          )}
+          <button className="btn btn--ghost btn--sm" onClick={() => setKoPreview(null)} style={{ marginLeft: '0.4rem' }}>Luk</button>
         </div>
       )}
 
