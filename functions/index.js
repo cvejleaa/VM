@@ -48,7 +48,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, regularTimeScore } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
@@ -1599,12 +1599,29 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
       continue;
     }
     const details = mapMatchDetails(raw);
-    // Skriv kun hvis noget faktisk har ændret sig (sparer skrivninger).
-    if (JSON.stringify(m.details || null) === JSON.stringify(details)) continue;
-    await db.collection('matches').doc(m.id).set(
-      { details, detailsUpdatedAt: FieldValue.serverTimestamp() },
-      { merge: true },
-    );
+    const detailsChanged = JSON.stringify(m.details || null) !== JSON.stringify(details);
+
+    // Knockout: sæt resultatet til ORDINÆR tid (90 min) ud fra mål-tidslinjen,
+    // så tippet måles på 90 minutter (forlænget tid tæller ikke). "advance"
+    // (hvem der går videre) bevares. Kører kun på afsluttede, ikke-låste kampe
+    // med mål-data, og kun når 90-min-stillingen afviger fra den nuværende.
+    let resultPatch = null;
+    const isKnockout = m.round && m.round !== 'group';
+    if (isKnockout && m.status === 'finished' && !m.manualLock
+        && Array.isArray(details.goals) && details.goals.length > 0 && m.result) {
+      const rt = regularTimeScore(details.goals);
+      if (Number(m.result.home) !== rt.home || Number(m.result.away) !== rt.away) {
+        resultPatch = {
+          result: { home: rt.home, away: rt.away, ...(m.result.advance ? { advance: m.result.advance } : {}) },
+        };
+      }
+    }
+
+    if (!detailsChanged && !resultPatch) continue; // intet nyt
+    const writeData = { detailsUpdatedAt: FieldValue.serverTimestamp() };
+    if (detailsChanged) writeData.details = details;
+    if (resultPatch) Object.assign(writeData, resultPatch);
+    await db.collection('matches').doc(m.id).set(writeData, { merge: true });
     updated++;
   }
   return { checked: candidates.length, updated };

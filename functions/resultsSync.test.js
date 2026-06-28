@@ -112,6 +112,20 @@ describe('decideUpdate', () => {
     expect(res.patch.needsReview).toBeUndefined();
   });
 
+  it('rører IKKE en knockout-kamp der allerede er afsluttet (90-min ejes af detalje-synken)', () => {
+    const finishedKo = { ...ko, status: 'finished', result: { home: 1, away: 0, advance: 'BRA' } };
+    // football-data melder fuldtid 2-1 (inkl. forlænget tid) — må ikke overskrive.
+    const res = decideUpdate(finishedKo, { status: 'FINISHED', score: { winner: 'HOME_TEAM', fullTime: { home: 2, away: 1 } } }, NOW);
+    expect(res.action).toBe('skip');
+  });
+
+  it('en afsluttet GRUPPEkamp opdateres stadig (kun knockout fryses)', () => {
+    const finishedGroup = { ...group, status: 'finished', result: { home: 1, away: 0 } };
+    const res = decideUpdate(finishedGroup, { status: 'FINISHED', score: { fullTime: { home: 2, away: 0 } } }, NOW);
+    expect(res.action).toBe('finish');
+    expect(res.patch.result).toEqual({ home: 2, away: 0 });
+  });
+
   it('beder om review når knockout-vinder er uklar', () => {
     const res = decideUpdate(ko, { status: 'FINISHED', score: { winner: 'DRAW', fullTime: { home: 1, away: 1 } } }, NOW);
     expect(res.patch.needsReview).toBe(true);

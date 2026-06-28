@@ -5,7 +5,27 @@ const {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
   mapGoals, mapBookings, mapSubstitutions, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
+  regularTimeScore,
 } = require('./footballData');
+
+describe('regularTimeScore (90 min)', () => {
+  it('tæller kun mål i minut ≤ 90 (forlænget tid ude)', () => {
+    const goals = [
+      { minute: 12, side: 'home' },
+      { minute: 80, side: 'away' },
+      { minute: 105, side: 'home' }, // forlænget tid → tæller ikke
+      { minute: 118, side: 'home' }, // forlænget tid → tæller ikke
+    ];
+    expect(regularTimeScore(goals)).toEqual({ home: 1, away: 1 });
+  });
+  it('0-0 ved tomt/ingen mål', () => {
+    expect(regularTimeScore([])).toEqual({ home: 0, away: 0 });
+    expect(regularTimeScore(null)).toEqual({ home: 0, away: 0 });
+  });
+  it('inkluderer mål i minut 90', () => {
+    expect(regularTimeScore([{ minute: 90, side: 'away' }])).toEqual({ home: 0, away: 1 });
+  });
+});
 
 function makeRes(status, body, headerEntries = []) {
   return {
