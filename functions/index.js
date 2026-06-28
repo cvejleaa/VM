@@ -50,6 +50,7 @@ const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
+const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -1356,6 +1357,89 @@ exports.syncFixtures = onCall(
       season, totalFixtures: fdMatches.length, mapped, already, unmatched, unmatchedDetail,
       dryRun, kickoffChanges,
     };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// importKnockoutFromFootballData — callable (KUN ejer): hent de RIGTIGE
+// knockout-kampe fra football-data og afstem vores matches mod dem (afløser den
+// lokale buildKnockout, der gættede 3.-plads-fordelingen forkert).
+// dryRun=true (default) skriver intet, men returnerer hele diffen til
+// forhåndsvisning. Overskriver/sletter frit ved apply (efter brugerens valg).
+// ---------------------------------------------------------------------------
+exports.importKnockoutFromFootballData = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const role = (await db.collection('users').doc(request.auth.uid).get()).data()?.role;
+    if (role !== 'owner') throw new HttpsError('permission-denied', 'Kun ejeren kan importere knockout-kampe.');
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+
+    const dryRun = request.data?.dryRun !== false; // default: tør-kør (sikkerhed)
+    const season = Number(request.data?.season) || new Date().getUTCFullYear();
+
+    const client = createClient({ token });
+    const data = await client.getSeasonMatches(season);
+    const fdMatches = data.matches || [];
+
+    const snap = await db.collection('matches').get();
+    const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const ourGroup = ours.filter((m) => m.round === 'group' && m.homeTeam && m.awayTeam);
+    const ourKnockout = ours.filter((m) => m.round && m.round !== 'group');
+
+    const learned = learnCodes(ourGroup, fdMatches, matchFixture);
+    const codeOf = (t) => resolveCode(t, learned);
+    const desired = buildDesiredKnockout(fdMatches, codeOf);
+    const { toCreate, toUpdate, toDelete } = reconcileKnockout(ourKnockout, desired);
+
+    // Sikkerhedsbremse: hvis football-data endnu ikke har knockout-kampe, så
+    // slet ALDRIG vores nuværende knockout — meld det i stedet tilbage.
+    const guardBlocked = desired.length === 0 && toDelete.length > 0;
+
+    const slim = (d) => ({
+      id: d.id, round: d.round, homeTeam: d.homeTeam, awayTeam: d.awayTeam,
+      kickoffISO: d.kickoffISO, status: d.status,
+    });
+    const summary = {
+      season,
+      fdTotal: fdMatches.length,
+      learnedTeams: learned.size,
+      desiredKnockout: desired.length,
+      guardBlocked,
+      counts: { create: toCreate.length, update: toUpdate.length, delete: toDelete.length },
+      toCreate: toCreate.map(slim),
+      toUpdate: toUpdate.map(slim),
+      toDelete,
+    };
+
+    if (dryRun || guardBlocked) return { dryRun: true, ...summary };
+
+    const existingById = new Map(ourKnockout.map((e) => [e.id, e]));
+    let batch = db.batch(); let ops = 0; const batches = [batch];
+    const bump = () => { if (++ops >= 400) { batch = db.batch(); batches.push(batch); ops = 0; } };
+    for (const d of [...toCreate, ...toUpdate]) {
+      const e = existingById.get(d.id);
+      const sameTeams = e && e.homeTeam === d.homeTeam && e.awayTeam === d.awayTeam;
+      batch.set(db.collection('matches').doc(d.id), {
+        round: d.round,
+        groupName: null,
+        homeTeam: d.homeTeam,
+        awayTeam: d.awayTeam,
+        homePlaceholder: d.homePlaceholder,
+        awayPlaceholder: d.awayPlaceholder,
+        kickoff: d.kickoffISO ? Timestamp.fromMillis(Date.parse(d.kickoffISO)) : null,
+        externalId: d.externalId,
+        status: d.status,
+        result: sameTeams ? (e.result ?? null) : null,
+      }, { merge: true });
+      bump();
+    }
+    for (const id of toDelete) { batch.delete(db.collection('matches').doc(id)); bump(); }
+    for (const b of batches) await b.commit();
+
+    return { dryRun: false, ...summary, applied: summary.counts };
   }
 );
 

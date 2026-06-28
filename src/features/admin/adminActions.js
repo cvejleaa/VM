@@ -418,6 +418,26 @@ export async function callSyncFixtures({ season, dryRun, fixKickoff } = {}) {
 }
 
 /**
+ * Kald Cloud Function 'importKnockoutFromFootballData' — hent de rigtige
+ * knockout-kampe fra football-data og afstem vores matches. dryRun=true (default)
+ * skriver intet, men returnerer hele diffen til forhåndsvisning. Kun ejer.
+ * @param {{ dryRun?: boolean }} [opts]
+ */
+export async function callImportKnockout({ dryRun = true } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'importKnockoutFromFootballData', { timeout: 120000 });
+    const res = await fn({ dryRun });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "importKnockoutFromFootballData" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af importKnockoutFromFootballData.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'syncGroupWinnersNow' — afgør gruppevindere ud fra
  * grupperesultaterne (sætter facit på færdigspillede grupper). dryRun=true
  * viser kun hvad der ville ske.

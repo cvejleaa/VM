@@ -28,12 +28,12 @@ vi.mock('firebase/functions', () => ({
 }));
 
 // ─── Mock adminActions ────────────────────────────────────────────────────────
-const mockCallBuildKnockout = vi.fn();
+const mockCallImportKnockout = vi.fn();
 const mockCallBackfill = vi.fn();
 const mockFormatTimestamp = vi.fn(() => '11.06.2026 18:00');
 
 vi.mock('./adminActions', () => ({
-  callBuildKnockout: () => mockCallBuildKnockout(),
+  callImportKnockout: (...a) => mockCallImportKnockout(...a),
   callBackfillTipParticipation: () => mockCallBackfill(),
   callSendTipRemindersNow: vi.fn().mockResolvedValue({ ok: true, data: { sent: 0 } }),
   callSendTestReminderToMe: vi.fn().mockResolvedValue({ ok: true, data: {} }),
@@ -77,7 +77,15 @@ describe('MatchesTab', () => {
       cb({ docs: [] });
       return vi.fn();
     });
-    mockCallBuildKnockout.mockResolvedValue({ ok: true });
+    mockCallImportKnockout.mockResolvedValue({
+      ok: true,
+      data: {
+        dryRun: true, season: 2026, fdTotal: 104, learnedTeams: 48, desiredKnockout: 32,
+        guardBlocked: false, counts: { create: 32, update: 0, delete: 16 },
+        toCreate: [{ id: 'ko_9', round: 'r32', homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled' }],
+        toUpdate: [], toDelete: ['ko_r32_1'],
+      },
+    });
   });
 
   // ─── Loading ──────────────────────────────────────────────────────────────
@@ -195,19 +203,50 @@ describe('MatchesTab', () => {
     expect(screen.queryByText(/Opret ny kamp/i)).not.toBeInTheDocument();
   });
 
-  // ─── buildKnockout ────────────────────────────────────────────────────────
+  // ─── knockout-import (football-data) ───────────────────────────────────────
 
-  it('viser Generer knockout-kampe-knap', () => {
+  it('viser Importér knockout-knap', () => {
     render(<MatchesTab />);
-    expect(screen.getByRole('button', { name: /Generer knockout-kampe/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Importér knockout/i })).toBeInTheDocument();
   });
 
-  it('kalder callBuildKnockout ved klik og bekræftelse', async () => {
+  it('forhåndsviser (dryRun) ved klik og viser diff-tal', async () => {
     render(<MatchesTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Generer knockout-kampe/i }));
-
+    fireEvent.click(screen.getByRole('button', { name: /Importér knockout/i }));
     await waitFor(() => {
-      expect(mockCallBuildKnockout).toHaveBeenCalled();
+      expect(mockCallImportKnockout).toHaveBeenCalledWith({ dryRun: true });
+      expect(screen.getByText(/Forhåndsvisning/i)).toBeInTheDocument();
+      expect(screen.getByText(/ko_r32_1/)).toBeInTheDocument(); // slettes
+    });
+  });
+
+  it('anvender importen (dryRun=false) ved klik på Anvend', async () => {
+    mockCallImportKnockout.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        dryRun: true, season: 2026, fdTotal: 104, learnedTeams: 48, desiredKnockout: 32,
+        guardBlocked: false, counts: { create: 1, update: 0, delete: 1 },
+        toCreate: [{ id: 'ko_9', round: 'r32', homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled' }],
+        toUpdate: [], toDelete: ['ko_r32_1'],
+      },
+    });
+    render(<MatchesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Importér knockout/i }));
+    const applyBtn = await screen.findByRole('button', { name: /Anvend ændringer/i });
+    mockCallImportKnockout.mockResolvedValueOnce({ ok: true, data: { dryRun: false, applied: { create: 1, update: 0, delete: 1 } } });
+    fireEvent.click(applyBtn);
+    await waitFor(() => {
+      expect(mockCallImportKnockout).toHaveBeenLastCalledWith({ dryRun: false });
+      expect(screen.getByRole('alert')).toHaveTextContent(/Importeret fra football-data/i);
+    });
+  });
+
+  it('viser fejlbesked ved mislykket import', async () => {
+    mockCallImportKnockout.mockResolvedValueOnce({ ok: false, error: 'Ikke deployet' });
+    render(<MatchesTab />);
+    fireEvent.click(screen.getByRole('button', { name: /Importér knockout/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/Fejl: Ikke deployet/i);
     });
   });
 
@@ -222,50 +261,6 @@ describe('MatchesTab', () => {
       expect(mockCallBackfill).toHaveBeenCalled();
       expect(screen.getByRole('alert')).toHaveTextContent(/Backfill færdig: 3 kampe/i);
     });
-  });
-
-  it('viser successbesked efter vellykket buildKnockout', async () => {
-    mockCallBuildKnockout.mockResolvedValue({ ok: true });
-    render(<MatchesTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Generer knockout-kampe/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/Knockout-kampe er oprettet/i);
-    });
-  });
-
-  it('viser fejlbesked ved mislykket buildKnockout', async () => {
-    mockCallBuildKnockout.mockResolvedValue({ ok: false, error: 'Ikke deployet' });
-    render(<MatchesTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Generer knockout-kampe/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/Fejl: Ikke deployet/i);
-    });
-  });
-
-  it('kalder IKKE callBuildKnockout når bekræftelse afvises', async () => {
-    window.confirm = vi.fn(() => false);
-    render(<MatchesTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Generer knockout-kampe/i }));
-
-    await waitFor(() => {
-      expect(mockCallBuildKnockout).not.toHaveBeenCalled();
-    });
-  });
-
-  it('viser Genererer…-tekst under buildKnockout', async () => {
-    let resolve;
-    mockCallBuildKnockout.mockReturnValue(new Promise((r) => { resolve = r; }));
-    render(<MatchesTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Generer knockout-kampe/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Genererer/i })).toBeInTheDocument();
-    });
-
-    const { act } = await import('@testing-library/react');
-    await act(async () => { resolve({ ok: true }); });
   });
 
   // ─── Fejlhåndtering ───────────────────────────────────────────────────────
