@@ -140,6 +140,32 @@ jobs:
             esac
           fi
 
+      # Firebase sætter ikke pålideligt allUsers/run.invoker på Gen2-callables
+      # i dette projekt (sandsynligvis pga. en org-policy), og HVERT deploy
+      # nulstiller bindingen — så browseren får CORS/401. Vi sætter den derfor
+      # selv efter hvert functions-deploy, så callables forbliver kaldbare.
+      - name: Sæt invoker-IAM (allUsers) på callable functions
+        if: ${{ inputs.onlyFunction != '' || inputs.target == 'functions' || inputs.target == 'all' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          if [ -n "${{ inputs.onlyFunction }}" ]; then
+            # Cloud Run-servicenavnet er funktionsnavnet i små bogstaver.
+            services=$(echo "${{ inputs.onlyFunction }}" | tr '[:upper:]' '[:lower:]')
+          else
+            services=$(gcloud run services list --region=europe-west1 \
+              --project="$PROJECT_ID" --format='value(metadata.name)')
+          fi
+          for s in $services; do
+            echo "::group::allUsers/run.invoker → $s"
+            gcloud run services add-iam-policy-binding "$s" \
+              --region=europe-west1 --member=allUsers --role=roles/run.invoker \
+              --project="$PROJECT_ID" --quiet \
+              || echo "::warning::Kunne ikke sætte invoker-IAM på $s"
+            echo "::endgroup::"
+          done
+
       - name: Seed database (valgfrit)
         if: ${{ inputs.seed }}
         env:
