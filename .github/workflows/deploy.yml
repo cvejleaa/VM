@@ -18,6 +18,10 @@ on:
         description: 'Indlæs kampe/bonus i databasen bagefter? (seed)'
         type: boolean
         default: false
+      onlyFunction:
+        description: 'Deploy KUN denne ene Cloud Function (fx importKnockoutFromFootballData). Tom = brug "target" ovenfor. Undgår Gen2-concurrency-fejl.'
+        type: string
+        default: ''
 
 # Kør GitHub's JavaScript-actions på Node 24 (Node 20 udfases)
 env:
@@ -47,7 +51,7 @@ jobs:
         run: npm install -g firebase-tools
 
       - name: Skriv .env til build (offentlig web-config fra repo-variabler)
-        if: ${{ inputs.target != 'functions' }}
+        if: ${{ inputs.target != 'functions' && inputs.onlyFunction == '' }}
         run: |
           if [ -z "${{ vars.VITE_FIREBASE_PROJECT_ID }}" ]; then
             echo "::error::Mangler repo-variabler VITE_FIREBASE_* — tilføj dem under Settings → Secrets and variables → Actions → Variables før deploy (se docs/firebase-setup.md)."
@@ -66,7 +70,7 @@ jobs:
           EOF
 
       - name: Byg frontend
-        if: ${{ inputs.target != 'functions' }}
+        if: ${{ inputs.target != 'functions' && inputs.onlyFunction == '' }}
         run: npm run build
 
       - name: Deploy
@@ -114,20 +118,27 @@ jobs:
             return 1
           }
 
-          case "${{ inputs.target }}" in
-            hosting-rules)
-              deploy_once "hosting,firestore:rules,firestore:indexes"
-              ;;
-            functions)
-              deploy_once "functions"
-              ;;
-            all)
-              # Hosting/regler FØRST og som sin egen udgivelse, så en
-              # functions-fejl aldrig kan blokere frontend-udgivelsen.
-              deploy_once "hosting,firestore:rules,firestore:indexes" || exit 1
-              deploy_once "functions" || exit 1
-              ;;
-          esac
+          ONLY_FUNCTION="${{ inputs.onlyFunction }}"
+          if [ -n "$ONLY_FUNCTION" ]; then
+            # Deploy én enkelt funktion — ingen concurrency-kamp, så dens
+            # invoker-IAM bliver sat korrekt (fikser CORS på nye funktioner).
+            deploy_once "functions:$ONLY_FUNCTION"
+          else
+            case "${{ inputs.target }}" in
+              hosting-rules)
+                deploy_once "hosting,firestore:rules,firestore:indexes"
+                ;;
+              functions)
+                deploy_once "functions"
+                ;;
+              all)
+                # Hosting/regler FØRST og som sin egen udgivelse, så en
+                # functions-fejl aldrig kan blokere frontend-udgivelsen.
+                deploy_once "hosting,firestore:rules,firestore:indexes" || exit 1
+                deploy_once "functions" || exit 1
+                ;;
+            esac
+          fi
 
       - name: Seed database (valgfrit)
         if: ${{ inputs.seed }}
