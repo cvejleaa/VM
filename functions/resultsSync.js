@@ -100,6 +100,12 @@ function decideUpdate(ourMatch, fdMatch, now = new Date()) {
   const isKnockout = ourMatch.round && ourMatch.round !== 'group';
 
   if (ourStatus === 'finished') {
+    // Knockout: når kampen ALLEREDE er afsluttet hos os, ejer kampdetalje-synken
+    // 90-minutters-resultatet (tip måles på ordinær tid). Rør det ikke her — så
+    // football-datas fuldtid (inkl. forlænget tid) ikke overskriver det.
+    if (isKnockout && ourMatch.status === 'finished') {
+      return { action: 'skip', reason: 'knockout-finished' };
+    }
     const result = { home: score.home, away: score.away };
     let needsReview = fdStatus === 'AWARDED'; // tildelt resultat → bekræft manuelt
     if (isKnockout) {

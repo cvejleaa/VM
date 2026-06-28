@@ -228,6 +228,25 @@ function sideOf(teamId, match) {
 
 function unwrap(m) { return (m && m.match) ? m.match : m; }
 
+/**
+ * Stillingen efter ORDINÆR tid (90 min) ud fra mål-tidslinjen. Mål i forlænget
+ * tid (minut > 90) tæller IKKE med. Bruges til knockout-resultater, så tippet
+ * måles på ordinær tid. `goals` er det mappede array (mapGoals), hvor `side`
+ * allerede peger på det hold målet tæller for (også selvmål).
+ * @param {Array<{minute:number, side:'home'|'away'}>} goals
+ * @returns {{home:number, away:number}}
+ */
+function regularTimeScore(goals) {
+  let home = 0;
+  let away = 0;
+  for (const g of goals || []) {
+    if (!g || g.minute == null || Number(g.minute) > 90) continue;
+    if (g.side === 'home') home += 1;
+    else if (g.side === 'away') away += 1;
+  }
+  return { home, away };
+}
+
 /** Mål med minut, scorer, assist og side. */
 function mapGoals(m) {
   const match = unwrap(m);
@@ -323,4 +342,5 @@ module.exports = {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
   mapGoals, mapBookings, mapSubstitutions, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
+  regularTimeScore,
 };

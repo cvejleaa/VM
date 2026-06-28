@@ -273,6 +273,21 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
       {/* Tip-formular – kun hvis ikke låst og hold er kendte */}
       {!locked && !isPendingTeams && (
         <div>
+          {/* Knockout: tydeliggør at resultatet tippes som ved ordinær tid */}
+          {isKnockout && (
+            <p
+              data-testid="knockout-ordinary-time-note"
+              style={{
+                margin: '0 0 0.5rem', fontSize: '0.8rem', lineHeight: 1.45,
+                color: 'var(--c-muted)', background: 'var(--c-surface-2, #f7f7f7)',
+                borderRadius: 8, padding: '0.45rem 0.6rem',
+              }}
+            >
+              ⏱️ Tip resultatet <strong>som ved ordinær tid (90 min)</strong>.
+              Forlænget tid og straffespark tæller <strong>ikke</strong> med i resultatet —
+              gæt i stedet <strong>hvem der går videre</strong> nedenfor.
+            </p>
+          )}
           <ScoreInput
             home={bet?.home ?? ''}
             away={bet?.away ?? ''}
