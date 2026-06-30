@@ -15,6 +15,7 @@ import PreviewTab from '../features/admin/PreviewTab';
 import EmailLogTab from '../features/admin/EmailLogTab';
 import SettingsTab from '../features/admin/SettingsTab';
 import AltStandingsTab from '../features/admin/AltStandingsTab';
+import GroupWinnerDerivedTab from '../features/admin/GroupWinnerDerivedTab';
 
 // Fane-id'er
 const TAB_USERS   = 'users';
@@ -22,6 +23,7 @@ const TAB_MATCHES = 'matches';
 const TAB_BONUS   = 'bonus';
 const TAB_LEAGUES = 'leagues';
 const TAB_ALT     = 'altstanding';
+const TAB_GW      = 'groupwinners';
 const TAB_TESTS   = 'tests';
 const TAB_RUNBOOK = 'runbook';
 const TAB_PREVIEW = 'preview';
@@ -44,6 +46,7 @@ export default function AdminPage() {
     { key: TAB_BONUS,   label: 'Bonus-facit' },
     { key: TAB_LEAGUES, label: 'Ligaer' },
     { key: TAB_ALT,     label: '🧮 Alt. stilling' },
+    { key: TAB_GW,      label: '🏆 Puljevindere' },
     { key: TAB_TESTS,   label: 'Tests' },
     { key: TAB_RUNBOOK, label: '📋 Køreplan' },
     { key: TAB_PREVIEW, label: '🔮 Forhåndsvisning' },
@@ -110,6 +113,7 @@ export default function AdminPage() {
         {tab === TAB_BONUS   && <BonusTab />}
         {tab === TAB_LEAGUES && <LeaguesAdminTab />}
         {tab === TAB_ALT     && <AltStandingsTab />}
+        {tab === TAB_GW      && <GroupWinnerDerivedTab />}
         {tab === TAB_TESTS   && <TestsTab />}
         {tab === TAB_RUNBOOK && <RunbookTab />}
         {tab === TAB_PREVIEW && <PreviewTab />}
