@@ -48,7 +48,7 @@ const TZ = 'Europe/Copenhagen';
 const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
-const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, regularTimeScore } = require('./footballData');
+const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, knockoutNinetyResult } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
@@ -1573,19 +1573,44 @@ exports.syncScorersNow = onCall(
 // og gemmer dem som `details` på kamp-doc'et. Rører ALDRIG result/status, så
 // det kan ikke forstyrre point-beregningen. Skriver kun ved ændringer.
 // ---------------------------------------------------------------------------
+// Maks. antal selvhelbredelses-kampe (uden for tidsvinduet) pr. kørsel — holder
+// antallet af football-data-kald nede; resten tages i næste tick.
+const DETAIL_HEAL_LIMIT = 10;
+
 async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
   const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
   const toTs = Timestamp.fromMillis(now.getTime() + 75 * 60 * 1000); // dæk opstillinger ~1t før
 
-  const snap = await db.collection('matches')
+  const windowSnap = await db.collection('matches')
     .where('kickoff', '>=', fromTs)
     .where('kickoff', '<=', toTs)
     .get();
 
-  const candidates = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((m) => m.externalId);
+  // Kampe i tidsvinduet (live-detaljer, opstillinger, lige afsluttede).
+  const byId = new Map();
+  for (const d of windowSnap.docs) {
+    const m = { id: d.id, ...d.data() };
+    if (m.externalId) byId.set(m.id, m);
+  }
 
+  // Selvhelbredelse: afsluttede knockout-kampe hvis 90-min-resultat endnu ikke er
+  // verificeret (rtVerified). Fanger kampe UDEN FOR tidsvinduet, så et tidligere
+  // forkert ordinær-tids-resultat (fx en kamp der fejlagtigt blev gemt som 0-0)
+  // rettes med tilbagevirkende kraft. Nyeste først; begrænset antal pr. kørsel.
+  const finishedSnap = await db.collection('matches')
+    .where('status', '==', 'finished')
+    .get();
+  const heal = [];
+  for (const d of finishedSnap.docs) {
+    if (byId.has(d.id)) continue;
+    const m = { id: d.id, ...d.data() };
+    const isKnockout = m.round && m.round !== 'group';
+    if (isKnockout && m.externalId && !m.manualLock && m.rtVerified !== true) heal.push(m);
+  }
+  heal.sort((a, b) => (tsToMs(b.kickoff) ?? 0) - (tsToMs(a.kickoff) ?? 0));
+  for (const m of heal.slice(0, DETAIL_HEAL_LIMIT)) byId.set(m.id, m);
+
+  const candidates = [...byId.values()];
   if (candidates.length === 0) return { checked: 0, updated: 0, reason: 'no-window-matches' };
 
   const client = createClient({ token });
@@ -1601,26 +1626,34 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     const details = mapMatchDetails(raw);
     const detailsChanged = JSON.stringify(m.details || null) !== JSON.stringify(details);
 
-    // Knockout: sæt resultatet til ORDINÆR tid (90 min) ud fra mål-tidslinjen,
-    // så tippet måles på 90 minutter (forlænget tid tæller ikke). "advance"
-    // (hvem der går videre) bevares. Kører kun på afsluttede, ikke-låste kampe
-    // med mål-data, og kun når 90-min-stillingen afviger fra den nuværende.
-    let resultPatch = null;
+    // Knockout: fastlæg ORDINÆR tid (90 min) robust, så tippet måles på 90 minutter
+    // (forlænget tid + straffespark tæller ikke). knockoutNinetyResult bruger mål-
+    // tidslinjen når den er pålidelig, ellers fullTime uden forlænget-tids-mål.
+    // "advance" (hvem der går videre) bevares. rtVerified sættes når 90-min er
+    // afgjort, så vi ikke genberegner i det uendelige.
+    const writeData = {};
     const isKnockout = m.round && m.round !== 'group';
-    if (isKnockout && m.status === 'finished' && !m.manualLock
-        && Array.isArray(details.goals) && details.goals.length > 0 && m.result) {
-      const rt = regularTimeScore(details.goals);
-      if (Number(m.result.home) !== rt.home || Number(m.result.away) !== rt.away) {
-        resultPatch = {
-          result: { home: rt.home, away: rt.away, ...(m.result.advance ? { advance: m.result.advance } : {}) },
-        };
+    if (isKnockout && m.status === 'finished' && !m.manualLock && m.result) {
+      const rawMatch = raw && raw.match ? raw.match : raw;
+      const score = (rawMatch && rawMatch.score) || {};
+      const ninety = knockoutNinetyResult(score, details.goals);
+      if (ninety) {
+        if (Number(m.result.home) !== ninety.home || Number(m.result.away) !== ninety.away) {
+          writeData.result = {
+            home: ninety.home,
+            away: ninety.away,
+            ...(m.result.advance ? { advance: m.result.advance } : {}),
+          };
+        }
+        if (m.rtVerified !== true) writeData.rtVerified = true;
       }
+      // ninety === null: kan ikke afgøres sikkert endnu → lad stå, prøv igen senere.
     }
 
-    if (!detailsChanged && !resultPatch) continue; // intet nyt
-    const writeData = { detailsUpdatedAt: FieldValue.serverTimestamp() };
+    const hasResultWrite = !!writeData.result || writeData.rtVerified === true;
+    if (!detailsChanged && !hasResultWrite) continue; // intet nyt
+    writeData.detailsUpdatedAt = FieldValue.serverTimestamp();
     if (detailsChanged) writeData.details = details;
-    if (resultPatch) Object.assign(writeData, resultPatch);
     await db.collection('matches').doc(m.id).set(writeData, { merge: true });
     updated++;
   }

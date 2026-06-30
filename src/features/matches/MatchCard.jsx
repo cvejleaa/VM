@@ -283,7 +283,7 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
                 borderRadius: 8, padding: '0.45rem 0.6rem',
               }}
             >
-              ⏱️ Tip resultatet <strong>som ved ordinær tid (90 min)</strong>.
+              ⏱️ Tip resultatet <strong>som ved ordinær tid (90 min + tillægstid)</strong>.
               Forlænget tid og straffespark tæller <strong>ikke</strong> med i resultatet —
               gæt i stedet <strong>hvem der går videre</strong> nedenfor.
             </p>

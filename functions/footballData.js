@@ -247,6 +247,50 @@ function regularTimeScore(goals) {
   return { home, away };
 }
 
+/**
+ * Robust 90-minutters-stilling (ordinær tid) til en knockout-kamp.
+ *
+ * Mål-tidslinjen er den præcise kilde, MEN den er kun pålidelig når hvert mål er
+ * fuldt attribueret (har både `minute` og en `side`). Mangler attributionen (fx
+ * fordi football-data endnu ikke har koblet målene til et hold), ville en ren
+ * tidslinje-optælling give et forkert 0-0 — det var årsagen til at en kamp kunne
+ * få for få point. Derfor:
+ *
+ *  1) Er hvert mål attribueret → brug tidslinjen (mål i minut > 90 tæller ikke).
+ *  2) Ellers: fald tilbage på football-datas `fullTime`, men KUN når der ingen
+ *     forlænget-tids-mål er (`score.extraTime` summerer til 0). Så er 90-min
+ *     entydigt lig fullTime — uanset om fullTime måtte indeholde forlænget tid.
+ *  3) Kan ingen af delene afgøres sikkert → null (lad resultatet stå / admin afgør).
+ *
+ * @param {object} score  rå football-data score ({ fullTime, extraTime, ... })
+ * @param {Array<{minute:number|null, side:'home'|'away'|null}>} goals  mappede mål (mapGoals)
+ * @returns {{home:number, away:number}|null}
+ */
+function knockoutNinetyResult(score, goals) {
+  const list = Array.isArray(goals) ? goals : [];
+  const allAttributed = list.every(
+    (g) => g && g.minute != null && (g.side === 'home' || g.side === 'away'),
+  );
+
+  // football-datas extraTime tæller KUN mål scoret i forlænget tid.
+  const et = score && score.extraTime;
+  const etGoals = et ? (Number(et.home || 0) + Number(et.away || 0)) : 0;
+
+  // 1) Pålidelig tidslinje (eller slet ingen mål og ingen forlænget tid).
+  if (allAttributed && (list.length > 0 || etGoals === 0)) {
+    return regularTimeScore(list);
+  }
+
+  // 2) Upålidelig tidslinje → fullTime, men kun uden forlænget-tids-mål.
+  const ft = score && score.fullTime;
+  if (etGoals === 0 && ft && ft.home != null && ft.away != null) {
+    return { home: Number(ft.home), away: Number(ft.away) };
+  }
+
+  // 3) Kan ikke afgøres sikkert.
+  return null;
+}
+
 /** Mål med minut, scorer, assist og side. */
 function mapGoals(m) {
   const match = unwrap(m);
@@ -342,5 +386,5 @@ module.exports = {
   mapStatus, extractScore, parseRateLimit, createClient,
   mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings,
   mapGoals, mapBookings, mapSubstitutions, mapLineups, mapMatchDetails, mapStandings, mapCompetition,
-  regularTimeScore,
+  regularTimeScore, knockoutNinetyResult,
 };
