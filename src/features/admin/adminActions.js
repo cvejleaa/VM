@@ -321,6 +321,25 @@ export async function callRecomputeAllPointsNow() {
 }
 
 /**
+ * Kald Cloud Function 'awardDerivedGroupWinnersNow' — tilskriv gruppevinder-bonus
+ * til spillere der tippede alle 6 kampe og ramte facit, men ikke selv svarede på
+ * bonusspørgsmålet. dryRun=true forhåndsviser uden at skrive.
+ */
+export async function callAwardDerivedGroupWinners(dryRun = true) {
+  try {
+    const fn = httpsCallable(functions, 'awardDerivedGroupWinnersNow');
+    const result = await fn({ dryRun });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "awardDerivedGroupWinnersNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af awardDerivedGroupWinnersNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectMatchRaw' — hent den præcise football-data for én
  * kamp (score-opdeling + mål-tidslinje + hvad vi udleder). Skriver intet.
  */
