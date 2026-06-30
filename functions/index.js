@@ -49,7 +49,7 @@ const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, knockoutNinetyResult } = require('./footballData');
-const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs } = require('./resultsSync');
+const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -1593,10 +1593,11 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     if (m.externalId) byId.set(m.id, m);
   }
 
-  // Selvhelbredelse: afsluttede knockout-kampe hvis 90-min-resultat endnu ikke er
-  // verificeret (rtVerified). Fanger kampe UDEN FOR tidsvinduet, så et tidligere
-  // forkert ordinær-tids-resultat (fx en kamp der fejlagtigt blev gemt som 0-0)
-  // rettes med tilbagevirkende kraft. Nyeste først; begrænset antal pr. kørsel.
+  // Selvhelbredelse: afsluttede knockout-kampe hvis resultat (90-min + "videre")
+  // endnu ikke er verificeret (koResultVerified). Fanger kampe UDEN FOR tidsvinduet,
+  // så et tidligere forkert ordinær-tids-resultat (fx en kamp gemt som 0-0) eller
+  // en forkert/manglende "videre" rettes med tilbagevirkende kraft. Nyeste først;
+  // begrænset antal pr. kørsel.
   const finishedSnap = await db.collection('matches')
     .where('status', '==', 'finished')
     .get();
@@ -1605,7 +1606,7 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     if (byId.has(d.id)) continue;
     const m = { id: d.id, ...d.data() };
     const isKnockout = m.round && m.round !== 'group';
-    if (isKnockout && m.externalId && !m.manualLock && m.rtVerified !== true) heal.push(m);
+    if (isKnockout && m.externalId && !m.manualLock && m.koResultVerified !== true) heal.push(m);
   }
   heal.sort((a, b) => (tsToMs(b.kickoff) ?? 0) - (tsToMs(a.kickoff) ?? 0));
   for (const m of heal.slice(0, DETAIL_HEAL_LIMIT)) byId.set(m.id, m);
@@ -1629,28 +1630,36 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     // Knockout: fastlæg ORDINÆR tid (90 min) robust, så tippet måles på 90 minutter
     // (forlænget tid + straffespark tæller ikke). knockoutNinetyResult bruger mål-
     // tidslinjen når den er pålidelig, ellers fullTime uden forlænget-tids-mål.
-    // "advance" (hvem der går videre) bevares. rtVerified sættes når 90-min er
-    // afgjort, så vi ikke genberegner i det uendelige.
+    //
+    // Desuden sættes "videre" (advance) til den KANONISKE holdkode ud fra football-
+    // datas score.winner. Spillernes tip gemmes som holdets kode (m.homeTeam/
+    // m.awayTeam), så et manuelt indtastet/forkert/manglende advance ville koste dem
+    // de 2 point for korrekt "videre". Ved at udlede advance fra winner matcher den
+    // altid spillernes valg 1:1. koResultVerified sættes når resultatet er afgjort,
+    // så vi ikke genberegner i det uendelige.
     const writeData = {};
     const isKnockout = m.round && m.round !== 'group';
     if (isKnockout && m.status === 'finished' && !m.manualLock && m.result) {
       const rawMatch = raw && raw.match ? raw.match : raw;
       const score = (rawMatch && rawMatch.score) || {};
       const ninety = knockoutNinetyResult(score, details.goals);
-      if (ninety) {
-        if (Number(m.result.home) !== ninety.home || Number(m.result.away) !== ninety.away) {
-          writeData.result = {
-            home: ninety.home,
-            away: ninety.away,
-            ...(m.result.advance ? { advance: m.result.advance } : {}),
-          };
-        }
-        if (m.rtVerified !== true) writeData.rtVerified = true;
+
+      // Kanonisk "videre" fra football-datas winner (DRAW/null → behold nuværende).
+      const advance = winnerToCode(score.winner, m) || m.result.advance || null;
+
+      const home = ninety ? ninety.home : Number(m.result.home);
+      const away = ninety ? ninety.away : Number(m.result.away);
+      const resultChanged = Number(m.result.home) !== home
+        || Number(m.result.away) !== away
+        || (m.result.advance || null) !== (advance || null);
+      if (resultChanged) {
+        writeData.result = { home, away, ...(advance ? { advance } : {}) };
       }
-      // ninety === null: kan ikke afgøres sikkert endnu → lad stå, prøv igen senere.
+      // 90-min er afgjort, når knockoutNinetyResult gav et resultat (ellers prøv igen).
+      if (ninety && m.koResultVerified !== true) writeData.koResultVerified = true;
     }
 
-    const hasResultWrite = !!writeData.result || writeData.rtVerified === true;
+    const hasResultWrite = !!writeData.result || writeData.koResultVerified === true;
     if (!detailsChanged && !hasResultWrite) continue; // intet nyt
     writeData.detailsUpdatedAt = FieldValue.serverTimestamp();
     if (detailsChanged) writeData.details = details;
