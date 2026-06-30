@@ -1945,7 +1945,9 @@ exports.inspectFootballData = onCall(
 // Bruges til at se nøjagtigt hvad vi har at regne på.
 // ---------------------------------------------------------------------------
 exports.inspectMatchRaw = onCall(
-  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  // timeoutSeconds højt nok til at vente football-datas rate-limit-reset ud, så
+  // "Ret resultat"-knappen kan skrive resultatet selv når kvoten lige er opbrugt.
+  { region: REGION, timeoutSeconds: 120, secrets: [FOOTBALL_DATA_TOKEN] },
   async (request) => {
     const db = getFirestore();
     await requireAdmin(db, request);
