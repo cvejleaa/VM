@@ -27,47 +27,39 @@ describe('regularTimeScore (90 min)', () => {
   });
 });
 
-describe('knockoutNinetyResult (robust 90 min)', () => {
-  it('bruger tidslinjen når målene er fuldt attribueret (forlænget tid ude)', () => {
-    const score = { fullTime: { home: 2, away: 1 }, extraTime: { home: 1, away: 0 } };
+describe('knockoutNinetyResult (kun tidslinje, 90 min)', () => {
+  it('tæller kun ægte spillemål i minut ≤ 90 (forlænget tid + straffespark ude)', () => {
+    // Reproducerer fejlen: fullTime=4-4 (inkl. straffespark), men ordinær tid var 1-1.
+    const score = { fullTime: { home: 4, away: 4 } };
     const goals = [
-      { minute: 30, side: 'home' },
-      { minute: 70, side: 'away' },
-      { minute: 105, side: 'home' }, // forlænget tid → tæller ikke
+      { minute: 72, side: 'home' },   // ordinær tid
+      { minute: 90, side: 'away', injuryTime: 1 }, // ordinær tids tillægstid
+      { minute: 105, side: 'home' },  // forlænget tid → tæller ikke
+      { minute: null, side: 'home' }, // straffesparkskonkurrence → tæller ikke
+      { minute: null, side: 'away' },
+      { minute: null, side: 'away' },
     ];
     expect(knockoutNinetyResult(score, goals)).toEqual({ home: 1, away: 1 });
   });
 
-  it('falder tilbage på fullTime når tidslinjen mangler attribution OG der ingen forlænget tid er', () => {
-    // Reproducerer fejlen: 1-1 efter 90 (→ straffespark), men målene har side=null,
-    // så en ren tidslinje ville give 0-0. fullTime=1-1, extraTime=0-0 → 1-1.
-    const score = { fullTime: { home: 1, away: 1 }, extraTime: { home: 0, away: 0 } };
-    const goals = [
-      { minute: 25, side: null },
-      { minute: 60, side: null },
-    ];
-    expect(knockoutNinetyResult(score, goals)).toEqual({ home: 1, away: 1 });
+  it('IGNORERER fullTime som kilde (bruger aldrig fullTime som scoren)', () => {
+    const score = { fullTime: { home: 7, away: 6 } }; // straffe-oppustet
+    const goals = [{ minute: 30, side: 'home' }];
+    expect(knockoutNinetyResult(score, goals)).toEqual({ home: 1, away: 0 });
   });
 
-  it('falder tilbage på fullTime uden extraTime-node (kamp afgjort i ordinær tid)', () => {
-    const score = { fullTime: { home: 2, away: 0 } };
-    const goals = [{ minute: 10, side: null }]; // upålidelig, men ingen forlænget tid
-    expect(knockoutNinetyResult(score, goals)).toEqual({ home: 2, away: 0 });
-  });
-
-  it('giver 0-0 uden mål og uden forlænget tid', () => {
+  it('giver 0-0 ved ægte målløs kamp (ingen mål, fullTime 0-0)', () => {
     expect(knockoutNinetyResult({ fullTime: { home: 0, away: 0 } }, [])).toEqual({ home: 0, away: 0 });
   });
 
-  it('returnerer null når tidslinjen er upålidelig OG der var forlænget-tids-mål', () => {
-    // Kan ikke vide 90-min-stillingen sikkert → lad admin afgøre.
-    const score = { fullTime: { home: 3, away: 2 }, extraTime: { home: 1, away: 0 } };
-    const goals = [{ minute: 50, side: null }, { minute: 110, side: null }];
-    expect(knockoutNinetyResult(score, goals)).toBeNull();
+  it('returnerer null når tidslinjen er tom men kampen havde mål (detaljer ikke klar)', () => {
+    expect(knockoutNinetyResult({ fullTime: { home: 1, away: 1 } }, [])).toBeNull();
   });
 
-  it('returnerer null når der hverken er pålidelig tidslinje eller fullTime', () => {
-    expect(knockoutNinetyResult({}, [{ minute: 50, side: null }])).toBeNull();
+  it('tæller mål uden side ikke med', () => {
+    const score = { fullTime: { home: 2, away: 0 } };
+    const goals = [{ minute: 20, side: 'home' }, { minute: 40, side: null }];
+    expect(knockoutNinetyResult(score, goals)).toEqual({ home: 1, away: 0 });
   });
 });
 

@@ -324,6 +324,30 @@ describe('MatchCard – knockout-kampe', () => {
     expect(screen.getByTestId('advance-result')).toHaveTextContent('Tyskland');
   });
 
+  it('viser straffesparkskonkurrencen under 90-min-resultatet for knockout', () => {
+    const m = makeMatch({
+      round: 'r32',
+      homeTeam: 'NED',
+      awayTeam: 'MAR',
+      kickoff: pastKickoff,
+      status: 'finished',
+      result: { home: 1, away: 1, advance: 'MAR' },
+      details: { penalties: { home: 2, away: 3 } },
+    });
+    render(<MatchCard match={m} uid="u1" bet={null} />);
+    expect(screen.getByTestId('match-result')).toHaveTextContent('1–1');
+    expect(screen.getByTestId('penalty-result')).toHaveTextContent('str. 2–3');
+  });
+
+  it('viser ikke straffe-linje uden straffedata', () => {
+    const m = makeMatch({
+      round: 'r32', homeTeam: 'NED', awayTeam: 'MAR', kickoff: pastKickoff,
+      status: 'finished', result: { home: 2, away: 1, advance: 'NED' },
+    });
+    render(<MatchCard match={m} uid="u1" bet={null} />);
+    expect(screen.queryByTestId('penalty-result')).toBeNull();
+  });
+
   it('viser "Op til 7 point muligt" for knockout', () => {
     const m = makeMatch({ round: 'qf' });
     render(<MatchCard match={m} uid="u1" bet={null} />);
