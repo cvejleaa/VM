@@ -6,7 +6,7 @@ import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
 import RecapBackfillPanel from './RecapBackfillPanel';
-import { callImportKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, clearManualLock, formatTimestamp } from './adminActions';
+import { callImportKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, callInspectMatchRaw, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -49,6 +49,19 @@ export default function MatchesTab() {
   const [syncMsg, setSyncMsg] = useState('');
   const [syncBusy, setSyncBusy] = useState(false);
   const [timeChanges, setTimeChanges] = useState(null); // null=ikke tjekket, []=ingen afvigelser
+  const [inspectId, setInspectId] = useState(null); // hvilken kamp vises rådata for
+  const [inspectData, setInspectData] = useState(null);
+  const [inspectBusy, setInspectBusy] = useState(false);
+  const [inspectErr, setInspectErr] = useState('');
+
+  async function handleInspect(matchId) {
+    if (inspectId === matchId) { setInspectId(null); setInspectData(null); setInspectErr(''); return; }
+    setInspectId(matchId); setInspectData(null); setInspectErr(''); setInspectBusy(true);
+    const res = await callInspectMatchRaw(matchId);
+    setInspectBusy(false);
+    if (res.ok) setInspectData(res.data);
+    else setInspectErr(res.error);
+  }
 
   async function handleCheckTimes() {
     setSyncBusy(true); setSyncMsg(''); setTimeChanges(null);
@@ -460,17 +473,38 @@ export default function MatchesTab() {
                     )}
                   </div>
 
-                  {/* Rediger-knap */}
-                  <button
-                    className="btn btn--ghost"
-                    style={{ fontSize: '0.82rem', padding: '0.3rem 0.7rem', whiteSpace: 'nowrap' }}
-                    onClick={() =>
-                      setEditMatchId(isEditing ? null : match.id)
-                    }
-                  >
-                    {isEditing ? 'Luk' : 'Sæt resultat'}
-                  </button>
+                  {/* Knapper */}
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {match.externalId && (
+                      <button
+                        className="btn btn--ghost"
+                        style={{ fontSize: '0.82rem', padding: '0.3rem 0.7rem', whiteSpace: 'nowrap' }}
+                        onClick={() => handleInspect(match.id)}
+                        title="Vis den præcise football-data for kampen (score-opdeling + mål)"
+                      >
+                        {inspectId === match.id ? 'Skjul rådata' : '🔎 Rådata'}
+                      </button>
+                    )}
+                    <button
+                      className="btn btn--ghost"
+                      style={{ fontSize: '0.82rem', padding: '0.3rem 0.7rem', whiteSpace: 'nowrap' }}
+                      onClick={() =>
+                        setEditMatchId(isEditing ? null : match.id)
+                      }
+                    >
+                      {isEditing ? 'Luk' : 'Sæt resultat'}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Rådata fra football-data.org */}
+                {inspectId === match.id && (
+                  <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--c-bg)', borderRadius: 10, border: '1px solid var(--c-border)' }}>
+                    {inspectBusy && <div style={{ fontSize: '0.85rem', color: 'var(--c-muted)' }}>Henter fra football-data.org…</div>}
+                    {inspectErr && <div role="alert" style={{ fontSize: '0.85rem', color: 'var(--c-err)' }}>Fejl: {inspectErr}</div>}
+                    {inspectData && <RawDataView data={inspectData} />}
+                  </div>
+                )}
 
                 {/* Resultat-formular */}
                 {isEditing && (
@@ -494,6 +528,64 @@ export default function MatchesTab() {
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+// Lille hjælper: vis et score-delfelt ({home,away}) eller "—".
+function pair(p) {
+  return p && p.home != null ? `${p.home}–${p.away}` : '—';
+}
+
+// Viser den præcise football-data for én kamp: score-opdeling, mål-tidslinje og
+// hvad VI udleder (90 min + tillægstid, uden forlænget tid/straffe).
+function RawDataView({ data }) {
+  const s = data.score || {};
+  const goals = Array.isArray(data.goals) ? data.goals : [];
+  const cell = { padding: '0.15rem 0.5rem 0.15rem 0', whiteSpace: 'nowrap' };
+  const minuteLabel = (g) => (g.minute == null
+    ? 'straffe' // straffesparkskonkurrence (intet minut)
+    : `${g.minute}${g.injuryTime ? `+${g.injuryTime}` : ''}'`);
+  return (
+    <div style={{ fontSize: '0.82rem' }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>
+        football-data ({data.teams?.home ?? '?'}–{data.teams?.away ?? '?'}) · status {data.providerStatus ?? '?'}
+      </div>
+
+      <table style={{ borderCollapse: 'collapse', marginBottom: 6 }}>
+        <tbody>
+          <tr><td style={cell}>Halvleg</td><td style={cell}><strong>{pair(s.halfTime)}</strong></td>
+            <td style={cell}>Ordinær tid (regularTime)</td><td style={cell}><strong>{pair(s.regularTime)}</strong></td></tr>
+          <tr><td style={cell}>Fuld tid (fullTime)</td><td style={cell}><strong>{pair(s.fullTime)}</strong></td>
+            <td style={cell}>Forlænget tid (extraTime)</td><td style={cell}><strong>{pair(s.extraTime)}</strong></td></tr>
+          <tr><td style={cell}>Straffe (penalties)</td><td style={cell}><strong>{pair(s.penalties)}</strong></td>
+            <td style={cell}>Vinder / varighed</td><td style={cell}><strong>{s.winner ?? '—'}</strong> / {s.duration ?? '—'}</td></tr>
+        </tbody>
+      </table>
+
+      <div style={{ fontWeight: 700, margin: '4px 0 2px' }}>Mål ({goals.length})</div>
+      {goals.length === 0 ? (
+        <div style={{ color: 'var(--c-muted)' }}>Ingen mål i datafeedet.</div>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {goals.map((g, i) => (
+            <li key={i} style={{ padding: '1px 0' }}>
+              <code>{minuteLabel(g)}</code>{' · '}
+              <strong>{g.side === 'home' ? (data.teams?.home ?? 'hjemme') : g.side === 'away' ? (data.teams?.away ?? 'ude') : '?'}</strong>
+              {g.type && g.type !== 'REGULAR' ? ` (${g.type})` : ''}
+              {g.scorer ? ` — ${g.scorer}` : ''}
+              {g.minute != null && Number(g.minute) > 90 ? '  ⟵ forlænget tid (tæller ikke)' : ''}
+              {g.minute == null ? '  ⟵ straffe (tæller ikke)' : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--c-border)' }}>
+        <div>Vi udleder (90 min + tillægstid): <strong>{data.derived?.ninetyMinutes ? `${data.derived.ninetyMinutes.home}–${data.derived.ninetyMinutes.away}` : '— (afventer mål-data)'}</strong></div>
+        <div>Går videre: <strong>{data.derived?.advance ?? '—'}</strong></div>
+        <div style={{ color: 'var(--c-muted)' }}>Gemt hos os: {pair(data.stored?.result)} {data.stored?.result?.advance ? `(videre: ${data.stored.result.advance})` : ''} · status {data.stored?.status ?? '?'}{data.stored?.manualLock ? ' · 🔒 manuelt låst' : ''}</div>
+      </div>
     </div>
   );
 }

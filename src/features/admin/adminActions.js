@@ -303,6 +303,24 @@ export async function callSyncMatchDetailsNow() {
 }
 
 /**
+ * Kald Cloud Function 'inspectMatchRaw' — hent den præcise football-data for én
+ * kamp (score-opdeling + mål-tidslinje + hvad vi udleder). Skriver intet.
+ */
+export async function callInspectMatchRaw(matchId) {
+  try {
+    const fn = httpsCallable(functions, 'inspectMatchRaw');
+    const result = await fn({ matchId });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "inspectMatchRaw" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af inspectMatchRaw.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'syncStandingsNow' — opdater den officielle stilling
  * (gruppetabeller med form) fra football-data.org.
  */
