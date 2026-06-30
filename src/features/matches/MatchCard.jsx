@@ -207,6 +207,16 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
                   🔴 {liveMinuteLabel(match)}
                 </div>
               )}
+              {/* Straffesparkskonkurrence: vis afgørelsen tydeligt under 90-min-resultatet */}
+              {!isLive && isKnockout && match.details?.penalties
+                && match.details.penalties.home != null && (
+                <div
+                  data-testid="penalty-result"
+                  style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--c-muted)', marginTop: 1, whiteSpace: 'nowrap' }}
+                >
+                  str. {match.details.penalties.home}–{match.details.penalties.away}
+                </div>
+              )}
             </>
           ) : (
             <span style={{ fontSize: '0.9rem', color: 'var(--c-muted)', fontWeight: 600 }}>

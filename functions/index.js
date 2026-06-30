@@ -1577,6 +1577,11 @@ exports.syncScorersNow = onCall(
 // antallet af football-data-kald nede; resten tages i næste tick.
 const DETAIL_HEAL_LIMIT = 10;
 
+// Version af knockout-resultat-synken. Gemmes på kampen (koSyncVersion) når den er
+// behandlet. Bumpes når logikken ændres → afsluttede knockout-kampe gennemgås på ny
+// (så et tidligere forkert resultat, fx straffe-oppustet fullTime, bliver rettet).
+const KO_SYNC_VERSION = 2;
+
 async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
   const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
   const toTs = Timestamp.fromMillis(now.getTime() + 75 * 60 * 1000); // dæk opstillinger ~1t før
@@ -1606,7 +1611,7 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     if (byId.has(d.id)) continue;
     const m = { id: d.id, ...d.data() };
     const isKnockout = m.round && m.round !== 'group';
-    if (isKnockout && m.externalId && !m.manualLock && m.koResultVerified !== true) heal.push(m);
+    if (isKnockout && m.externalId && !m.manualLock && m.koSyncVersion !== KO_SYNC_VERSION) heal.push(m);
   }
   heal.sort((a, b) => (tsToMs(b.kickoff) ?? 0) - (tsToMs(a.kickoff) ?? 0));
   for (const m of heal.slice(0, DETAIL_HEAL_LIMIT)) byId.set(m.id, m);
@@ -1627,16 +1632,16 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     const details = mapMatchDetails(raw);
     const detailsChanged = JSON.stringify(m.details || null) !== JSON.stringify(details);
 
-    // Knockout: fastlæg ORDINÆR tid (90 min) robust, så tippet måles på 90 minutter
-    // (forlænget tid + straffespark tæller ikke). knockoutNinetyResult bruger mål-
-    // tidslinjen når den er pålidelig, ellers fullTime uden forlænget-tids-mål.
+    // Knockout: fastlæg ORDINÆR tid (90 min) UDELUKKENDE fra mål-tidslinjen, så tippet
+    // måles på 90 minutter (forlænget tid + straffespark tæller ikke). Vi bruger ALDRIG
+    // football-datas fullTime som scoren — den kan indeholde straffesparkene (en 1-1-
+    // kamp kan stå som 4-4 i fullTime).
     //
     // Desuden sættes "videre" (advance) til den KANONISKE holdkode ud fra football-
     // datas score.winner. Spillernes tip gemmes som holdets kode (m.homeTeam/
     // m.awayTeam), så et manuelt indtastet/forkert/manglende advance ville koste dem
     // de 2 point for korrekt "videre". Ved at udlede advance fra winner matcher den
-    // altid spillernes valg 1:1. koResultVerified sættes når resultatet er afgjort,
-    // så vi ikke genberegner i det uendelige.
+    // altid spillernes valg 1:1. koSyncVersion sættes når resultatet er afgjort.
     const writeData = {};
     const isKnockout = m.round && m.round !== 'group';
     if (isKnockout && m.status === 'finished' && !m.manualLock && m.result) {
@@ -1655,11 +1660,11 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
       if (resultChanged) {
         writeData.result = { home, away, ...(advance ? { advance } : {}) };
       }
-      // 90-min er afgjort, når knockoutNinetyResult gav et resultat (ellers prøv igen).
-      if (ninety && m.koResultVerified !== true) writeData.koResultVerified = true;
+      // Resultatet er afgjort, når 90-min kunne beregnes fra tidslinjen (ellers prøv igen).
+      if (ninety && m.koSyncVersion !== KO_SYNC_VERSION) writeData.koSyncVersion = KO_SYNC_VERSION;
     }
 
-    const hasResultWrite = !!writeData.result || writeData.koResultVerified === true;
+    const hasResultWrite = !!writeData.result || writeData.koSyncVersion === KO_SYNC_VERSION;
     if (!detailsChanged && !hasResultWrite) continue; // intet nyt
     writeData.detailsUpdatedAt = FieldValue.serverTimestamp();
     if (detailsChanged) writeData.details = details;
