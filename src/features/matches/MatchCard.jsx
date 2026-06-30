@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { COL, MATCH_STATUS, ROUNDS } from '../../lib/constants';
-import { scoreMatch, scoreKnockout, POINTS } from '../../lib/scoring';
+import { scoreMatch, scoreKnockout, betAdvance, POINTS } from '../../lib/scoring';
 import {
   isMatchLocked,
   formatKickoffTime,
@@ -57,7 +57,7 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
   // Beregn brugerens optjente point hvis kampen er afgjort
   const earnedPoints = (() => {
     if (!isFinished || !bet || !match.result) return null;
-    if (isKnockout) return scoreKnockout(bet, match.result);
+    if (isKnockout) return scoreKnockout(bet, match.result, match);
     return scoreMatch(bet, match.result);
   })();
 
@@ -76,9 +76,10 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
           away,
           updatedAt: serverTimestamp(),
         };
-        // Inkluder advance for knockout-kampe
+        // Inkluder advance for knockout-kampe. advanceVal er altid eksplicit givet
+        // af kalderen (null = ryd valget), så vi falder IKKE tilbage på state her.
         if (isKnockout) {
-          payload.advance = advanceVal ?? advance ?? null;
+          payload.advance = advanceVal ?? null;
         }
         await setDoc(doc(db, COL.BETS, betId), payload, { merge: true });
         setSaved(true);
@@ -90,7 +91,7 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
         setSaving(false);
       }
     },
-    [uid, locked, isPendingTeams, match.id, isKnockout, advance],
+    [uid, locked, isPendingTeams, match.id, isKnockout],
   );
 
   // Gem kun score (fra ScoreInput)
@@ -283,7 +284,9 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
               style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginLeft: '0.5rem' }}
             >
               (Dit tip: {bet.home}–{bet.away}
-              {isKnockout && bet.advance ? `, videre: ${bet.advance}` : ''})
+              {isKnockout && betAdvance(bet, match)
+                ? `, videre: ${betAdvance(bet, match)}${bet.advance ? '' : ' (auto)'}`
+                : ''})
             </span>
           )}
         </div>
@@ -315,38 +318,56 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
           />
 
           {/* Advance-valg for knockout */}
-          {isKnockout && (
-            <div style={{ marginTop: '0.5rem' }}>
-              <label
-                style={{
-                  fontSize: '0.82rem',
-                  color: 'var(--c-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: '0.25rem',
-                }}
-              >
-                Hvem går videre?
-              </label>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {[match.homeTeam ?? homeName, match.awayTeam ?? awayName].map((team) => (
-                  <button
-                    key={team}
-                    onClick={async () => {
-                      setAdvance(team);
-                      if (bet) await handleAdvanceSave(team);
-                    }}
-                    className={`btn btn--sm ${advance === team ? '' : 'btn--ghost'}`}
-                    data-testid={`advance-${team}`}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                  >
-                    {match.homeTeam || match.awayTeam ? <Flag code={team} size={18} /> : null}
-                    {teamName(team)}
-                  </button>
-                ))}
+          {isKnockout && (() => {
+            // Tipper man en AFGØRENDE score, går vinderen automatisk videre — så
+            // behøver man ikke vælge selv. Kun ved uafgjort skal man pege på et hold.
+            const betDraw = !!bet && Number.isFinite(bet.home) && Number.isFinite(bet.away)
+              && Number(bet.home) === Number(bet.away);
+            const autoWinner = (!advance && bet && !betDraw) ? betAdvance(bet, match) : null;
+            const effective = advance || autoWinner; // hvad der reelt tæller som "videre"
+            return (
+              <div style={{ marginTop: '0.5rem' }}>
+                <label
+                  style={{
+                    fontSize: '0.82rem',
+                    color: 'var(--c-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: '0.25rem',
+                  }}
+                >
+                  Hvem går videre?{' '}
+                  <span style={{ fontWeight: 400 }}>
+                    {betDraw ? '(uafgjort tip — vælg selv hvem der vinder på straffe)' : '(valgfrit — din vinder tæller automatisk)'}
+                  </span>
+                </label>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {[match.homeTeam ?? homeName, match.awayTeam ?? awayName].map((team) => (
+                    <button
+                      key={team}
+                      onClick={async () => {
+                        // Klik på det allerede valgte hold rydder valget igen.
+                        const next = advance === team ? '' : team;
+                        setAdvance(next);
+                        if (bet) await handleAdvanceSave(next || null);
+                      }}
+                      className={`btn btn--sm ${effective === team ? '' : 'btn--ghost'}`}
+                      data-testid={`advance-${team}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
+                      {match.homeTeam || match.awayTeam ? <Flag code={team} size={18} /> : null}
+                      {teamName(team)}
+                    </button>
+                  ))}
+                </div>
+                {autoWinner && (
+                  <p data-testid="advance-auto-note" style={{ margin: '0.35rem 0 0', fontSize: '0.76rem', color: 'var(--c-muted)' }}>
+                    ✓ <strong>{teamName(autoWinner)}</strong> tæller automatisk som videre (fra dit resultat). Klik kun her hvis du tror et andet hold går videre.
+                  </p>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Feedback */}
           {saved && (
@@ -385,7 +406,9 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
       {locked && !isFinished && bet && (
         <div style={{ fontSize: '0.83rem', color: 'var(--c-muted)' }}>
           Dit tip: <strong>{bet.home}–{bet.away}</strong>
-          {isKnockout && bet.advance ? ` · Videre: ${bet.advance}` : ''}
+          {isKnockout && betAdvance(bet, match)
+            ? ` · Videre: ${betAdvance(bet, match)}${bet.advance ? '' : ' (auto)'}`
+            : ''}
         </div>
       )}
 

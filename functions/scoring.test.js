@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus, fuzzyNameMatch, bonusPoints } = require('./scoring.js');
+const { POINTS, outcome, scoreMatch, scoreKnockout, betAdvance, scoreBonus, fuzzyNameMatch, bonusPoints } = require('./scoring.js');
 
 // ---------------------------------------------------------------------------
 // POINTS-konstanter
@@ -147,6 +147,64 @@ describe('scoreKnockout()', () => {
   it('håndterer null input som scoreMatch', () => {
     expect(scoreKnockout(null, { home: 1, away: 0, advance: 'BRA' })).toBe(0);
     expect(scoreKnockout({ home: 1, away: 0, advance: 'BRA' }, null)).toBe(0);
+  });
+
+  // Automatisk "videre" fra et afgørende score-tip (uden eget valg) ------------
+  const M = { homeTeam: 'BRA', awayTeam: 'ARG' };
+
+  it('godskriver vinderen automatisk når score-tip er afgørende og intet eget valg', () => {
+    const bet    = { home: 2, away: 1 }; // tipper BRA-sejr → BRA implicit videre
+    const result = { home: 2, away: 1, advance: 'BRA' };
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE); // 7
+  });
+
+  it('automatisk videre gælder også når kun udfaldet rammer', () => {
+    const bet    = { home: 1, away: 0 }; // BRA-sejr
+    const result = { home: 3, away: 1, advance: 'BRA' }; // OUTCOME (2) + advance (2)
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.OUTCOME + POINTS.KNOCKOUT_ADVANCE);
+  });
+
+  it('udeholdet godskrives automatisk ved tippet ude-sejr', () => {
+    const bet    = { home: 0, away: 2 }; // ARG-sejr
+    const result = { home: 0, away: 2, advance: 'ARG' };
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
+  });
+
+  it('UAFGJORT tip uden eget valg giver INGEN automatisk advance-bonus', () => {
+    const bet    = { home: 1, away: 1 }; // uafgjort → intet automatisk
+    const result = { home: 1, away: 1, advance: 'ARG' };
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT); // kun 5, ingen +2
+  });
+
+  it('eget valg vinder over det automatiske (fx straffe-upset på uafgjort tip)', () => {
+    const bet    = { home: 1, away: 1, advance: 'ARG' }; // uafgjort, men vælger ARG videre
+    const result = { home: 1, away: 1, advance: 'ARG' };
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
+  });
+
+  it('uden match falder tilbage på eksplicit advance (bagudkompatibelt)', () => {
+    const bet    = { home: 2, away: 1 }; // ingen eksplicit advance, intet match
+    const result = { home: 2, away: 1, advance: 'BRA' };
+    expect(scoreKnockout(bet, result)).toBe(POINTS.EXACT); // ingen auto uden match
+  });
+});
+
+describe('betAdvance()', () => {
+  const M = { homeTeam: 'BRA', awayTeam: 'ARG' };
+  it('eksplicit valg gælder', () => {
+    expect(betAdvance({ home: 1, away: 1, advance: 'ARG' }, M)).toBe('ARG');
+  });
+  it('udleder vinder af afgørende score', () => {
+    expect(betAdvance({ home: 2, away: 0 }, M)).toBe('BRA');
+    expect(betAdvance({ home: 0, away: 1 }, M)).toBe('ARG');
+  });
+  it('uafgjort → null', () => {
+    expect(betAdvance({ home: 1, away: 1 }, M)).toBeNull();
+  });
+  it('uden match eller bet → null/eksplicit', () => {
+    expect(betAdvance({ home: 2, away: 0 })).toBeNull();
+    expect(betAdvance(null, M)).toBeNull();
+    expect(betAdvance({ home: 2, away: 0, advance: 'BRA' })).toBe('BRA');
   });
 });
 

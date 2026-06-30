@@ -52,7 +52,7 @@ export default function MyBetsPage() {
       }
       const bet = bets.get(m.id);
       const isKnockout = m.round !== ROUNDS.GROUP;
-      const pts = isKnockout ? scoreKnockout(bet, m.result) : scoreMatch(bet, m.result);
+      const pts = isKnockout ? scoreKnockout(bet, m.result, m) : scoreMatch(bet, m.result);
       map.set(m.id, pts);
     }
     return map;

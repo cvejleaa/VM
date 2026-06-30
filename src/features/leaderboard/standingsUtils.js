@@ -116,7 +116,7 @@ export function computeDailyPoints(matches, bets, todayStr) {
     // Knockout-kampe scorer anderledes (advance)
     const isKnockout = match.round && match.round !== 'group';
     const pts = isKnockout
-      ? scoreKnockout(bet, match.result)
+      ? scoreKnockout(bet, match.result, match)
       : scoreMatch(bet, match.result);
 
     pointsByUid[bet.uid] = (pointsByUid[bet.uid] ?? 0) + pts;

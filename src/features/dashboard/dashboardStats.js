@@ -13,7 +13,7 @@ function kickoffMs(kickoff) {
 }
 
 function pointsFor(match, bet) {
-  return isKnockout(match) ? scoreKnockout(bet, match.result) : scoreMatch(bet, match.result);
+  return isKnockout(match) ? scoreKnockout(bet, match.result, match) : scoreMatch(bet, match.result);
 }
 
 /**
