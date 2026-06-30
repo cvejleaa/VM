@@ -306,10 +306,10 @@ export async function callSyncMatchDetailsNow() {
  * Kald Cloud Function 'inspectMatchRaw' — hent den præcise football-data for én
  * kamp (score-opdeling + mål-tidslinje + hvad vi udleder). Skriver intet.
  */
-export async function callInspectMatchRaw(matchId) {
+export async function callInspectMatchRaw(matchId, apply = false) {
   try {
     const fn = httpsCallable(functions, 'inspectMatchRaw');
-    const result = await fn({ matchId });
+    const result = await fn({ matchId, apply });
     return { ok: true, data: result.data };
   } catch (err) {
     const msg =

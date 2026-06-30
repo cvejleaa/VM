@@ -1961,11 +1961,35 @@ exports.inspectMatchRaw = onCall(
     const ninety = knockoutNinetyResult(score, goals);
     const advance = winnerToCode(score.winner, m);
 
+    // Hvad har vi GEMT på kampen (det, som selvhelbredelsen regner på)?
+    const storedGoals = (m.details && Array.isArray(m.details.goals)) ? m.details.goals : [];
+
+    // apply=true → SKRIV det udledte 90-min-resultat (live-data) til kampen. Garanteret
+    // rettelse på forlangende, uafhængigt af vinduer/rate-limit/gemte detaljer.
+    let applied = null;
+    if (request.data?.apply === true && ninety && !m.manualLock) {
+      const adv = advance || (m.result && m.result.advance) || null;
+      await db.collection('matches').doc(m.id).set({
+        result: { home: ninety.home, away: ninety.away, ...(adv ? { advance: adv } : {}) },
+        koSyncVersion: KO_SYNC_VERSION,
+      }, { merge: true });
+      applied = { home: ninety.home, away: ninety.away, advance: adv || null };
+    }
+
     return {
       matchId: m.id,
       externalId: String(m.externalId),
+      applied,
       teams: { home: m.homeTeam || null, away: m.awayTeam || null },
       stored: { status: m.status || null, result: m.result || null, manualLock: !!m.manualLock, koSyncVersion: m.koSyncVersion ?? null },
+      // Gemte detaljer (selvhelbredelsen regner UDELUKKENDE på disse, uden API):
+      storedDetails: {
+        goalsCount: storedGoals.length,
+        goals: storedGoals.map((g) => ({ minute: g.minute ?? null, injuryTime: g.injuryTime ?? null, side: g.side ?? null, type: g.type ?? null })),
+        penalties: (m.details && m.details.penalties) || null,
+        duration: (m.details && m.details.duration) || null,
+      },
+      storedHeal: healedKnockoutResult(m), // {home,away,advance} eller null
       providerStatus: rawMatch?.status ?? null,
       score: {
         winner: score.winner ?? null,

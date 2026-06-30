@@ -54,10 +54,10 @@ export default function MatchesTab() {
   const [inspectBusy, setInspectBusy] = useState(false);
   const [inspectErr, setInspectErr] = useState('');
 
-  async function handleInspect(matchId) {
-    if (inspectId === matchId) { setInspectId(null); setInspectData(null); setInspectErr(''); return; }
-    setInspectId(matchId); setInspectData(null); setInspectErr(''); setInspectBusy(true);
-    const res = await callInspectMatchRaw(matchId);
+  async function handleInspect(matchId, apply = false) {
+    if (!apply && inspectId === matchId) { setInspectId(null); setInspectData(null); setInspectErr(''); return; }
+    setInspectId(matchId); if (!apply) setInspectData(null); setInspectErr(''); setInspectBusy(true);
+    const res = await callInspectMatchRaw(matchId, apply);
     setInspectBusy(false);
     if (res.ok) setInspectData(res.data);
     else setInspectErr(res.error);
@@ -502,7 +502,7 @@ export default function MatchesTab() {
                   <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--c-bg)', borderRadius: 10, border: '1px solid var(--c-border)' }}>
                     {inspectBusy && <div style={{ fontSize: '0.85rem', color: 'var(--c-muted)' }}>Henter fra football-data.org…</div>}
                     {inspectErr && <div role="alert" style={{ fontSize: '0.85rem', color: 'var(--c-err)' }}>Fejl: {inspectErr}</div>}
-                    {inspectData && <RawDataView data={inspectData} />}
+                    {inspectData && <RawDataView data={inspectData} onApply={() => handleInspect(match.id, true)} busy={inspectBusy} />}
                   </div>
                 )}
 
@@ -539,9 +539,11 @@ function pair(p) {
 
 // Viser den præcise football-data for én kamp: score-opdeling, mål-tidslinje og
 // hvad VI udleder (90 min + tillægstid, uden forlænget tid/straffe).
-function RawDataView({ data }) {
+function RawDataView({ data, onApply, busy }) {
   const s = data.score || {};
   const goals = Array.isArray(data.goals) ? data.goals : [];
+  const sd = data.storedDetails || {};
+  const heal = data.storedHeal || null;
   const cell = { padding: '0.15rem 0.5rem 0.15rem 0', whiteSpace: 'nowrap' };
   const minuteLabel = (g) => (g.minute == null
     ? 'straffe' // straffesparkskonkurrence (intet minut)
@@ -582,10 +584,32 @@ function RawDataView({ data }) {
       )}
 
       <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--c-border)' }}>
-        <div>Vi udleder (90 min + tillægstid): <strong>{data.derived?.ninetyMinutes ? `${data.derived.ninetyMinutes.home}–${data.derived.ninetyMinutes.away}` : '— (afventer mål-data)'}</strong></div>
+        <div>Vi udleder af LIVE-data (90 min + tillægstid): <strong>{data.derived?.ninetyMinutes ? `${data.derived.ninetyMinutes.home}–${data.derived.ninetyMinutes.away}` : '— (afventer mål-data)'}</strong></div>
         <div>Går videre: <strong>{data.derived?.advance ?? '—'}</strong></div>
+        <div style={{ color: 'var(--c-muted)' }}>
+          Gemte detaljer: {sd.goalsCount ?? 0} mål{sd.duration ? ` · ${sd.duration}` : ''}{sd.penalties ? ` · straffe ${pair(sd.penalties)}` : ''}
+          {' · '}selvhelbredelse udleder: <strong>{heal ? `${heal.home}–${heal.away}${heal.advance ? ` (${heal.advance})` : ''}` : '— (kan ikke fra gemte detaljer)'}</strong>
+        </div>
         <div style={{ color: 'var(--c-muted)' }}>Gemt hos os: {pair(data.stored?.result)} {data.stored?.result?.advance ? `(videre: ${data.stored.result.advance})` : ''} · status {data.stored?.status ?? '?'}{data.stored?.manualLock ? ' · 🔒 manuelt låst' : ''}</div>
       </div>
+
+      {data.applied ? (
+        <div style={{ marginTop: 6, color: 'var(--c-ok)', fontWeight: 700 }}>
+          ✓ Rettet til {data.applied.home}–{data.applied.away}{data.applied.advance ? ` (videre: ${data.applied.advance})` : ''}. Genindlæs kampsiden.
+        </div>
+      ) : (
+        data.derived?.ninetyMinutes && !data.stored?.manualLock && (
+          <button
+            className="btn btn--sm"
+            style={{ marginTop: 8 }}
+            onClick={onApply}
+            disabled={busy}
+            title="Skriv det udledte 90-min-resultat (live football-data) til kampen"
+          >
+            ✅ Ret resultat til {data.derived.ninetyMinutes.home}–{data.derived.ninetyMinutes.away}
+          </button>
+        )
+      )}
     </div>
   );
 }
