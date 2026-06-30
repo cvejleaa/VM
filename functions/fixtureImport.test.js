@@ -120,6 +120,33 @@ describe('reconcileKnockout', () => {
     expect(toUpdate).toEqual([]);
     expect(toDelete).toEqual([]);
   });
+
+  it('AFSLUTTET kamp opdateres ALDRIG (selv om desired-status er scheduled)', () => {
+    // Reproducerer fejlen: vores kamp er finished, men buildDesiredKnockout siger scheduled.
+    const existing = [
+      { id: 'ko_9', round: 'r32', homeTeam: 'BRA', awayTeam: 'ARG', externalId: '9', status: 'finished', result: { home: 2, away: 1 }, kickoff: '2026-06-28T19:00:00Z' },
+    ];
+    const { toUpdate, toDelete } = reconcileKnockout(existing, [desired[0]]);
+    expect(toUpdate).toEqual([]); // beskyttet — ingen tilbagerulning til scheduled
+    expect(toDelete).toEqual([]);
+  });
+
+  it('MANUELT LÅST kamp opdateres/slettes ALDRIG', () => {
+    const existing = [
+      { id: 'ko_9', round: 'r32', homeTeam: 'BRA', awayTeam: 'GER', externalId: '9', status: 'scheduled', manualLock: true, kickoff: '2026-06-28T19:00:00Z' },
+    ];
+    // desired[0] har korrekt udehold ARG, men kampen er låst → rør ikke.
+    const { toUpdate } = reconcileKnockout(existing, [desired[0]]);
+    expect(toUpdate).toEqual([]);
+    // En låst kamp der ikke findes i desired slettes heller ikke.
+    const lockedOrphan = [{ id: 'ko_old', round: 'r32', homeTeam: 'BRA', awayTeam: 'GER', manualLock: true, status: 'scheduled' }];
+    expect(reconcileKnockout(lockedOrphan, []).toDelete).toEqual([]);
+  });
+
+  it('spillet kamp (med result) slettes ALDRIG selv om den mangler i desired', () => {
+    const played = [{ id: 'ko_played', round: 'r32', homeTeam: 'BRA', awayTeam: 'ARG', status: 'finished', result: { home: 1, away: 0 } }];
+    expect(reconcileKnockout(played, []).toDelete).toEqual([]);
+  });
 });
 
 describe('differs', () => {

@@ -109,7 +109,19 @@ function differs(existing, desired) {
 }
 
 /**
+ * Er en eksisterende kamp SPILLET eller LÅST? Sådanne kampe må importen aldrig
+ * røre — ellers ville en allerede afsluttet kamp (eller en manuelt rettet) blive
+ * sat tilbage til "scheduled" og resultater/låsninger gå tabt. (buildDesiredKnockout
+ * sætter altid status='scheduled', så uden denne beskyttelse flagges enhver
+ * afsluttet kamp evigt til opdatering.)
+ */
+function isPlayedOrLocked(e) {
+  return !!(e && (e.manualLock || e.result || e.status === 'finished' || e.status === 'live'));
+}
+
+/**
  * Afstem eksisterende knockout-kampe mod de ønskede (fra football-data).
+ * Spillede/låste kampe beskyttes: de hverken opdateres eller slettes.
  * @param {Array<object>} existingKnockout  vores nuværende knockout-dokumenter
  * @param {Array<object>} desired           output fra buildDesiredKnockout
  * @returns {{toCreate:Array, toUpdate:Array, toDelete:string[]}}
@@ -123,10 +135,10 @@ function reconcileKnockout(existingKnockout, desired) {
   for (const d of desired || []) {
     const e = existingById.get(d.id);
     if (!e) toCreate.push(d);
-    else if (differs(e, d)) toUpdate.push(d);
+    else if (differs(e, d) && !isPlayedOrLocked(e)) toUpdate.push(d);
   }
   for (const e of existingKnockout || []) {
-    if (!desiredById.has(e.id)) toDelete.push(e.id);
+    if (!desiredById.has(e.id) && !isPlayedOrLocked(e)) toDelete.push(e.id);
   }
   return { toCreate, toUpdate, toDelete };
 }
@@ -163,6 +175,7 @@ module.exports = {
   kickoffMs,
   buildDesiredKnockout,
   differs,
+  isPlayedOrLocked,
   reconcileKnockout,
   knockoutTeamUpdates,
 };
