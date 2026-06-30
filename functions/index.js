@@ -49,7 +49,7 @@ const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, knockoutNinetyResult } = require('./footballData');
-const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode } = require('./resultsSync');
+const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { redeemInviteCodeCore } = require('./invites');
@@ -1674,11 +1674,47 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
   return { checked: candidates.length, updated };
 }
 
+// ---------------------------------------------------------------------------
+// Ret afsluttede knockout-resultater til ORDINÆR tid (90 min + tillægstid) ud fra
+// de GEMTE kampdetaljer — HELT UDEN football-data-kald. Derfor rammer den aldrig
+// rate-limit og kører pålideligt, også når detalje-synken (der henter data) bliver
+// throttlet. Retter et straffe-/forlænget-tids-oppustet resultat (fx 4-4 → 1-1) og
+// sætter samtidig korrekt "videre". Idempotent: skriver kun når noget ændrer sig.
+// ---------------------------------------------------------------------------
+async function runHealKnockoutResults(db) {
+  const snap = await db.collection('matches').where('status', '==', 'finished').get();
+  let fixed = 0;
+  for (const d of snap.docs) {
+    const m = { id: d.id, ...d.data() };
+    if (m.manualLock) continue; // respektér manuelt rettede kampe
+    const healed = healedKnockoutResult(m);
+    if (!healed) continue;
+    const cur = m.result || {};
+    const changed = Number(cur.home) !== healed.home
+      || Number(cur.away) !== healed.away
+      || (cur.advance || null) !== (healed.advance || null);
+    if (!changed) continue;
+    await db.collection('matches').doc(m.id).set({
+      result: { home: healed.home, away: healed.away, ...(healed.advance ? { advance: healed.advance } : {}) },
+      koSyncVersion: KO_SYNC_VERSION,
+    }, { merge: true });
+    fixed++;
+  }
+  return { fixed };
+}
+
 // Skemalagt: hver 2. minut (kun når der er kampe i vinduet).
 exports.syncMatchDetails = onSchedule(
   { schedule: 'every 2 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    // Ret knockout-resultater fra gemte detaljer FØRST (ingen API → ingen rate-limit).
+    try {
+      const h = await runHealKnockoutResults(db);
+      if (h.fixed) console.log(`syncMatchDetails: rettede ${h.fixed} knockout-resultat(er) fra gemte detaljer.`);
+    } catch (err) {
+      console.error('syncMatchDetails: heal-fejl', err);
+    }
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) { console.log('syncMatchDetails: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
     try {
@@ -1686,6 +1722,21 @@ exports.syncMatchDetails = onSchedule(
       if (res.updated) console.log(`syncMatchDetails: opdaterede detaljer for ${res.updated} kamp(e).`);
     } catch (err) {
       console.error('syncMatchDetails: fejl', err);
+    }
+  }
+);
+
+// Skemalagt: ret knockout-resultater hvert 5. minut — uafhængigt af football-data
+// (ingen API-kald), så en throttlet detalje-synk ikke blokerer rettelsen.
+exports.healKnockoutResults = onSchedule(
+  { schedule: 'every 5 minutes', timeZone: TZ, region: REGION },
+  async () => {
+    const db = getFirestore();
+    try {
+      const res = await runHealKnockoutResults(db);
+      if (res.fixed) console.log(`healKnockoutResults: rettede ${res.fixed} knockout-resultat(er).`);
+    } catch (err) {
+      console.error('healKnockoutResults: fejl', err);
     }
   }
 );
@@ -1698,7 +1749,10 @@ exports.syncMatchDetailsNow = onCall(
     await requireAdmin(db, request);
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
-    return runSyncMatchDetails(db, token);
+    // Ret knockout-resultater fra gemte detaljer (ingen API) + hent friske detaljer.
+    const healed = await runHealKnockoutResults(db);
+    const res = await runSyncMatchDetails(db, token);
+    return { ...res, healed: healed.fixed };
   }
 );
 

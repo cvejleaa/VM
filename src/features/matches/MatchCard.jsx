@@ -207,7 +207,16 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
                   🔴 {liveMinuteLabel(match)}
                 </div>
               )}
-              {/* Straffesparkskonkurrence: vis afgørelsen tydeligt under 90-min-resultatet */}
+              {/* Knockout afgjort efter ordinær tid: vis "efter forl. spilletid" + straffe,
+                  ligesom på flashscore. 90-min-resultatet ovenfor er det, der gives point for. */}
+              {!isLive && isKnockout && (match.details?.duration === 'EXTRA_TIME' || match.details?.duration === 'PENALTY_SHOOTOUT') && (
+                <div
+                  data-testid="ko-decided-note"
+                  style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--c-muted)', marginTop: 1, whiteSpace: 'nowrap' }}
+                >
+                  efter forl. spilletid
+                </div>
+              )}
               {!isLive && isKnockout && match.details?.penalties
                 && match.details.penalties.home != null && (
                 <div
