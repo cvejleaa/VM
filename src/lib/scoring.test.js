@@ -64,6 +64,11 @@ describe('scoreKnockout', () => {
     expect(scoreKnockout({ home: 1, away: 1, advance: 'ARG' }, { home: 1, away: 1, advance: 'ARG' }, M))
       .toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
   });
+  it('halvgardering: afgørende tip men videre sat til taberen → max 5', () => {
+    // 2-1 til BRA, men ARG valgt videre. BRA gik videre → ingen advance-bonus.
+    expect(scoreKnockout({ home: 2, away: 1, advance: 'ARG' }, { home: 2, away: 1, advance: 'BRA' }, M))
+      .toBe(POINTS.EXACT);
+  });
   it('uden match → ingen auto (bagudkompatibelt)', () => {
     expect(scoreKnockout({ home: 2, away: 1 }, { home: 2, away: 1, advance: 'BRA' }))
       .toBe(POINTS.EXACT);

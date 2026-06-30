@@ -182,6 +182,15 @@ describe('scoreKnockout()', () => {
     expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
   });
 
+  it('halvgardering: afgørende tip MEN videre sat til taberen → ingen advance-bonus (max 5)', () => {
+    // Tipper BRA-sejr 2-1, men vælger bevidst ARG videre (fx på straffe). BRA gik videre.
+    const bet    = { home: 2, away: 1, advance: 'ARG' };
+    const result = { home: 2, away: 1, advance: 'BRA' };
+    expect(scoreKnockout(bet, result, M)).toBe(POINTS.EXACT); // 5, IKKE 7 — bevidst halvgardering
+    // …og rammer halvgarderingen (ARG videre), gives advance-bonussen.
+    expect(scoreKnockout(bet, { home: 1, away: 1, advance: 'ARG' }, M)).toBe(POINTS.KNOCKOUT_ADVANCE);
+  });
+
   it('uden match falder tilbage på eksplicit advance (bagudkompatibelt)', () => {
     const bet    = { home: 2, away: 1 }; // ingen eksplicit advance, intet match
     const result = { home: 2, away: 1, advance: 'BRA' };
