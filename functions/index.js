@@ -1875,6 +1875,63 @@ exports.inspectFootballData = onCall(
 );
 
 // ---------------------------------------------------------------------------
+// inspectMatchRaw — owner/global admin: hent den PRÆCISE football-data for ÉN af
+// vores kampe (via externalId) og vis score-opdelingen + mål-tidslinjen, samt
+// hvad VI udleder af det (90-min + hvem der går videre). Skriver intet i basen.
+// Bruges til at se nøjagtigt hvad vi har at regne på.
+// ---------------------------------------------------------------------------
+exports.inspectMatchRaw = onCall(
+  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  async (request) => {
+    const db = getFirestore();
+    await requireAdmin(db, request);
+    const token = FOOTBALL_DATA_TOKEN.value();
+    if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
+
+    const matchId = String(request.data?.matchId || '').trim();
+    if (!matchId) throw new HttpsError('invalid-argument', 'matchId mangler.');
+    const snap = await db.collection('matches').doc(matchId).get();
+    if (!snap.exists) throw new HttpsError('not-found', `Kamp ${matchId} findes ikke.`);
+    const m = { id: snap.id, ...snap.data() };
+    if (!m.externalId) throw new HttpsError('failed-precondition', `Kamp ${matchId} har ingen externalId (ikke mappet til football-data).`);
+
+    let raw;
+    try {
+      raw = await createClient({ token }).getMatch(m.externalId);
+    } catch (err) {
+      throw new HttpsError('unavailable', `football-data-fejl: ${String(err?.message || err)}`);
+    }
+    const rawMatch = raw && raw.match ? raw.match : raw;
+    const score = (rawMatch && rawMatch.score) || {};
+    const goals = mapMatchDetails(raw).goals; // [{minute, injuryTime, type, side, scorer, assist}]
+    const ninety = knockoutNinetyResult(score, goals);
+    const advance = winnerToCode(score.winner, m);
+
+    return {
+      matchId: m.id,
+      externalId: String(m.externalId),
+      teams: { home: m.homeTeam || null, away: m.awayTeam || null },
+      stored: { status: m.status || null, result: m.result || null, manualLock: !!m.manualLock, koSyncVersion: m.koSyncVersion ?? null },
+      providerStatus: rawMatch?.status ?? null,
+      score: {
+        winner: score.winner ?? null,
+        duration: score.duration ?? null,
+        halfTime: score.halfTime ?? null,
+        regularTime: score.regularTime ?? null,
+        fullTime: score.fullTime ?? null,
+        extraTime: score.extraTime ?? null,
+        penalties: score.penalties ?? null,
+      },
+      goals,
+      derived: {
+        ninetyMinutes: ninety, // 90 min + tillægstid, UDEN forlænget tid/straffe
+        advance: advance || null,
+      },
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Gruppevindere — afgøres automatisk ud fra grupperesultaterne, på samme måde
 // som auto-resultater. Når en gruppe er færdigspillet (6 finished kampe),
 // sættes facit på det tilsvarende groupWinner-bonusspørgsmål; recomputeBonus
