@@ -9,7 +9,63 @@ import {
   sortByPoints,
   computeDailyPoints,
   tippedFinishedCounts,
+  matchPointParts,
+  userMatchBreakdown,
 } from './standingsUtils';
+
+// ── matchPointParts ──────────────────────────────────────────────────────────
+describe('matchPointParts', () => {
+  it('eksakt gruppekamp → én del på 5', () => {
+    const r = matchPointParts({ home: 2, away: 1 }, { round: 'group', result: { home: 2, away: 1 } });
+    expect(r.total).toBe(5);
+    expect(r.parts).toEqual([{ label: 'Eksakt resultat', points: 5 }]);
+  });
+  it('rigtig vinder uden målforskel → 2', () => {
+    const r = matchPointParts({ home: 3, away: 0 }, { round: 'group', result: { home: 1, away: 0 } });
+    expect(r.parts).toEqual([{ label: 'Rigtig vinder', points: 2 }]);
+  });
+  it('knockout: eksakt + videre (auto fra afgørende tip) → 5 + 2', () => {
+    const match = { round: 'r16', homeTeam: 'NED', awayTeam: 'MAR', result: { home: 1, away: 1, advance: 'MAR' } };
+    // Tipper 1-1 men vælger MAR videre → eksakt 5 + videre 2.
+    const r = matchPointParts({ home: 1, away: 1, advance: 'MAR' }, match);
+    expect(r.total).toBe(7);
+    expect(r.parts.map((p) => p.label)).toEqual(['Eksakt resultat', 'Hvem går videre']);
+  });
+  it('knockout: afgørende tip godskriver automatisk videre', () => {
+    const match = { round: 'qf', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 1, advance: 'BRA' } };
+    const r = matchPointParts({ home: 2, away: 1 }, match); // intet eget advance-valg
+    expect(r.total).toBe(7);
+  });
+  it('0 point → tom', () => {
+    expect(matchPointParts({ home: 0, away: 2 }, { round: 'group', result: { home: 2, away: 0 } }))
+      .toEqual({ total: 0, parts: [] });
+  });
+});
+
+// ── userMatchBreakdown ───────────────────────────────────────────────────────
+describe('userMatchBreakdown', () => {
+  const matches = [
+    { id: 'm1', round: 'group', homeTeam: 'BRA', awayTeam: 'MAR', kickoff: '2026-06-12T19:00:00Z', result: { home: 2, away: 0 } },
+    { id: 'm2', round: 'r16', homeTeam: 'NED', awayTeam: 'MAR', kickoff: '2026-06-30T03:00:00Z', result: { home: 1, away: 1, advance: 'MAR' } },
+    { id: 'm3', round: 'group', homeTeam: 'GER', awayTeam: 'FRA', kickoff: '2026-06-15T19:00:00Z', result: { home: 0, away: 0 } },
+  ];
+  const betsByMatch = new Map([
+    ['m1', [{ uid: 'u1', home: 2, away: 0 }, { uid: 'u2', home: 0, away: 1 }]],
+    ['m2', [{ uid: 'u1', home: 1, away: 1, advance: 'MAR' }]],
+    ['m3', [{ uid: 'u1', home: 2, away: 0 }]], // hjemmesejr tippet, men 0-0 → forkert udfald (0 point)
+  ]);
+
+  it('viser kun kampe med point, nyeste først', () => {
+    const out = userMatchBreakdown('u1', matches, betsByMatch);
+    expect(out.map((r) => r.matchId)).toEqual(['m2', 'm1']); // m3 (0 point) udeladt; m2 nyest
+    expect(out[0].total).toBe(7); // eksakt 1-1 + MAR videre
+    expect(out[1].total).toBe(5); // eksakt 2-0
+  });
+  it('tom for ukendt/uden uid', () => {
+    expect(userMatchBreakdown('u2', matches, betsByMatch).map((r) => r.matchId)).toEqual([]); // u2 ramte forkert
+    expect(userMatchBreakdown(null, matches, betsByMatch)).toEqual([]);
+  });
+});
 
 // ── tippedFinishedCounts ─────────────────────────────────────────────────────
 describe('tippedFinishedCounts', () => {
