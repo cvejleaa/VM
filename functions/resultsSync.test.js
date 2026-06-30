@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
   teamCodeMatches, matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
+  healedKnockoutResult,
 } = require('./resultsSync');
 
 const NOW = new Date('2026-06-11T21:00:00Z');
@@ -154,6 +155,54 @@ describe('patchChangesDoc', () => {
   it('true når advance tilføjes', () => {
     const m = { status: 'finished', result: { home: 1, away: 1 } };
     expect(patchChangesDoc(m, { status: 'finished', result: { home: 1, away: 1, advance: 'ARG' } })).toBe(true);
+  });
+});
+
+describe('healedKnockoutResult', () => {
+  it('retter et straffe-oppustet resultat til 90 min + tillægstid, videre fra straffe', () => {
+    // NED–MAR: 1-1 efter 90 (+ tillægstid), straffe 2-3 → MAR videre.
+    const m = {
+      round: 'r32', homeTeam: 'NED', awayTeam: 'MAR',
+      result: { home: 4, away: 4, advance: 'MAR' },
+      details: {
+        goals: [
+          { minute: 72, side: 'home' },
+          { minute: 90, injuryTime: 1, side: 'away' },
+        ],
+        penalties: { home: 2, away: 3 },
+      },
+    };
+    expect(healedKnockoutResult(m)).toEqual({ home: 1, away: 1, advance: 'MAR' });
+  });
+
+  it('forlænget tid tæller ikke med (minut > 90)', () => {
+    const m = {
+      round: 'sf', homeTeam: 'GER', awayTeam: 'FRA',
+      result: { home: 2, away: 1, advance: 'GER' },
+      details: { goals: [
+        { minute: 30, side: 'home' },
+        { minute: 80, side: 'away' },
+        { minute: 105, side: 'home' }, // forlænget tid
+      ] },
+    };
+    // 90-min = 1-1; ingen straffe → uafgjort → bevarer eksisterende advance.
+    expect(healedKnockoutResult(m)).toEqual({ home: 1, away: 1, advance: 'GER' });
+  });
+
+  it('udleder videre fra 90-min-vinder uden straffe', () => {
+    const m = {
+      round: 'qf', homeTeam: 'BRA', awayTeam: 'ARG',
+      result: { home: 9, away: 9 },
+      details: { goals: [{ minute: 10, side: 'home' }, { minute: 20, side: 'home' }, { minute: 60, side: 'away' }] },
+    };
+    expect(healedKnockoutResult(m)).toEqual({ home: 2, away: 1, advance: 'BRA' });
+  });
+
+  it('null for gruppekampe og uden mål-data', () => {
+    expect(healedKnockoutResult({ round: 'group', result: { home: 1, away: 0 }, details: { goals: [{ minute: 5, side: 'home' }] } })).toBeNull();
+    expect(healedKnockoutResult({ round: 'qf', result: { home: 1, away: 0 }, details: { goals: [] } })).toBeNull();
+    expect(healedKnockoutResult({ round: 'qf', result: { home: 1, away: 0 } })).toBeNull();
+    expect(healedKnockoutResult(null)).toBeNull();
   });
 });
 

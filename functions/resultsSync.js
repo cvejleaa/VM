@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 'use strict';
 
-const { mapStatus, extractScore, REVIEW_STATUSES } = require('./footballData');
+const { mapStatus, extractScore, REVIEW_STATUSES, regularTimeScore } = require('./footballData');
 
 /** Normalisér navn/kode til sammenligning (accenter væk, kun a-z0-9). */
 function norm(s) {
@@ -169,7 +169,39 @@ function auditKickoffs(ours, fdMatches) {
   return changes;
 }
 
+/**
+ * Ret-resultat for en AFSLUTTET knockout-kamp ud fra de GEMTE kampdetaljer —
+ * helt UDEN football-data-kald (så det ikke rammer rate-limit). Bruges til at
+ * rette et straffe-/forlænget-tids-oppustet resultat med tilbagevirkende kraft.
+ *
+ *  - score = 90 min + tillægstid fra mål-tidslinjen (regularTimeScore: minut 1..90,
+ *    kendt side; forlænget tid og straffespark tæller ikke).
+ *  - "videre" afgøres af straffesparkene (hvis de er gemt og ikke uafgjorte),
+ *    ellers af 90-min-vinderen, ellers bevares eksisterende advance.
+ *
+ * @param {object} match  kamp-doc med {round, homeTeam, awayTeam, result, details}
+ * @returns {{home:number, away:number, advance:string|null}|null}  null hvis ikke muligt
+ */
+function healedKnockoutResult(match) {
+  if (!match || !match.result) return null;
+  const isKnockout = match.round && match.round !== 'group';
+  if (!isKnockout) return null;
+  const goals = match.details && Array.isArray(match.details.goals) ? match.details.goals : null;
+  if (!goals || goals.length === 0) return null; // ingen mål-data → vent på detalje-synken
+
+  const ninety = regularTimeScore(goals);
+  let advance = match.result.advance || null;
+  const pens = match.details && match.details.penalties;
+  if (pens && pens.home != null && pens.away != null && pens.home !== pens.away) {
+    advance = pens.home > pens.away ? (match.homeTeam || advance) : (match.awayTeam || advance);
+  } else if (ninety.home !== ninety.away) {
+    advance = ninety.home > ninety.away ? (match.homeTeam || advance) : (match.awayTeam || advance);
+  }
+  return { home: ninety.home, away: ninety.away, advance: advance || null };
+}
+
 module.exports = {
   norm, teamCodeMatches, utcDate, kickoffMs,
   matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
+  healedKnockoutResult,
 };
