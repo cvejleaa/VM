@@ -6,7 +6,7 @@ import MatchResultForm from './MatchResultForm';
 import MatchCreateForm from './MatchCreateForm';
 import SyncHealthBanner from './SyncHealthBanner';
 import RecapBackfillPanel from './RecapBackfillPanel';
-import { callImportKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, callInspectMatchRaw, clearManualLock, formatTimestamp } from './adminActions';
+import { callImportKnockout, callBackfillTipParticipation, callSendTipRemindersNow, callSyncResultsNow, callSyncFixtures, callSyncScorersNow, callSyncMatchDetailsNow, callSyncStandingsNow, callInspectMatchRaw, callRecomputeAllPointsNow, clearManualLock, formatTimestamp } from './adminActions';
 import { MATCH_STATUS, ROUNDS } from '../../lib/constants';
 
 // Oversæt runde til dansk
@@ -92,6 +92,16 @@ export default function MatchesTab() {
     if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
     const d = res.data ?? {};
     setSyncMsg(`Topscorere opdateret: ${d.count ?? 0} spillere${d.top ? ` (fører: ${d.top})` : ''}.`);
+  }
+
+  async function handleRecomputeAll() {
+    if (!window.confirm('Genberegn ALLE tip-point med de nuværende regler? (engangs-backfill, fx efter regelændring)')) return;
+    setSyncBusy(true); setSyncMsg('');
+    const res = await callRecomputeAllPointsNow();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncMsg(`Fejl: ${res.error}`); return; }
+    const d = res.data ?? {};
+    setSyncMsg(`Point genberegnet: ${d.matches ?? 0} kampe, ${d.usersUpdated ?? 0} spillere opdateret.`);
   }
 
   async function handleSyncMatchDetails() {
@@ -250,6 +260,15 @@ export default function MatchesTab() {
           title="Send e-mail-påmindelser nu (test)"
         >
           {reminderBusy ? 'Sender…' : '✉️ Send påmindelser nu'}
+        </button>
+
+        <button
+          className="btn btn--ghost"
+          onClick={handleRecomputeAll}
+          disabled={syncBusy}
+          title="Genberegn alle tip-point med de nuværende regler (fx efter en regelændring)"
+        >
+          {syncBusy ? 'Kører…' : '♻️ Genberegn alle point'}
         </button>
 
       </div>

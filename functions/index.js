@@ -86,53 +86,66 @@ exports.recomputeMatch = onDocumentWritten(
       JSON.stringify(before?.result) === JSON.stringify(after.result)
     ) return;
 
-    const result = after.result;
-    // Afgør om det er en knockout-runde
-    const isKnockout = after.round && after.round !== 'group';
-
-    // Hent alle bets for denne kamp
-    const betsSnap = await db
-      .collection('bets')
-      .where('matchId', '==', matchId)
-      .get();
-
-    if (betsSnap.empty) return;
-
-    // Beregn point i batches (Firestore max 500 pr. batch)
-    const BATCH_SIZE = 400;
-    let batch = db.batch();
-    let opsInBatch = 0;
-    const batches = [batch];
-
-    for (const betDoc of betsSnap.docs) {
-      const bet = betDoc.data();
-      const pts = isKnockout
-        ? scoreKnockout(bet, result, after)
-        : scoreMatch(bet, result);
-
-      batch.update(betDoc.ref, { points: pts });
-      opsInBatch++;
-
-      if (opsInBatch >= BATCH_SIZE) {
-        batch = db.batch();
-        batches.push(batch);
-        opsInBatch = 0;
-      }
-    }
-
-    // Commit alle batches
-    for (const b of batches) {
-      await b.commit();
-    }
-
-    // Opdater totalPoints for hver berørt bruger
-    const affectedUids = [...new Set(betsSnap.docs.map(d => d.data().uid))];
-
+    // Genberegn alle tip-point for kampen og opdatér de berørte brugeres totaler.
+    const affectedUids = await recomputeBetsForMatch(db, matchId, after);
     for (const uid of affectedUids) {
       await recalcUserTotal(db, uid);
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// recomputeBetsForMatch — genberegn `points` for ALLE tip på én kamp med den
+// nuværende scoring (inkl. knockout-"videre", evt. automatisk fra et afgørende
+// tip). Skriver kun når et tals point reelt ændrer sig. Returnerer de berørte
+// uids (kalderen står for at opdatere bruger-totaler). Ingen bruger-opdatering her,
+// så funktionen kan genbruges i en backfill uden N× total-genberegninger pr. kamp.
+// ---------------------------------------------------------------------------
+async function recomputeBetsForMatch(db, matchId, match) {
+  if (!match || !match.result) return [];
+  const isKnockout = match.round && match.round !== 'group';
+  const betsSnap = await db.collection('bets').where('matchId', '==', matchId).get();
+  if (betsSnap.empty) return [];
+
+  let batch = db.batch();
+  let opsInBatch = 0;
+  const batches = [batch];
+  for (const betDoc of betsSnap.docs) {
+    const bet = betDoc.data();
+    const pts = isKnockout ? scoreKnockout(bet, match.result, match) : scoreMatch(bet, match.result);
+    const cur = typeof bet.points === 'number' ? bet.points : null;
+    if (cur === pts) continue; // uændret → spring skrivning over
+    batch.update(betDoc.ref, { points: pts });
+    opsInBatch++;
+    if (opsInBatch >= 400) { batch = db.batch(); batches.push(batch); opsInBatch = 0; }
+  }
+  for (const b of batches) await b.commit();
+  return [...new Set(betsSnap.docs.map((d) => d.data().uid))];
+}
+
+// ---------------------------------------------------------------------------
+// recomputeAllPointsNow — owner/global admin: genberegn ALLE tip-point med den
+// nuværende scoring og opdatér bruger-totaler. Bruges som engangs-backfill efter
+// en regelændring (fx automatisk "videre" fra et afgørende tip), så de point der
+// blev gemt under de gamle regler bringes i overensstemmelse. Tungt men sjældent.
+// ---------------------------------------------------------------------------
+exports.recomputeAllPointsNow = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  const matchesSnap = await db.collection('matches')
+    .where('status', 'in', ['finished', 'live']).get();
+  const affected = new Set();
+  let matchesDone = 0;
+  for (const d of matchesSnap.docs) {
+    const m = { id: d.id, ...d.data() };
+    if (!m.result) continue;
+    const uids = await recomputeBetsForMatch(db, m.id, m);
+    uids.forEach((u) => affected.add(u));
+    matchesDone += 1;
+  }
+  for (const uid of affected) await recalcUserTotal(db, uid);
+  return { matches: matchesDone, usersUpdated: affected.size };
+});
 
 // ---------------------------------------------------------------------------
 // recomputeBonus — beregner point for alle bonusBets når facit sættes

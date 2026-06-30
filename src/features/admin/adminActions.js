@@ -303,6 +303,24 @@ export async function callSyncMatchDetailsNow() {
 }
 
 /**
+ * Kald Cloud Function 'recomputeAllPointsNow' — genberegn ALLE tip-point med den
+ * nuværende scoring og opdatér bruger-totaler (engangs-backfill efter regelændring).
+ */
+export async function callRecomputeAllPointsNow() {
+  try {
+    const fn = httpsCallable(functions, 'recomputeAllPointsNow');
+    const result = await fn();
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "recomputeAllPointsNow" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af recomputeAllPointsNow.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectMatchRaw' — hent den præcise football-data for én
  * kamp (score-opdeling + mål-tidslinje + hvad vi udleder). Skriver intet.
  */
