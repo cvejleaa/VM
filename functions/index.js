@@ -1613,7 +1613,15 @@ async function runSyncMatchDetails(db, token, { now = new Date() } = {}) {
     const isKnockout = m.round && m.round !== 'group';
     if (isKnockout && m.externalId && !m.manualLock && m.koSyncVersion !== KO_SYNC_VERSION) heal.push(m);
   }
-  heal.sort((a, b) => (tsToMs(b.kickoff) ?? 0) - (tsToMs(a.kickoff) ?? 0));
+  // Prioritér kampe der MANGLER gemte mål (det er dem, den rate-limit-frie healer
+  // ikke kan rette) — så de får hentet og gemt deres mål-data først. Derefter nyeste.
+  const goalsMissing = (m) => !(m.details && Array.isArray(m.details.goals) && m.details.goals.length > 0);
+  heal.sort((a, b) => {
+    const am = goalsMissing(a) ? 0 : 1;
+    const bm = goalsMissing(b) ? 0 : 1;
+    if (am !== bm) return am - bm;
+    return (tsToMs(b.kickoff) ?? 0) - (tsToMs(a.kickoff) ?? 0);
+  });
   for (const m of heal.slice(0, DETAIL_HEAL_LIMIT)) byId.set(m.id, m);
 
   const candidates = [...byId.values()];
@@ -1703,9 +1711,11 @@ async function runHealKnockoutResults(db) {
   return { fixed };
 }
 
-// Skemalagt: hver 2. minut (kun når der er kampe i vinduet).
+// Skemalagt: hver 3. minut. timeoutSeconds højt nok til at vente football-datas
+// rate-limit ud (op til ~60s) UDEN at blive dræbt midt i — ellers når den aldrig at
+// gemme mål-data for kampe der afsluttes samtidig (hele knockout-runden på én gang).
 exports.syncMatchDetails = onSchedule(
-  { schedule: 'every 2 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  { schedule: 'every 3 minutes', timeoutSeconds: 150, timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
     // Ret knockout-resultater fra gemte detaljer FØRST (ingen API → ingen rate-limit).
@@ -1935,7 +1945,9 @@ exports.inspectFootballData = onCall(
 // Bruges til at se nøjagtigt hvad vi har at regne på.
 // ---------------------------------------------------------------------------
 exports.inspectMatchRaw = onCall(
-  { region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  // timeoutSeconds højt nok til at vente football-datas rate-limit-reset ud, så
+  // "Ret resultat"-knappen kan skrive resultatet selv når kvoten lige er opbrugt.
+  { region: REGION, timeoutSeconds: 120, secrets: [FOOTBALL_DATA_TOKEN] },
   async (request) => {
     const db = getFirestore();
     await requireAdmin(db, request);
