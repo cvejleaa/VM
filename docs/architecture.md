@@ -39,7 +39,11 @@ Firebase
 | homePlaceholder / awayPlaceholder | string\|null | fx "Vinder gruppe A" |
 | kickoff | timestamp | UTC; deadline for tips |
 | status | string | `scheduled`/`pendingTeams`/`live`/`finished` |
-| result | {home,away,advance?}\|null | sat af admin |
+| result | {home,away,advance?}\|null | knockout: 90 min + tillægstid (IKKE forlænget tid/straffe). `advance` = holdkode der gik videre |
+| manualLock | bool | admin har rettet manuelt → auto-synk + import rører den ikke |
+| externalId | string | football-data match-id (knockout: `ko_<id>`) |
+| koSyncVersion | number | versioneret gate for knockout-resultat-synk (bump → genberegn) |
+| details | object\|null | mål-tidslinje, kort, straffe m.m. fra football-data |
 | stadium / city | string | |
 
 ### `bets/{uid}_{matchId}`
@@ -62,7 +66,8 @@ Firebase
 | options | string[]\|null | valgmuligheder |
 
 ### `bonusBets/{uid}_{questionId}`
-answer (string), points (number\|null), updatedAt.
+answer (string), points (number\|null), updatedAt, derived (bool — sat når svaret
+er afledt af kamp-tips af admin-værktøjet "Puljevindere", ikke svaret af spilleren selv).
 
 ### `leagues/{leagueId}`
 | Felt | Type | Note |
@@ -79,7 +84,21 @@ Globale indstillinger (pointregler-spejl, turneringsnavn, startdato).
 ## Pointlogik
 Autoritativ kilde: `functions/scoring.js` (spejler `src/lib/scoring.js` 1:1).
 Klienten viser kun *mulige* point; de endelige sættes server-side så de ikke
-kan manipuleres.
+kan manipuleres. Knockout: `scoreKnockout(bet, result, match)` lægger advance-bonus
+til; uden eget "videre"-valg godskrives vinderen af et **afgørende** score-tip automatisk.
+
+## Knockout, football-data & drift
+Vigtige funktioner ud over diagrammet ovenfor:
+`recomputeBetsForMatch`/`recomputeAllPointsNow` (genberegn point), `healKnockoutResults`
+(rate-limit-fri rettelse af knockout-90-min fra gemte mål), `syncMatchDetails`
+(detaljer + 90-min), `inspectMatchRaw` (Rådata-diagnostik), `awardDerivedGroupWinnersNow`
+(tilskriv afledte puljevindere), `importKnockoutFromFootballData` (afstem bracket — rører
+aldrig spillede/låste kampe).
+
+> **Læs `docs/learnings.md`** for de hård-vundne detaljer: football-data v4 score-semantik
+> (fullTime kan inkludere straffe!), 90-min-beregning fra mål-tidslinjen, selvhelbredelse
+> uden API-kald, Gen2-invoker-IAM, App Check-støj og deploy-409-fælden. Tilføj nye
+> callables til `CALLABLES`-listen i `.github/workflows/deploy.yml`.
 
 ## Sikkerhedsprincipper
 - Spillere kan kun læse/skrive **egne** `bets`/`bonusBets`, og kun **før** deadline.

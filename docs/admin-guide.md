@@ -103,3 +103,22 @@ tryk **Hent forhåndsvisning**. Intet gemmes i databasen.
 ## Tips
 - Resultater kan rettes; point genberegnes automatisk ved hver ændring.
 - Rangeringen (samlet + dagens) opdateres live for alle spillere.
+
+## Knockout & football-data-værktøjer (nyt)
+- **🔎 Rådata** (pr. kamp i Kampe-fanen): viser den præcise football-data — score-opdeling
+  (halvleg/ordinær/fuld/forlænget/straffe), mål-tidslinje, og hvad vi udleder (90 min +
+  videre) op mod det gemte. Knappen **"Ret resultat til X–Y"** skriver det udledte 90-min-
+  resultat direkte (nyttig hvis auto-synken hænger pga. rate-limit).
+- **♻️ Genberegn alle point** (Kampe-fanen): engangs-backfill der genberegner ALLE tip-point
+  med de nuværende regler. Kør den efter en scoring-regelændring, hvis stillingens "Kampe"-
+  total ikke matcher den udfoldede pointhøst.
+- **🏆 Puljevindere** (egen fane): udleder hver spillers gruppevinder fra deres 6 kamp-tips.
+  **Forhåndsvis** → **Tilskriv point** krediterer gruppevinder-bonus til dem der ramte via
+  tips OG ikke selv har svaret (eksisterende svar overskrives aldrig).
+- **Knockout (1/16 osv.) scores på 90 min + tillægstid** — forlænget tid/straffe tæller ikke
+  i resultatet (man gætter "hvem går videre"). Tipper man en afgørende score uden selv at
+  vælge videre, godskrives vinderen automatisk.
+- **Importér knockout** rører aldrig spillede eller manuelt låste kampe.
+
+> Driftsdetaljer og fælder (rate-limit, Gen2-IAM/CORS, App Check-støj, deploy-409): se
+> `docs/learnings.md`.

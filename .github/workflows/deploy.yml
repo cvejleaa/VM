@@ -106,13 +106,20 @@ jobs:
               if [ "$code" -eq 0 ] && [ "$partial" -gt 0 ]; then
                 echo "::warning::Delvis functions-fejl ($partial) — prøver igen for at fuldføre."
                 if [ "$n" -ge "$max" ]; then
-                  echo "::warning::Stadig delvise functions-fejl efter $max forsøg — fortsætter."
-                  return 0
+                  # FEJL SYNLIGT: en funktion der stadig ikke kunne opdateres efter
+                  # alle forsøg (fx en fastlåst Gen2-operation / vedvarende 409) er
+                  # IKKE en succes — ellers shipper vi gammel kode bag et grønt flueben.
+                  # (Ved 'all' er hosting allerede udgivet som sin egen release, så
+                  # dette blokerer aldrig frontend.)
+                  echo "::error::'$only' havde stadig fejlede funktioner efter $max forsøg (fx fastlåst Gen2-operation/409). Fejler synligt — kør igen når operationen er drænet."
+                  return 1
                 fi
               else
                 echo "::warning::Deploy af '$only' fejlede (forsøg $n/$max)."
               fi
-              [ "$n" -lt "$max" ] && sleep $((n * 15))
+              # Længere backoff: en Gen2 "operation in progress"/409 skal have tid
+              # til at dræne, ellers re-fejler næste forsøg straks (60s, 120s).
+              [ "$n" -lt "$max" ] && sleep $((n * 60))
             done
             echo "::error::Deploy af '$only' fejlede efter $max forsøg."
             return 1
@@ -122,14 +129,15 @@ jobs:
           if [ -n "$ONLY_FUNCTION" ]; then
             # Deploy én enkelt funktion — ingen concurrency-kamp, så dens
             # invoker-IAM bliver sat korrekt (fikser CORS på nye funktioner).
-            deploy_once "functions:$ONLY_FUNCTION"
+            # Fejl synligt hvis funktionen ikke kunne opdateres (intet andet at beskytte).
+            deploy_once "functions:$ONLY_FUNCTION" || exit 1
           else
             case "${{ inputs.target }}" in
               hosting-rules)
-                deploy_once "hosting,firestore:rules,firestore:indexes"
+                deploy_once "hosting,firestore:rules,firestore:indexes" || exit 1
                 ;;
               functions)
-                deploy_once "functions"
+                deploy_once "functions" || exit 1
                 ;;
               all)
                 # Hosting/regler FØRST og som sin egen udgivelse, så en
