@@ -4,7 +4,66 @@
  */
 
 import { TIMEZONE } from '../../lib/constants';
-import { scoreMatch, scoreKnockout } from '../../lib/scoring';
+import { scoreMatch, scoreKnockout, betAdvance, POINTS } from '../../lib/scoring';
+
+/** ms fra et kickoff (Timestamp/Date/ISO). */
+function kickoffMs(k) {
+  const d = k?.toDate ? k.toDate() : new Date(k);
+  const t = d.getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Opdel én kamps point i navngivne dele (til "udfold point"-visningen).
+ * @param {{home:number, away:number, advance?:string}} bet
+ * @param {{round?:string, result?:object, homeTeam?:string, awayTeam?:string}} match
+ * @returns {{total:number, parts:Array<{label:string, points:number}>}}
+ */
+export function matchPointParts(bet, match) {
+  const result = match?.result;
+  if (!bet || !result) return { total: 0, parts: [] };
+  const isKo = !!match.round && match.round !== 'group';
+  const base = scoreMatch(bet, result);
+  const parts = [];
+  if (base === POINTS.EXACT) parts.push({ label: 'Eksakt resultat', points: POINTS.EXACT });
+  else if (base === POINTS.GOAL_DIFF) parts.push({ label: 'Rigtig målforskel', points: POINTS.GOAL_DIFF });
+  else if (base === POINTS.OUTCOME) parts.push({ label: 'Rigtig vinder', points: POINTS.OUTCOME });
+  if (isKo) {
+    const adv = betAdvance(bet, match);
+    if (adv && result.advance && adv === result.advance) {
+      parts.push({ label: 'Hvem går videre', points: POINTS.KNOCKOUT_ADVANCE });
+    }
+  }
+  const total = parts.reduce((s, p) => s + p.points, 0);
+  return { total, parts };
+}
+
+/**
+ * Alle afsluttede kampe hvor en bruger har fået point, med opdeling pr. kamp.
+ * Nyeste først. Bruges til den udfoldelige pointhøst i stillingen.
+ * @param {string} uid
+ * @param {Array<object>} matches  afsluttede kampe (med result)
+ * @param {Map<string,Array>|object} betsByMatch  matchId -> bets[]
+ * @returns {Array<{matchId,homeTeam,awayTeam,round,kickoff,bet,result,parts,total}>}
+ */
+export function userMatchBreakdown(uid, matches, betsByMatch) {
+  if (!uid) return [];
+  const getBets = (id) => (betsByMatch?.get ? betsByMatch.get(id) : betsByMatch?.[id]) ?? [];
+  const out = [];
+  for (const m of matches || []) {
+    if (!m || !m.result) continue;
+    const bet = getBets(m.id).find((b) => b && b.uid === uid);
+    if (!bet) continue;
+    const { total, parts } = matchPointParts(bet, m);
+    if (total <= 0) continue;
+    out.push({
+      matchId: m.id, homeTeam: m.homeTeam, awayTeam: m.awayTeam,
+      round: m.round, kickoff: m.kickoff, bet, result: m.result, parts, total,
+    });
+  }
+  out.sort((a, b) => kickoffMs(b.kickoff) - kickoffMs(a.kickoff));
+  return out;
+}
 
 /**
  * Returnerer dags dato som 'YYYY-MM-DD' i Europe/Copenhagen-tidszonen.

@@ -12,7 +12,8 @@ import { useDailyStandings } from '../features/leaderboard/useDailyStandings';
 import { useLeagues } from '../features/leagues/useLeagues';
 import { useMatches } from '../features/matches/useMatches';
 import { useTipParticipation } from '../features/leagues/useTipParticipation';
-import { collectVisibleUids, tippedFinishedCounts } from '../features/leaderboard/standingsUtils';
+import { collectVisibleUids, tippedFinishedCounts, userMatchBreakdown } from '../features/leaderboard/standingsUtils';
+import { useStatsData } from '../features/stats/useStatsData';
 import StandingsTable from '../features/leaderboard/StandingsTable';
 import SharpStandings from '../features/leaderboard/SharpStandings';
 import ThemeToggle from '../features/leaderboard/ThemeToggle';
@@ -60,6 +61,13 @@ export default function LeaderboardPage() {
     [allMatches, tipByMatch],
   );
   const getTipped = useCallback((uid) => tippedByUid[uid] ?? 0, [tippedByUid]);
+
+  // Udfoldelig pointhøst pr. spiller: alle afsluttede kampe + tip på dem.
+  const { matches: finishedMatches, betsByMatch } = useStatsData();
+  const getMatchBreakdown = useCallback(
+    (uid) => userMatchBreakdown(uid, finishedMatches, betsByMatch),
+    [finishedMatches, betsByMatch],
+  );
 
   // Når en liga er valgt, rangeres efter dens scoring-valg — inkl. liga-bonus,
   // så forsidens filter matcher ligaens egen side præcist.
@@ -193,6 +201,7 @@ export default function LeaderboardPage() {
             getTipped={getTipped}
             sortMode={sortMode}
             showBreakdown={!useLeagueScoring}
+            getMatchBreakdown={getMatchBreakdown}
             emptyMsg="Ingen godkendte spillere endnu."
           />
         </div>

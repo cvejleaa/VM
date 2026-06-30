@@ -3,9 +3,56 @@
  * Tager en sorteret liste af brugere og valgfrit fremhæver den indloggede bruger.
  * Bruges til global stilling, dagsvisning og liga-stilling.
  */
-import { useMemo } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { filterByMembers } from './standingsUtils';
 import Avatar from '../../components/Avatar';
+import { teamName } from '../../lib/teams';
+
+/** Udfoldet liste over de kampe en spiller har fået point i, med point-type. */
+function PointBreakdown({ rows }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div style={{ padding: '0.6rem 0.9rem', fontSize: '0.85rem', color: 'var(--c-muted)', background: 'var(--c-surface-2, #f7f7f7)' }}>
+        Ingen kamp-point endnu.
+      </div>
+    );
+  }
+  const sum = rows.reduce((s, r) => s + r.total, 0);
+  return (
+    <div style={{ padding: '0.5rem 0.9rem', background: 'var(--c-surface-2, #f7f7f7)' }}>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {rows.map((r) => (
+          <li
+            key={r.matchId}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
+              padding: '0.35rem 0', borderTop: '1px solid var(--c-border)',
+            }}
+          >
+            <span style={{ fontSize: '0.85rem', minWidth: 0 }}>
+              <strong>{teamName(r.homeTeam) || r.homeTeam || '?'}</strong>
+              {' '}{r.result.home}–{r.result.away}{' '}
+              <strong>{teamName(r.awayTeam) || r.awayTeam || '?'}</strong>
+              {r.result.advance ? <span style={{ color: 'var(--c-muted)' }}> · videre: {teamName(r.result.advance) || r.result.advance}</span> : null}
+            </span>
+            <span style={{ display: 'inline-flex', gap: '0.3rem', flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
+              {r.parts.map((p) => (
+                <span key={p.label} className="badge badge--muted" style={{ fontSize: '0.7rem' }}>
+                  {p.label} +{p.points}
+                </span>
+              ))}
+              <span className="pts" style={{ fontSize: '0.9rem', minWidth: '2.2rem', textAlign: 'right' }}>+{r.total}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.4rem', padding: '0.4rem 0 0.1rem', fontSize: '0.85rem', fontWeight: 700 }}>
+        <span style={{ color: 'var(--c-muted)' }}>Kamp-point i alt:</span>
+        <span>+{sum}</span>
+      </div>
+    </div>
+  );
+}
 
 /** Lille pil der viser bevægelse i stillingen siden i går. */
 function MovementArrow({ delta }) {
@@ -32,6 +79,7 @@ function MovementArrow({ delta }) {
  * @param {'total'|'avg'} [props.sortMode] – sortér efter total eller gennemsnit
  * @param {boolean}  [props.showBreakdown] – vis "Kampe"- og "Bonus"-kolonner (kun global total)
  * @param {function} [props.getBreakdown] – fn(user) → {match, bonus}; overstyrer standard-opdelingen (fx liga-scoring)
+ * @param {function} [props.getMatchBreakdown] – fn(uid) → Array af kampe med point-opdeling; aktiverer udfoldelig pointhøst pr. spiller
  */
 export default function StandingsTable({
   users = [],
@@ -46,7 +94,9 @@ export default function StandingsTable({
   sortMode = 'total',
   showBreakdown = false,
   getBreakdown = null,
+  getMatchBreakdown = null,
 }) {
+  const [expandedUid, setExpandedUid] = useState(null);
   // Filtrer og sorter brugerene
   const rows = useMemo(() => {
     // Filtrer til medlemmer af valgt liga
@@ -88,6 +138,8 @@ export default function StandingsTable({
     );
   }
 
+  const colCount = 1 + (showMovement ? 1 : 0) + 1 + (showBreakdown ? 2 : 0) + 1 + (showAvg ? 1 : 0);
+
   return (
     <div className="table-wrap">
       <table className="table">
@@ -110,8 +162,17 @@ export default function StandingsTable({
               ? u.previousRank - rank
               : null;
 
+            const canExpand = !!getMatchBreakdown;
+            const isExpanded = canExpand && expandedUid === u.uid;
+            const breakdown = isExpanded ? (getMatchBreakdown(u.uid) || []) : null;
+
             return (
-              <tr key={u.uid} className={isMe ? 'is-me' : ''}>
+              <Fragment key={u.uid}>
+              <tr
+                className={`${isMe ? 'is-me' : ''}${canExpand ? ' is-expandable' : ''}`}
+                onClick={canExpand ? () => setExpandedUid(isExpanded ? null : u.uid) : undefined}
+                style={canExpand ? { cursor: 'pointer' } : undefined}
+              >
                 {/* Placering med medalje til top 3 */}
                 <td>
                   {rank <= 3 ? (
@@ -130,6 +191,14 @@ export default function StandingsTable({
                 {/* Avatar + spillernavn + evt. "dig"-badge */}
                 <td>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {canExpand && (
+                      <span
+                        aria-hidden="true"
+                        style={{ color: 'var(--c-muted)', fontSize: '0.7rem', width: '0.7rem', display: 'inline-block', transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' }}
+                      >
+                        ▶
+                      </span>
+                    )}
                     <Avatar uid={u.uid} name={u.displayName} emoji={u.avatarEmoji}
                       favoriteTeam={u.favoriteTeam} size={28} />
                     <span className="text-bold" style={{ fontSize: '0.95rem' }}>
@@ -169,6 +238,16 @@ export default function StandingsTable({
                   </td>
                 )}
               </tr>
+
+              {/* Udfoldet pointhøst: kampe spilleren har fået point i + type */}
+              {isExpanded && (
+                <tr className="breakdown-row">
+                  <td colSpan={colCount} style={{ padding: 0 }}>
+                    <PointBreakdown rows={breakdown} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             );
           })}
         </tbody>
