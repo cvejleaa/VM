@@ -9,10 +9,11 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
-const { decideUpdate } = require('./resultsSync');
+const { decideUpdate, healedKnockoutResult } = require('./resultsSync');
 const { scoreMatch, scoreKnockout, bonusPoints, POINTS } = require('./scoring');
 const { computeGroupStandings } = require('./standings');
 const { resolveGroupWinners } = require('./bonusResolve');
+const { mapMatchDetails, knockoutNinetyResult } = require('./footballData');
 
 const NOW = new Date('2026-06-25T21:00:00Z');
 
@@ -69,6 +70,66 @@ describe('resultat-kæden: knockout på straffespark', () => {
     expect(scoreKnockout({ home: 1, away: 1, advance: 'FRA' }, result)).toBe(POINTS.EXACT + POINTS.KNOCKOUT_ADVANCE);
     // Ramte scoren men forkert «videre» → kun score-point.
     expect(scoreKnockout({ home: 1, away: 1, advance: 'ESP' }, result)).toBe(POINTS.EXACT);
+  });
+});
+
+describe('resultat-kæden: knockout-straffe med RIGTIG football-data-form (regression NED–MAR)', () => {
+  // Den FAKTISKE form football-data leverede for Holland–Marokko (1/16):
+  //   - kampen sluttede 1-1 efter 90 min (+ tillægstid), straffe 2-3 → Marokko videre
+  //   - score.fullTime = 3-4 (INKLUDERER straffene!), score.regularTime = 1-1
+  //   - mål-tidslinjen: Gakpo (NED) 72', Diop (MAR) 90+1'
+  // Det var præcis denne form (fullTime ≠ 90-min) der fik kampen gemt som et oppustet
+  // resultat. Denne test fastholder at HELE kæden ender på 90-min-resultatet 1-1.
+  const NED = { id: 10, tla: 'NED', name: 'Netherlands' };
+  const MAR = { id: 20, tla: 'MAR', name: 'Morocco' };
+  const rawDetail = {
+    match: {
+      status: 'FINISHED',
+      homeTeam: NED,
+      awayTeam: MAR,
+      score: {
+        winner: 'AWAY_TEAM',
+        duration: 'PENALTY_SHOOTOUT',
+        halfTime: { home: 0, away: 0 },
+        regularTime: { home: 1, away: 1 },
+        fullTime: { home: 3, away: 4 }, // ← inkl. straffe (fælden)
+        extraTime: { home: 0, away: 0 },
+        penalties: { home: 2, away: 3 },
+      },
+      goals: [
+        { minute: 72, injuryTime: null, type: 'REGULAR', team: NED, scorer: { name: 'Gakpo' } },
+        { minute: 90, injuryTime: 1, type: 'REGULAR', team: MAR, scorer: { name: 'Diop' } },
+      ],
+    },
+  };
+  const score = rawDetail.match.score;
+
+  it('90-min udledes til 1-1 (fullTime/straffe tæller IKKE)', () => {
+    const details = mapMatchDetails(rawDetail);
+    expect(knockoutNinetyResult(score, details.goals)).toEqual({ home: 1, away: 1 });
+    // Kontrast: fullTime ville have givet det forkerte 3-4.
+    expect(score.fullTime).toEqual({ home: 3, away: 4 });
+  });
+
+  it('selvhelbredelsen retter et oppustet gemt resultat til 90-min + videre (uden API)', () => {
+    const details = mapMatchDetails(rawDetail);
+    // Sådan som kampen fejlagtigt lå gemt (fra fullTime):
+    const stored = {
+      round: 'r32', homeTeam: 'NED', awayTeam: 'MAR', status: 'finished',
+      result: { home: 4, away: 4, advance: 'MAR' },
+      details, // mål + straffe gemt af detalje-synken
+    };
+    expect(healedKnockoutResult(stored)).toEqual({ home: 1, away: 1, advance: 'MAR' });
+  });
+
+  it('point er korrekte efter rettelse', () => {
+    const result = { home: 1, away: 1, advance: 'MAR' };
+    // Eksakt 1-1 + tippet NED videre (forkert) → 5 (ingen advance-bonus).
+    expect(scoreKnockout({ home: 1, away: 1, advance: 'NED' }, result)).toBe(POINTS.EXACT);
+    // Tippet 1-2 men MAR videre (rigtigt) → forkert udfald (0) + advance (2).
+    expect(scoreKnockout({ home: 1, away: 2, advance: 'MAR' }, result)).toBe(POINTS.KNOCKOUT_ADVANCE);
+    // Et oppustet 4-4 ville fejlagtigt have givet et 1-1-tip 3 (målforskel) i stedet for 5.
+    expect(scoreKnockout({ home: 1, away: 1, advance: 'NED' }, { home: 4, away: 4, advance: 'MAR' })).toBe(POINTS.GOAL_DIFF);
   });
 });
 
