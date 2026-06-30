@@ -79,11 +79,17 @@ export function derivedGroupWinners(matches, betsByMatch) {
       const standings = computeGroupStandings(synthetic);
       const winner = standings[0]?.team ?? null;
       const ambiguous = !isUnambiguous(standings);
+      // Spillerens faktiske kamp-tips (de 6 scores forudsigelsen bygger på).
+      const tips = groupMatches.map((m) => {
+        const bet = betMap.get(m.id);
+        return { matchId: m.id, homeTeam: m.homeTeam, awayTeam: m.awayTeam, home: Number(bet.home), away: Number(bet.away) };
+      });
       predictions.push({
         uid,
         winner,
         ambiguous,
         correct: actualWinner ? winner === actualWinner : null,
+        tips,
       });
     }
 

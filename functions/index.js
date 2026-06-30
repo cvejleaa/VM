@@ -52,6 +52,7 @@ const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summar
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
+const { computeGroupStandings } = require('./standings');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
 const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints, historicalMembers, windowDayPoints } = require('./leagueRecap');
@@ -145,6 +146,116 @@ exports.recomputeAllPointsNow = onCall({ region: REGION }, async (request) => {
   }
   for (const uid of affected) await recalcUserTotal(db, uid);
   return { matches: matchesDone, usersUpdated: affected.size };
+});
+
+// ---------------------------------------------------------------------------
+// awardDerivedGroupWinnersNow — owner/global admin: tilskriv gruppevinder-bonus
+// til spillere, der har tippet ALLE 6 grundspilskampe i en gruppe og hvis tip-
+// afledte gruppevinder rammer facit — MEN kun til spillere der IKKE selv har
+// svaret på bonusspørgsmålet (eksisterende svar overskrives ALDRIG). Det afledte
+// svar markeres med `derived: true`. dryRun=true skriver intet, men returnerer
+// hvad der ville ske (til forhåndsvisning).
+// ---------------------------------------------------------------------------
+
+/** Spillerens tip-afledte gruppevinder (server-side). Returnerer {winner, ambiguous} | null. */
+function derivePredictedWinner(groupMatches, betByMatchId) {
+  const teams = [...new Set(groupMatches.flatMap((m) => [m.homeTeam, m.awayTeam]).filter(Boolean))];
+  const synth = [];
+  for (const m of groupMatches) {
+    const b = betByMatchId.get(m.id);
+    if (!b) return null; // skal have tippet alle 6
+    const home = Number(b.home);
+    const away = Number(b.away);
+    if (!Number.isFinite(home) || !Number.isFinite(away)) return null;
+    synth.push({ homeTeam: m.homeTeam, awayTeam: m.awayTeam, result: { home, away } });
+  }
+  const standings = computeGroupStandings(teams, synth);
+  const a = standings[0];
+  const b = standings[1];
+  if (!a) return null;
+  const ambiguous = !!b && a.pts === b.pts && a.gd === b.gd && a.gf === b.gf;
+  return { winner: a.team, ambiguous };
+}
+
+exports.awardDerivedGroupWinnersNow = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  const dryRun = request.data?.dryRun === true;
+
+  // Grundspilskampe pr. gruppe.
+  const matchesSnap = await db.collection('matches').where('round', '==', 'group').get();
+  const byGroup = new Map();
+  for (const d of matchesSnap.docs) {
+    const m = { id: d.id, ...d.data() };
+    if (!m.groupName) continue;
+    if (!byGroup.has(m.groupName)) byGroup.set(m.groupName, []);
+    byGroup.get(m.groupName).push(m);
+  }
+
+  // groupWinner-spørgsmål med facit, pr. gruppe.
+  const qSnap = await db.collection('bonusQuestions').where('type', '==', 'groupWinner').get();
+  const questionByGroup = new Map();
+  for (const d of qSnap.docs) {
+    const q = { id: d.id, ...d.data() };
+    if (q.groupName && q.facit) questionByGroup.set(q.groupName, q);
+  }
+
+  const groups = [];
+  const affected = new Set();
+
+  for (const [groupName, groupMatches] of byGroup) {
+    if (groupMatches.length !== 6) continue;
+    if (!groupMatches.every((m) => m.status === 'finished' && m.result)) continue;
+    const question = questionByGroup.get(groupName);
+    if (!question) continue;
+    const facit = question.facit;
+
+    const matchIds = groupMatches.map((m) => m.id);
+    const betsSnap = await db.collection('bets').where('matchId', 'in', matchIds).get();
+    const betsByUser = new Map();
+    for (const bd of betsSnap.docs) {
+      const b = bd.data();
+      if (!b.uid) continue;
+      if (!betsByUser.has(b.uid)) betsByUser.set(b.uid, new Map());
+      betsByUser.get(b.uid).set(b.matchId, b);
+    }
+
+    // Spillere der allerede HAR svaret på bonusspørgsmålet → røres aldrig.
+    const existing = await db.collection('bonusBets').where('questionId', '==', question.id).get();
+    const hasAnswer = new Set(existing.docs.map((d) => d.data().uid));
+
+    const rec = { groupName, facit, awarded: 0, skippedHasAnswer: 0, skippedWrong: 0, skippedAmbiguous: 0 };
+    for (const [uid, betMap] of betsByUser) {
+      if (betMap.size !== 6) continue; // ikke tippet alle 6
+      const derived = derivePredictedWinner(groupMatches, betMap);
+      if (!derived) continue;
+      if (derived.ambiguous) { rec.skippedAmbiguous += 1; continue; }
+      if (hasAnswer.has(uid)) { rec.skippedHasAnswer += 1; continue; } // eget svar → spring over
+      if (derived.winner !== facit) { rec.skippedWrong += 1; continue; }
+
+      rec.awarded += 1;
+      if (!dryRun) {
+        const pts = bonusPoints({ answer: facit, facit, type: 'groupWinner', acceptedAnswers: question.acceptedAnswers ?? [] });
+        await db.collection('bonusBets').doc(`${uid}_${question.id}`).set({
+          uid, questionId: question.id, answer: facit, points: pts, derived: true,
+          createdAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        affected.add(uid);
+      }
+    }
+    groups.push(rec);
+  }
+
+  if (!dryRun) {
+    for (const uid of affected) await recalcUserTotal(db, uid);
+  }
+
+  return {
+    dryRun,
+    groups,
+    totalAwarded: groups.reduce((s, g) => s + g.awarded, 0),
+    usersUpdated: affected.size,
+  };
 });
 
 // ---------------------------------------------------------------------------

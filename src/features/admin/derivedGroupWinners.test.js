@@ -52,6 +52,10 @@ describe('derivedGroupWinners', () => {
     expect(u1.correct).toBe(true);
     expect(u2.winner).toBe('ARG');
     expect(u2.correct).toBe(false);
+
+    // Spillerens faktiske 6 kamp-tips følger med.
+    expect(u1.tips).toHaveLength(6);
+    expect(u1.tips[0]).toMatchObject({ homeTeam: 'BRA', awayTeam: 'ARG', home: 2, away: 0 });
   });
 
   it('udelader spillere der ikke har tippet alle 6 kampe', () => {
