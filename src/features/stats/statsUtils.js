@@ -34,7 +34,7 @@ export function computeMatchStats(match, bets) {
   const tally = new Map(); // "h-a" -> count
 
   for (const b of list) {
-    const pts = isKnockout ? scoreKnockout(b, result) : scoreMatch(b, result);
+    const pts = isKnockout ? scoreKnockout(b, result, match) : scoreMatch(b, result);
     pointsSum += pts;
 
     if (b.home === result.home && b.away === result.away) {
@@ -88,7 +88,7 @@ export function pointsByUidForMatches(matches, betsByMatch) {
     const isKo = m.round && m.round !== ROUNDS.GROUP;
     for (const b of betsByMatch?.get?.(m.id) ?? []) {
       if (!b.uid) continue;
-      out[b.uid] = (out[b.uid] ?? 0) + (isKo ? scoreKnockout(b, m.result) : scoreMatch(b, m.result));
+      out[b.uid] = (out[b.uid] ?? 0) + (isKo ? scoreKnockout(b, m.result, m) : scoreMatch(b, m.result));
     }
   }
   return out;
@@ -164,7 +164,7 @@ export function computePlayerAccuracy(matches, betsByMatch, usersById) {
       if (!b.uid) continue;
       const row = byUid.get(b.uid) ?? { uid: b.uid, tips: 0, exact: 0, correctOutcome: 0, points: 0 };
       row.tips += 1;
-      row.points += isKo ? scoreKnockout(b, res) : scoreMatch(b, res);
+      row.points += isKo ? scoreKnockout(b, res, m) : scoreMatch(b, res);
       if (b.home === res.home && b.away === res.away) row.exact += 1;
       if (Number.isFinite(b.home) && Number.isFinite(b.away) && outcome(b.home, b.away) === outcome(res.home, res.away)) {
         row.correctOutcome += 1;

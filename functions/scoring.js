@@ -45,14 +45,38 @@ function scoreMatch(bet, result) {
 }
 
 /**
+ * Spillerens effektive "videre"-valg i en knockout-kamp.
+ *  - Har spilleren selv valgt et hold, gælder det.
+ *  - Ellers udledes det AUTOMATISK af et AFGØRENDE score-tip: tipper man en sejr,
+ *    går vinderen logisk videre. (Match'ets holdkoder kræves.)
+ *  - Et UAFGJORT tip giver intet automatisk valg → null.
+ * @param {{home:number, away:number, advance?:string}} bet
+ * @param {{homeTeam?:string, awayTeam?:string}} [match]
+ * @returns {string|null}
+ */
+function betAdvance(bet, match) {
+  if (!bet) return null;
+  if (bet.advance) return bet.advance;
+  if (!match) return null;
+  const h = Number(bet.home);
+  const a = Number(bet.away);
+  if (!Number.isFinite(h) || !Number.isFinite(a) || h === a) return null; // uafgjort → intet auto
+  return h > a ? (match.homeTeam ?? null) : (match.awayTeam ?? null);
+}
+
+/**
  * Samlet point for en knockout-kamp: score-point + evt. point for korrekt
- * "hvem går videre".
+ * "hvem går videre". Hvis spilleren ikke selv har valgt et hold, men har tippet
+ * en AFGØRENDE score, godskrives vinderen automatisk som "videre" (kræver `match`
+ * for holdkoderne). Et uafgjort tip uden eget valg giver ingen advance-bonus.
  * @param {{home:number, away:number, advance?:string}} bet
  * @param {{home:number, away:number, advance?:string}} result
+ * @param {{homeTeam?:string, awayTeam?:string}} [match]
  */
-function scoreKnockout(bet, result) {
+function scoreKnockout(bet, result, match) {
   let pts = scoreMatch(bet, result);
-  if (bet?.advance && result?.advance && bet.advance === result.advance) {
+  const adv = betAdvance(bet, match);
+  if (adv && result?.advance && adv === result.advance) {
     pts += POINTS.KNOCKOUT_ADVANCE;
   }
   return pts;
@@ -127,6 +151,6 @@ function bonusPoints({ answer, facit, type, acceptedAnswers = [] }) {
 }
 
 module.exports = {
-  POINTS, outcome, scoreMatch, scoreKnockout, scoreBonus,
+  POINTS, outcome, scoreMatch, scoreKnockout, betAdvance, scoreBonus,
   normalizeName, levenshtein, fuzzyNameMatch, bonusPoints,
 };

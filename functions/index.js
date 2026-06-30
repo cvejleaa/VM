@@ -107,7 +107,7 @@ exports.recomputeMatch = onDocumentWritten(
     for (const betDoc of betsSnap.docs) {
       const bet = betDoc.data();
       const pts = isKnockout
-        ? scoreKnockout(bet, result)
+        ? scoreKnockout(bet, result, after)
         : scoreMatch(bet, result);
 
       batch.update(betDoc.ref, { points: pts });
