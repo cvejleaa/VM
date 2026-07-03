@@ -174,11 +174,12 @@ describe('LeaderboardPage', () => {
     expect(screen.queryByText('Charlie')).not.toBeInTheDocument();
   });
 
-  it('viser gns.-kolonne med point pr. tippet kamp', () => {
+  it('viser gns.-kolonne med KAMP-point pr. tippet kamp (bonus tæller ikke med)', () => {
     render(<LeaderboardPage />);
-    // Alice: 50 point / 2 tippede = 25,0 ; Mig: 30 / 1 = 30,0
+    // Kun kamp-point i tælleren (bonus hører ikke med, da nævneren kun er kampe):
+    // Alice: (33+7) kamp-point / 2 tippede = 20,0 ; Mig: (25+0) / 1 = 25,0
+    expect(screen.getByText('20,0')).toBeInTheDocument();
     expect(screen.getByText('25,0')).toBeInTheDocument();
-    expect(screen.getByText('30,0')).toBeInTheDocument();
   });
 
   it('viser point fra kampe og bonus + total i samlet stilling', () => {
