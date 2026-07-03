@@ -70,10 +70,13 @@ service cloud.firestore {
 
       // Brugeren opretter selv sin profil ved registrering, men KUN med
       // role:'player', status:'pending' og NUL point (kan ikke selv blive
-      // owner/approved eller starte med point på leaderboardet).
+      // owner/approved eller starte med point på leaderboardet). E-mail må ikke
+      // gemmes her — den bor i Firebase Authentication, så den ikke er læsbar
+      // for andre spillere via users-dokumentet.
       allow create: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.role == 'player'
         && request.resource.data.status == 'pending'
+        && !request.resource.data.keys().hasAny(['email'])
         && request.resource.data.get('totalPoints', 0) == 0
         && request.resource.data.get('groupPoints', 0) == 0
         && request.resource.data.get('knockoutPoints', 0) == 0

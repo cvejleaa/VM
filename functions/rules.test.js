@@ -220,10 +220,20 @@ describe('users/{uid} — sikkerhedsregler', () => {
     );
   });
 
-  it('en ny bruger KAN oprette sin egen profil med 0 point', async () => {
+  it('en ny bruger KAN oprette sin egen profil med 0 point (uden email)', async () => {
     const ctx = testEnv.authenticatedContext('newbie');
     await assertSucceeds(
       setDoc(doc(ctx.firestore(), 'users', 'newbie'), {
+        displayName: 'Ny', role: 'player', status: 'pending',
+        totalPoints: 0, createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('en ny bruger KAN IKKE gemme sin email i users-doc\'et (PII bor i Auth)', async () => {
+    const ctx = testEnv.authenticatedContext('newbie2');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'users', 'newbie2'), {
         displayName: 'Ny', email: 'ny@x.dk', role: 'player', status: 'pending',
         totalPoints: 0, createdAt: Timestamp.now(),
       })
@@ -234,7 +244,7 @@ describe('users/{uid} — sikkerhedsregler', () => {
     const ctx = testEnv.authenticatedContext('cheater');
     await assertFails(
       setDoc(doc(ctx.firestore(), 'users', 'cheater'), {
-        displayName: 'Snyd', email: 'snyd@x.dk', role: 'player', status: 'pending',
+        displayName: 'Snyd', role: 'player', status: 'pending',
         totalPoints: 500, createdAt: Timestamp.now(),
       })
     );
@@ -244,7 +254,7 @@ describe('users/{uid} — sikkerhedsregler', () => {
     const ctx = testEnv.authenticatedContext('sneaky');
     await assertFails(
       setDoc(doc(ctx.firestore(), 'users', 'sneaky'), {
-        displayName: 'Sneaky', email: 's@x.dk', role: 'owner', status: 'approved',
+        displayName: 'Sneaky', role: 'owner', status: 'approved',
         totalPoints: 0, createdAt: Timestamp.now(),
       })
     );

@@ -49,7 +49,7 @@ const { scoreMatch, scoreKnockout, bonusPoints } = require('./scoring');
 const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, knockoutNinetyResult } = require('./footballData');
-const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult } = require('./resultsSync');
+const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult, knockoutScoreResult } = require('./resultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { computeGroupStandings } = require('./standings');
@@ -81,10 +81,15 @@ exports.recomputeMatch = onDocumentWritten(
     if (!scored || !after.result) return;
 
     const before = event.data?.before?.data();
-    // Undgå genberegning hvis hverken status eller result har ændret sig
+    // Undgå genberegning hvis hverken status, result ELLER koSyncVersion har ændret
+    // sig. koSyncVersion tælles med, fordi detalje-synken kan bekræfte en knockout-
+    // kamps ordinære (90-min) resultat UDEN at ændre selve tallene (fx en kamp der
+    // blev afgjort i ordinær tid): når den overgang sker, skal tip-point genberegnes,
+    // så score-point der blev holdt tilbage indtil bekræftelsen nu godskrives.
     if (
       before?.status === after.status &&
-      JSON.stringify(before?.result) === JSON.stringify(after.result)
+      JSON.stringify(before?.result) === JSON.stringify(after.result) &&
+      (before?.koSyncVersion ?? null) === (after?.koSyncVersion ?? null)
     ) return;
 
     // Genberegn alle tip-point for kampen og opdatér de berørte brugeres totaler.
@@ -108,12 +113,20 @@ async function recomputeBetsForMatch(db, matchId, match) {
   const betsSnap = await db.collection('bets').where('matchId', '==', matchId).get();
   if (betsSnap.empty) return [];
 
+  // Knockout scores på ORDINÆR tid — aldrig på et uverificeret fuldtidsresultat
+  // (kan inkludere forlænget tid/straffe). knockoutScoreResult vælger det rette
+  // resultat: 90-min fra de gemte mål når muligt, ellers "videre"-bonus alene indtil
+  // detalje-synken (koSyncVersion) har bekræftet det ordinære resultat.
+  const koResult = isKnockout
+    ? knockoutScoreResult(match, match.koSyncVersion === KO_SYNC_VERSION)
+    : null;
+
   let batch = db.batch();
   let opsInBatch = 0;
   const batches = [batch];
   for (const betDoc of betsSnap.docs) {
     const bet = betDoc.data();
-    const pts = isKnockout ? scoreKnockout(bet, match.result, match) : scoreMatch(bet, match.result);
+    const pts = isKnockout ? scoreKnockout(bet, koResult, match) : scoreMatch(bet, match.result);
     const cur = typeof bet.points === 'number' ? bet.points : null;
     if (cur === pts) continue; // uændret → spring skrivning over
     batch.update(betDoc.ref, { points: pts });
@@ -735,6 +748,22 @@ async function sendEmail(db, transporter, { to, subject, html, type }) {
   }
 }
 
+// E-mailadresser bor KUN i Firebase Authentication (ikke i det delte users-doc,
+// så en spiller ikke kan læse andres adresser). Hent uid→email for en liste uids
+// fra Auth i klumper à 100 (getUsers-grænsen). Ukendte/uden-mail-brugere udelades.
+async function fetchAuthEmails(uids) {
+  const byUid = {};
+  const list = [...new Set(uids)].filter(Boolean);
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100).map((uid) => ({ uid }));
+    const res = await getAuth().getUsers(chunk);
+    for (const u of res.users) {
+      if (u.email) byUid[u.uid] = u.email;
+    }
+  }
+  return byUid;
+}
+
 // Kerne-logik: send påmindelser om dagens utippede kampe. Returnerer antal sendte.
 async function runTipReminders(db, transporter) {
   if (!transporter) { console.log('tipReminders: ingen SMTP_PASSWORD — springer over.'); return { sent: 0, reason: 'no-smtp-password' }; }
@@ -770,10 +799,14 @@ async function runTipReminders(db, transporter) {
     .where('status', '==', 'approved')
     .get();
 
+  // E-mails hentes fra Auth (ikke fra users-doc'et). emailOptOut bliver i doc'et.
+  const emailByUid = await fetchAuthEmails(usersSnap.docs.map((d) => d.id));
+
   let sent = 0;
   for (const userDoc of usersSnap.docs) {
     const u = userDoc.data();
-    if (u.emailOptOut || !u.email) continue;
+    const email = emailByUid[userDoc.id];
+    if (u.emailOptOut || !email) continue;
 
     const missing = upcomingMatches.filter((m) => !tippedByMatch[m.id].has(userDoc.id));
     if (missing.length === 0) continue;
@@ -790,14 +823,14 @@ async function runTipReminders(db, transporter) {
 
     try {
       await sendEmail(db, transporter, {
-        to: u.email,
+        to: email,
         subject: `⚽ Du mangler at tippe på ${missing.length} kamp${missing.length === 1 ? '' : 'e'} det næste døgn`,
         html,
         type: 'reminder',
       });
       sent++;
     } catch (e) {
-      console.error(`tipReminders: kunne ikke sende til ${u.email}:`, e.message);
+      console.error(`tipReminders: kunne ikke sende til ${email}:`, e.message);
     }
   }
   console.log(`tipReminders: sendte ${sent} påmindelser.`);
@@ -839,7 +872,8 @@ exports.sendTestReminderToMe = onCall(
     if (!u || (u.role !== 'owner' && u.role !== 'globalAdmin')) {
       throw new HttpsError('permission-denied', 'Kun owner/global admin kan sende testmail.');
     }
-    if (!u.email) throw new HttpsError('failed-precondition', 'Din profil har ingen e-mailadresse.');
+    const email = (await getAuth().getUser(request.auth.uid).catch(() => null))?.email;
+    if (!email) throw new HttpsError('failed-precondition', 'Din profil har ingen e-mailadresse.');
 
     const transporter = buildTransport(SMTP_PASSWORD.value());
     if (!transporter) throw new HttpsError('failed-precondition', 'SMTP_PASSWORD er ikke sat endnu.');
@@ -884,13 +918,13 @@ exports.sendTestReminderToMe = onCall(
       <p style="color:#888;font-size:12px">Dette er en testmail sendt kun til dig.</p>`;
 
     await sendEmail(db, transporter, {
-      to: u.email,
+      to: email,
       subject: '🧪 Testmail: kampe for de første 3 spilledage',
       html,
       type: 'test-reminder',
     });
 
-    return { success: true, sentTo: u.email, days: days.length, matches: total };
+    return { success: true, sentTo: email, days: days.length, matches: total };
   }
 );
 
@@ -2255,3 +2289,43 @@ exports.adminSendPasswordReset = onCall(
     return { ok: true, email, sent, link };
   }
 );
+
+// ---------------------------------------------------------------------------
+// adminListUserEmails — owner/global admin: hent uid→email for alle brugere fra
+// Firebase Authentication. E-mails ligger IKKE i det delte users-doc (så en
+// spiller ikke kan læse andres adresser), men admin-panelet skal stadig kunne
+// vise dem. Kun globale admins/ejeren må kalde.
+// ---------------------------------------------------------------------------
+exports.adminListUserEmails = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  const usersSnap = await db.collection('users').get();
+  const emails = await fetchAuthEmails(usersSnap.docs.map((d) => d.id));
+  return { emails };
+});
+
+// ---------------------------------------------------------------------------
+// adminScrubUserEmails — KUN ejeren: engangs-migrering der fjerner det gamle
+// `email`-felt fra alle users-dokumenter. E-mails bevares uændret i Firebase
+// Authentication; kun den offentligt læsbare kopi i Firestore slettes. Idempotent.
+// ---------------------------------------------------------------------------
+exports.adminScrubUserEmails = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+  if (callerSnap.data()?.role !== 'owner') {
+    throw new HttpsError('permission-denied', 'Kun ejeren kan køre migreringen.');
+  }
+  const usersSnap = await db.collection('users').get();
+  let batch = db.batch();
+  let ops = 0;
+  let scrubbed = 0;
+  for (const d of usersSnap.docs) {
+    if (!('email' in d.data())) continue;
+    batch.update(d.ref, { email: FieldValue.delete() });
+    ops++; scrubbed++;
+    if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+  }
+  if (ops > 0) await batch.commit();
+  return { scrubbed };
+});

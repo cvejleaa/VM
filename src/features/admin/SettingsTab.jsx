@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { COL } from '../../lib/constants';
-import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote } from './adminActions';
+import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote, scrubUserEmails } from './adminActions';
 import { DEFAULT_UNTIPPED_PENALTY } from '../leaderboard/useUntippedPenalty';
 import { fmtPenalty } from '../leaderboard/sharpFormat';
 
@@ -27,6 +27,10 @@ export default function SettingsTab() {
   const [preview, setPreview] = useState(null); // { text, leagues } | null
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteMsg, setNoteMsg] = useState(null); // { kind:'ok'|'err', text } | null
+
+  // Privatliv: engangs-rensning af gamle email-felter fra users-dokumenter
+  const [scrubBusy, setScrubBusy] = useState(false);
+  const [scrubMsg, setScrubMsg] = useState(null); // { kind:'ok'|'err', text } | null
 
   useEffect(() => {
     const ref = doc(db, COL.CONFIG, 'settings');
@@ -93,6 +97,20 @@ export default function SettingsTab() {
       setNoteMsg({ kind: 'ok', text: `Slået op på ${res.data?.leagues ?? 0} ligavægge.` });
     } else {
       setNoteMsg({ kind: 'err', text: res.error });
+    }
+  };
+
+  const doScrub = async () => {
+    if (!window.confirm('Fjern gamle email-felter fra alle bruger-dokumenter? E-mails bevares i Firebase Authentication — kun den offentligt læsbare kopi i Firestore slettes.')) return;
+    setScrubBusy(true);
+    setScrubMsg(null);
+    try {
+      const res = await scrubUserEmails();
+      setScrubMsg({ kind: 'ok', text: `Renset ${res?.scrubbed ?? 0} bruger-dokument(er).` });
+    } catch (err) {
+      setScrubMsg({ kind: 'err', text: err?.message ?? 'Kunne ikke køre migreringen.' });
+    } finally {
+      setScrubBusy(false);
     }
   };
 
@@ -208,6 +226,28 @@ export default function SettingsTab() {
             {preview.text}
           </div>
         </div>
+      )}
+
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+
+      {/* ── 🔒 Privatliv: rens gamle email-felter ───────────────────────── */}
+      <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: 'var(--c-pitch)' }}>
+        🔒 Privatliv — fjern gamle e-mails fra databasen
+      </h2>
+      <p style={{ margin: '0 0 1rem', fontSize: '0.92rem', lineHeight: 1.5, color: 'var(--c-muted)' }}>
+        E-mailadresser bor nu kun i Firebase Authentication, så andre spillere ikke kan læse dem.
+        Kør denne engangs-rensning for at fjerne gamle e-mail-felter fra bruger-dokumenter oprettet
+        før ændringen. Sikker at køre flere gange.
+      </p>
+      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <button className="btn" onClick={doScrub} disabled={scrubBusy} data-testid="scrub-user-emails">
+          {scrubBusy ? 'Renser…' : 'Rens e-mails fra databasen'}
+        </button>
+      </div>
+      {scrubMsg && (
+        <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: scrubMsg.kind === 'ok' ? 'var(--c-ok)' : 'var(--c-err)' }}>
+          {scrubMsg.kind === 'ok' ? '✓ ' : ''}{scrubMsg.text}
+        </p>
       )}
     </div>
   );
