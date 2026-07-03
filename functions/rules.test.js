@@ -197,6 +197,58 @@ describe('users/{uid} — sikkerhedsregler', () => {
       })
     );
   });
+
+  it('en spiller KAN IKKE selv sætte totalPoints via update', async () => {
+    await createUser('user1', 'player', 'approved');
+
+    const ctx = testEnv.authenticatedContext('user1');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'users', 'user1'), {
+        totalPoints: 9999, // forsøger at snyde sig til point på leaderboardet
+      })
+    );
+  });
+
+  it('en spiller KAN IKKE selv sætte del-point (groupPoints/knockoutPoints/bonusPoints)', async () => {
+    await createUser('user1', 'player', 'approved');
+
+    const ctx = testEnv.authenticatedContext('user1');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'users', 'user1'), {
+        groupPoints: 100, knockoutPoints: 100, bonusPoints: 100,
+      })
+    );
+  });
+
+  it('en ny bruger KAN oprette sin egen profil med 0 point', async () => {
+    const ctx = testEnv.authenticatedContext('newbie');
+    await assertSucceeds(
+      setDoc(doc(ctx.firestore(), 'users', 'newbie'), {
+        displayName: 'Ny', email: 'ny@x.dk', role: 'player', status: 'pending',
+        totalPoints: 0, createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('en ny bruger KAN IKKE oprette sin profil med point > 0', async () => {
+    const ctx = testEnv.authenticatedContext('cheater');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'users', 'cheater'), {
+        displayName: 'Snyd', email: 'snyd@x.dk', role: 'player', status: 'pending',
+        totalPoints: 500, createdAt: Timestamp.now(),
+      })
+    );
+  });
+
+  it('en ny bruger KAN IKKE oprette sig selv som approved/owner', async () => {
+    const ctx = testEnv.authenticatedContext('sneaky');
+    await assertFails(
+      setDoc(doc(ctx.firestore(), 'users', 'sneaky'), {
+        displayName: 'Sneaky', email: 's@x.dk', role: 'owner', status: 'approved',
+        totalPoints: 0, createdAt: Timestamp.now(),
+      })
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -518,6 +570,61 @@ describe('matches — sikkerhedsregler', () => {
         homePlaceholder: null,
         awayPlaceholder: null,
       })
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TESTS: liga-selvtilmelding (append-only) — man føjer KUN sit eget uid til
+// ---------------------------------------------------------------------------
+describe('leagues — selv-tilmelding (append-only)', () => {
+  async function seedLeague(id, data) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await ctx.firestore().collection('leagues').doc(id).set({
+        name: 'Liga', joinCode: 'ABC123', status: 'approved',
+        createdAt: Timestamp.now(), adminUids: [], ...data,
+      });
+    });
+  }
+
+  it('godkendt bruger KAN tilmelde sig selv en godkendt liga', async () => {
+    await createUser('joiner', 'player', 'approved');
+    await seedLeague('sj1', { ownerUid: 'owner9', memberUids: ['owner9'] });
+
+    const ctx = testEnv.authenticatedContext('joiner');
+    await assertSucceeds(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'sj1'), { memberUids: ['owner9', 'joiner'] })
+    );
+  });
+
+  it('en tilmelding KAN IKKE fjerne eksisterende medlemmer (kun append)', async () => {
+    await createUser('joiner', 'player', 'approved');
+    await seedLeague('sj2', { ownerUid: 'owner9', memberUids: ['owner9', 'other'] });
+
+    const ctx = testEnv.authenticatedContext('joiner');
+    // forsøger at overskrive listen og smide 'other' ud
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'sj2'), { memberUids: ['owner9', 'joiner'] })
+    );
+  });
+
+  it('en bruger KAN IKKE tilmelde en anden bruger (kun sit eget uid)', async () => {
+    await createUser('joiner', 'player', 'approved');
+    await seedLeague('sj3', { ownerUid: 'owner9', memberUids: ['owner9'] });
+
+    const ctx = testEnv.authenticatedContext('joiner');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'sj3'), { memberUids: ['owner9', 'someoneElse'] })
+    );
+  });
+
+  it('en IKKE-godkendt bruger KAN IKKE tilmelde sig', async () => {
+    await createUser('pendingUser', 'player', 'pending');
+    await seedLeague('sj4', { ownerUid: 'owner9', memberUids: ['owner9'] });
+
+    const ctx = testEnv.authenticatedContext('pendingUser');
+    await assertFails(
+      updateDoc(doc(ctx.firestore(), 'leagues', 'sj4'), { memberUids: ['owner9', 'pendingUser'] })
     );
   });
 });
