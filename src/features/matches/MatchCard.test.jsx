@@ -78,6 +78,16 @@ describe('MatchCard – grundlæggende rendering', () => {
     render(<MatchCard match={makeMatch()} uid="u1" bet={null} />);
     expect(screen.getByText('vs')).toBeInTheDocument();
   });
+
+  it('viser spillested (stadion + by) når venue er sat', () => {
+    render(<MatchCard match={makeMatch({ venue: 'MetLife Stadium' })} uid="u1" bet={null} />);
+    expect(screen.getByTestId('match-venue')).toHaveTextContent('MetLife Stadium, New York/New Jersey');
+  });
+
+  it('viser IKKE spillested når venue mangler', () => {
+    render(<MatchCard match={makeMatch({ venue: null })} uid="u1" bet={null} />);
+    expect(screen.queryByTestId('match-venue')).toBeNull();
+  });
 });
 
 describe('MatchCard – låst-tilstand', () => {

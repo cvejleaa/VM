@@ -1560,6 +1560,17 @@ exports.importKnockoutFromFootballData = onCall(
     const desired = buildDesiredKnockout(fdMatches, codeOf);
     const { toCreate, toUpdate, toDelete } = reconcileKnockout(ourKnockout, desired);
 
+    // Venue-backfill: eksisterende knockout-kampe (også spillede/låste, som
+    // reconcile beskytter) hvis stadion mangler/afviger, og som ikke allerede
+    // skrives fuldt via create/update. Kun venue-feltet merges — helt ufarligt.
+    const fullWriteIds = new Set([...toCreate, ...toUpdate].map((d) => d.id));
+    const desiredById = new Map(desired.map((d) => [d.id, d]));
+    const venueBackfill = ourKnockout
+      .filter((e) => !fullWriteIds.has(e.id))
+      .map((e) => ({ e, d: desiredById.get(e.id) }))
+      .filter(({ e, d }) => d && (e.venue ?? null) !== (d.venue ?? null))
+      .map(({ d }) => d);
+
     // Sikkerhedsbremse: hvis football-data endnu ikke har knockout-kampe, så
     // slet ALDRIG vores nuværende knockout — meld det i stedet tilbage.
     const guardBlocked = desired.length === 0 && toDelete.length > 0;
@@ -1574,7 +1585,7 @@ exports.importKnockoutFromFootballData = onCall(
       learnedTeams: learned.size,
       desiredKnockout: desired.length,
       guardBlocked,
-      counts: { create: toCreate.length, update: toUpdate.length, delete: toDelete.length },
+      counts: { create: toCreate.length, update: toUpdate.length, delete: toDelete.length, venueBackfill: venueBackfill.length },
       toCreate: toCreate.map(slim),
       toUpdate: toUpdate.map(slim),
       toDelete,
@@ -1599,13 +1610,21 @@ exports.importKnockoutFromFootballData = onCall(
         externalId: d.externalId,
         status: d.status,
         result: sameTeams ? (e.result ?? null) : null,
+        venue: d.venue ?? null,
       }, { merge: true });
       bump();
     }
     for (const id of toDelete) { batch.delete(db.collection('matches').doc(id)); bump(); }
+    // Venue-backfill: stadion er statisk og kosmetisk, så vi skriver det for ALLE
+    // knockout-kampe der mangler/afviger — også spillede/låste (kun {venue} merges,
+    // så resultat/status/hold ALDRIG røres). Så også afsluttede runder får stadion.
+    for (const d of venueBackfill) {
+      batch.set(db.collection('matches').doc(d.id), { venue: d.venue ?? null }, { merge: true });
+      bump();
+    }
     for (const b of batches) await b.commit();
 
-    return { dryRun: false, ...summary, applied: summary.counts };
+    return { dryRun: false, ...summary, applied: { ...summary.counts, venueBackfill: venueBackfill.length } };
     } catch (err) {
       console.error('importKnockout: behandlings-/skrivefejl', err);
       throw new HttpsError('internal', `Import fejlede: ${err?.message || err}`);
@@ -1651,6 +1670,7 @@ async function runSyncKnockoutTeams(db, token, { now = new Date() } = {}) {
       externalId: d.externalId,
       status: 'scheduled',
       result: sameTeams ? (e.result ?? null) : null,
+      venue: d.venue ?? null,
     }, { merge: true });
   }
   await batch.commit();

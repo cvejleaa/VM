@@ -93,18 +93,22 @@ function buildDesiredKnockout(fdMatches, codeOf) {
       kickoffISO: fd.utcDate || null,
       externalId: String(fd.id),
       status: teamsKnown ? 'scheduled' : 'pendingTeams',
+      // Stadion er statisk planlægningsdata — kendt (og udfyldt af football-data)
+      // allerede før holdene er afgjort, så vi kan importere det med det samme.
+      venue: fd.venue ?? null,
     });
   }
   return out;
 }
 
-/** Afviger en eksisterende kamp fra det ønskede (hold/runde/tid/id/status)? */
+/** Afviger en eksisterende kamp fra det ønskede (hold/runde/tid/id/status/venue)? */
 function differs(existing, desired) {
   return existing.homeTeam !== desired.homeTeam
     || existing.awayTeam !== desired.awayTeam
     || existing.round !== desired.round
     || String(existing.externalId ?? '') !== String(desired.externalId ?? '')
     || existing.status !== desired.status
+    || (existing.venue ?? null) !== (desired.venue ?? null)
     || kickoffMs(existing.kickoff) !== kickoffMs(desired.kickoffISO);
 }
 
