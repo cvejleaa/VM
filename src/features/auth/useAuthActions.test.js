@@ -85,7 +85,6 @@ describe('useAuthActions', () => {
         { id: 'test-doc-ref' },
         expect.objectContaining({
           displayName: 'Test Bruger',
-          email: 'test@test.dk',
           role: 'player',
           status: 'pending',
           totalPoints: 0,
@@ -93,7 +92,7 @@ describe('useAuthActions', () => {
       );
     });
 
-    it('gemmer email som lowercase i Firestore', async () => {
+    it('gemmer IKKE email i Firestore (adressen bor i Firebase Auth)', async () => {
       const fakeUser = { uid: 'new-uid' };
       mockCreateUser.mockResolvedValue({ user: fakeUser });
 
@@ -103,10 +102,8 @@ describe('useAuthActions', () => {
         await result.current.signup('TEST@TEST.DK', 'password123', 'Test');
       });
 
-      expect(mockSetDoc).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ email: 'test@test.dk' })
-      );
+      const written = mockSetDoc.mock.calls[0][1];
+      expect(written).not.toHaveProperty('email');
     });
 
     it('returnerer user-objektet ved succes', async () => {

@@ -14,6 +14,7 @@ import {
   liveMinuteLabel,
 } from './matchHelpers';
 import { teamName } from '../../lib/teams';
+import { venueLabel } from '../../lib/venues';
 import Flag from '../../components/Flag';
 import TeamLink from '../../components/TeamLink';
 import ScoreInput from './ScoreInput';
@@ -171,6 +172,16 @@ export default function MatchCard({ match, uid, bet, usersByUid = {}, visibleUid
           )}
         </div>
       </div>
+
+      {/* Spillested (stadion + by) */}
+      {match.venue && (
+        <div
+          data-testid="match-venue"
+          style={{ fontSize: '0.75rem', color: 'var(--c-muted)', marginTop: '-0.15rem', marginBottom: '0.5rem' }}
+        >
+          📍 {venueLabel(match.venue)}
+        </div>
+      )}
 
       {/* Hold */}
       <div

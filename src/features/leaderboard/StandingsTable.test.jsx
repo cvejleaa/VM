@@ -69,6 +69,18 @@ describe('StandingsTable', () => {
     expect(row).toHaveTextContent('90'); // total fra getPoints
   });
 
+  it('gns. bruger KUN kamp-point i tælleren (bonus tæller ikke med)', () => {
+    // 20 kamp-point + 10 bonus = 30 total, 5 tippede kampe.
+    // Gns. skal være 20/5 = 4,0 (kamp-point pr. kamp) — IKKE 30/5 = 6,0.
+    const users = [{ uid: 'u', displayName: 'Eva', groupPoints: 14, knockoutPoints: 6, bonusPoints: 10, totalPoints: 30 }];
+    render(
+      <StandingsTable users={users} showAvg getTipped={() => 5} sortMode="avg" />,
+    );
+    const row = screen.getByText('Eva').closest('tr');
+    expect(row).toHaveTextContent('4,0');
+    expect(row).not.toHaveTextContent('6,0');
+  });
+
   it('andre rækker har IKKE is-me-klassen', () => {
     render(<StandingsTable users={testUsers} meUid="uid-1" />);
     const bobRow = screen.getByText('Bob').closest('tr');

@@ -79,7 +79,7 @@ describe('buildDesiredKnockout', () => {
   const codeOf = (t) => (t && t.id === 100 ? 'BRA' : t && t.id === 200 ? 'ARG' : null);
   const fdMatches = [
     { id: 5, stage: 'GROUP_STAGE', homeTeam: { id: 100 }, awayTeam: { id: 200 }, utcDate: '2026-06-11T19:00:00Z' },
-    { id: 9, stage: 'LAST_32', homeTeam: { id: 100 }, awayTeam: { id: 200 }, utcDate: '2026-06-28T19:00:00Z' },
+    { id: 9, stage: 'LAST_32', homeTeam: { id: 100 }, awayTeam: { id: 200 }, utcDate: '2026-06-28T19:00:00Z', venue: 'SoFi Stadium' },
     { id: 10, stage: 'LAST_16', homeTeam: { id: null, name: 'Winner 32-1' }, awayTeam: { id: null, name: 'Winner 32-2' }, utcDate: '2026-07-04T19:00:00Z' },
   ];
   it('springer gruppekampe over og bygger kun knockout', () => {
@@ -92,6 +92,11 @@ describe('buildDesiredKnockout', () => {
     expect(r32).toMatchObject({ round: 'r32', homeTeam: 'BRA', awayTeam: 'ARG', status: 'scheduled', externalId: '9' });
     const r16 = d.find((x) => x.id === 'ko_10');
     expect(r16).toMatchObject({ round: 'r16', homeTeam: null, awayTeam: null, status: 'pendingTeams', homePlaceholder: 'Winner 32-1' });
+  });
+  it('tager stadion med fra football-data (null når det mangler)', () => {
+    const d = buildDesiredKnockout(fdMatches, codeOf);
+    expect(d.find((x) => x.id === 'ko_9').venue).toBe('SoFi Stadium');
+    expect(d.find((x) => x.id === 'ko_10').venue).toBeNull();
   });
 });
 
@@ -155,5 +160,12 @@ describe('differs', () => {
     expect(differs({ ...d, kickoff: d.kickoffISO }, d)).toBe(false);
     expect(differs({ ...d, kickoff: d.kickoffISO, awayTeam: 'GER' }, d)).toBe(true);
     expect(differs({ ...d, kickoff: '2026-06-29T19:00:00Z' }, d)).toBe(true);
+  });
+  it('fanger ændret/manglende venue', () => {
+    const withVenue = { ...d, venue: 'MetLife Stadium' };
+    // eksisterende mangler stadion, ønsket har det → skal opdateres
+    expect(differs({ ...d, kickoff: d.kickoffISO }, withVenue)).toBe(true);
+    // begge har samme stadion → uændret
+    expect(differs({ ...d, kickoff: d.kickoffISO, venue: 'MetLife Stadium' }, withVenue)).toBe(false);
   });
 });

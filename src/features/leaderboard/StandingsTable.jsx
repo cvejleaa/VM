@@ -106,10 +106,13 @@ export default function StandingsTable({
     const withPoints = filtered.map((u) => {
       const displayPoints = getPoints ? (getPoints(u.uid) ?? 0) : (u.totalPoints ?? 0);
       const tipped = getTipped ? (getTipped(u.uid) ?? 0) : 0;
-      const avg = tipped > 0 ? Math.round((displayPoints / tipped) * 10) / 10 : null;
       const bd = getBreakdown ? getBreakdown(u) : null;
       const matchPoints = bd ? bd.match : (u.groupPoints ?? 0) + (u.knockoutPoints ?? 0);
       const bonus = bd ? bd.bonus : (u.bonusPoints ?? 0);
+      // Gns. = point pr. tippet kamp. Nævneren (tipped) tæller KUN kampe, så
+      // tælleren skal også kun være kamp-point — bonus-spørgsmål hører ikke med,
+      // ellers får spillere med mange bonuspoint et kunstigt højt snit.
+      const avg = tipped > 0 ? Math.round((matchPoints / tipped) * 10) / 10 : null;
       return { ...u, displayPoints, tipped, avg, matchPoints, bonus };
     });
 
@@ -231,7 +234,7 @@ export default function StandingsTable({
 
                 {/* Gns. point pr. tippet kamp */}
                 {showAvg && (
-                  <td style={{ textAlign: 'right' }} title={u.tipped ? `${u.displayPoints} point på ${u.tipped} tippede kampe` : 'Ingen tippede kampe endnu'}>
+                  <td style={{ textAlign: 'right' }} title={u.tipped ? `${u.matchPoints} kamp-point på ${u.tipped} tippede kampe` : 'Ingen tippede kampe endnu'}>
                     <span className="text-muted" style={{ fontSize: '0.9rem' }}>
                       {u.avg === null ? '–' : u.avg.toFixed(1).replace('.', ',')}
                     </span>

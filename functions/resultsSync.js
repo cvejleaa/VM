@@ -200,8 +200,43 @@ function healedKnockoutResult(match) {
   return { home: ninety.home, away: ninety.away, advance: advance || null };
 }
 
+/**
+ * Hvilket resultat skal et knockout-tip scores IMOD?
+ *
+ * Knockout-tip scores på ORDINÆR tid (90 min + tillægstid). football-datas fuldtid
+ * kan inkludere forlænget tid/straffe — en 1-1-kamp kan stå gemt som 4-4 — så
+ * score-tippet må ALDRIG beregnes på et uverificeret auto-fuldtidsresultat.
+ *
+ *  - Kan 90-min udledes af de gemte mål (healedKnockoutResult) → score mod DET.
+ *  - Ellers, hvis resultatet er et AUTO-resultat der endnu ikke er bekræftet af
+ *    detalje-synken (`confirmed === false`) → returnér et resultat UDEN score
+ *    ({advance} kun), så scoreMatch giver 0 og kun "videre"-bonussen godskrives.
+ *    Score-point venter, til det ordinære resultat kendes.
+ *  - Manuelle admin-resultater (resultSource !== 'auto') og bekræftede resultater
+ *    stoles på som de er.
+ *
+ * Bruges kun for afsluttede knockout-kampe; ellers returneres match.result uændret.
+ *
+ * @param {object}  match      kamp-doc med {round, status, result, resultSource, details}
+ * @param {boolean} confirmed  er kampens ordinære resultat bekræftet (koSyncVersion)?
+ * @returns {{home?:number, away?:number, advance?:string|null}} resultat at score imod
+ */
+function knockoutScoreResult(match, confirmed) {
+  const base = (match && match.result) || {};
+  const isKnockout = match && match.round && match.round !== 'group';
+  if (!isKnockout || match.status !== 'finished') return base;
+
+  const healed = healedKnockoutResult(match);
+  if (healed) return healed;
+
+  if (match.resultSource === 'auto' && !confirmed) {
+    return { advance: base.advance || null }; // hold score-point tilbage, kun "videre"
+  }
+  return base;
+}
+
 module.exports = {
   norm, teamCodeMatches, utcDate, kickoffMs,
   matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
-  healedKnockoutResult,
+  healedKnockoutResult, knockoutScoreResult,
 };

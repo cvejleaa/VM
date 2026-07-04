@@ -3,7 +3,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
   teamCodeMatches, matchFixture, winnerToCode, decideUpdate, patchChangesDoc, auditKickoffs,
-  healedKnockoutResult,
+  healedKnockoutResult, knockoutScoreResult,
 } = require('./resultsSync');
 
 const NOW = new Date('2026-06-11T21:00:00Z');
@@ -203,6 +203,44 @@ describe('healedKnockoutResult', () => {
     expect(healedKnockoutResult({ round: 'qf', result: { home: 1, away: 0 }, details: { goals: [] } })).toBeNull();
     expect(healedKnockoutResult({ round: 'qf', result: { home: 1, away: 0 } })).toBeNull();
     expect(healedKnockoutResult(null)).toBeNull();
+  });
+});
+
+describe('knockoutScoreResult', () => {
+  const withGoals = {
+    round: 'r32', status: 'finished', homeTeam: 'NED', awayTeam: 'MAR',
+    resultSource: 'auto', result: { home: 4, away: 4, advance: 'MAR' },
+    details: { goals: [{ minute: 72, side: 'home' }, { minute: 88, side: 'away' }] },
+  };
+
+  it('gruppekamp → returnerer resultatet uændret (ingen gating)', () => {
+    const m = { round: 'group', status: 'finished', result: { home: 4, away: 4 } };
+    expect(knockoutScoreResult(m, false)).toEqual({ home: 4, away: 4 });
+  });
+
+  it('knockout der IKKE er afsluttet → returnerer resultatet uændret', () => {
+    const m = { ...withGoals, status: 'live', details: null };
+    expect(knockoutScoreResult(m, false)).toEqual(m.result);
+  });
+
+  it('afsluttet knockout med mål → scorer mod 90-min (ikke det oppustede fuldtid)', () => {
+    // 4-4 gemt, men målene giver 1-1 på ordinær tid → score mod 1-1.
+    expect(knockoutScoreResult(withGoals, false)).toEqual({ home: 1, away: 1, advance: 'MAR' });
+  });
+
+  it('afsluttet auto-knockout UDEN mål, ikke bekræftet → kun "videre" (score holdes tilbage)', () => {
+    const m = { round: 'r32', status: 'finished', resultSource: 'auto', result: { home: 4, away: 4, advance: 'MAR' } };
+    expect(knockoutScoreResult(m, false)).toEqual({ advance: 'MAR' });
+  });
+
+  it('afsluttet auto-knockout UDEN mål, men BEKRÆFTET → stoles på som det er', () => {
+    const m = { round: 'r32', status: 'finished', resultSource: 'auto', result: { home: 1, away: 1, advance: 'MAR' } };
+    expect(knockoutScoreResult(m, true)).toEqual({ home: 1, away: 1, advance: 'MAR' });
+  });
+
+  it('manuelt admin-resultat UDEN mål → stoles altid på (ikke auto)', () => {
+    const m = { round: 'r32', status: 'finished', resultSource: 'manual', result: { home: 1, away: 1, advance: 'MAR' } };
+    expect(knockoutScoreResult(m, false)).toEqual({ home: 1, away: 1, advance: 'MAR' });
   });
 });
 

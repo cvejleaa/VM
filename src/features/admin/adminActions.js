@@ -56,6 +56,27 @@ export async function sendAdminPasswordReset(uid) {
   return res.data;
 }
 
+/**
+ * Hent uid→email for alle brugere fra Firebase Authentication (kun globale
+ * admins/ejer). E-mails ligger ikke i det delte users-doc, så admin-panelet
+ * henter dem separat herfra. Returnerer et {uid: email}-map.
+ */
+export async function fetchUserEmails() {
+  const fn = httpsCallable(functions, 'adminListUserEmails');
+  const res = await fn({});
+  return res.data?.emails ?? {};
+}
+
+/**
+ * Engangs-migrering (kun ejer): fjern det gamle `email`-felt fra alle users-
+ * dokumenter. E-mails bevares i Firebase Authentication. Returnerer antal renset.
+ */
+export async function scrubUserEmails() {
+  const fn = httpsCallable(functions, 'adminScrubUserEmails');
+  const res = await fn({});
+  return res.data;
+}
+
 // ─── Indstillinger (kun ejer — config/settings) ──────────────────────────────
 
 /**

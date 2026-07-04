@@ -22,7 +22,7 @@ export default function LeaguesAdminTab() {
 
   const nameOf = (uid) => {
     const u = users.find((x) => x.id === uid);
-    return u?.displayName || u?.email || uid;
+    return u?.displayName || uid;
   };
   // Spillere der kan tilføjes: alle der ikke er afvist (også 'afventer' kan tilføjes)
   const addableUsers = users.filter((u) => u.status !== USER_STATUS.REJECTED);
@@ -133,7 +133,7 @@ export default function LeaguesAdminTab() {
                     <option value="">– Vælg spiller –</option>
                     {candidates.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {(u.displayName || u.email)}{u.status !== USER_STATUS.APPROVED ? ' (afventer)' : ''}
+                        {(u.displayName || u.id)}{u.status !== USER_STATUS.APPROVED ? ' (afventer)' : ''}
                       </option>
                     ))}
                   </select>

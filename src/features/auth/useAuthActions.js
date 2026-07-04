@@ -37,11 +37,12 @@ export function useAuthActions() {
       await updateProfile(cred.user, { displayName: displayName.trim() });
 
       // Opret Firestore-profilen. role/status sættes til de eneste værdier
-      // reglerne tillader ved selv-oprettelse (player / pending).
+      // reglerne tillader ved selv-oprettelse (player / pending). E-mailadressen
+      // gemmes IKKE her — den bor i Firebase Authentication, så den ikke er
+      // offentligt læsbar for andre spillere via users-dokumentet.
       const userRef = doc(db, COL.USERS, cred.user.uid);
       await setDoc(userRef, {
         displayName: displayName.trim(),
-        email: email.toLowerCase(),
         role: 'player',
         status: 'pending',
         totalPoints: 0,

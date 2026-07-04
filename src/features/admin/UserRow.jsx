@@ -28,9 +28,10 @@ const roleLabel = {
 };
 
 /**
- * @param {{ user: object, currentUserIsOwner: boolean, currentUserCanApprove: boolean }} props
+ * @param {{ user: object, email?: string, currentUserIsOwner: boolean, currentUserCanApprove: boolean }} props
+ *   email hentes fra Firebase Authentication (ikke fra users-doc'et) og gives ind af UsersTab.
  */
-export default function UserRow({ user, currentUserIsOwner, currentUserCanApprove }) {
+export default function UserRow({ user, email, currentUserIsOwner, currentUserCanApprove }) {
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState('');
   const [resetInfo, setResetInfo] = useState(null);
@@ -38,7 +39,7 @@ export default function UserRow({ user, currentUserIsOwner, currentUserCanApprov
   const isOwner = user.role === ROLES.OWNER;
 
   async function handlePasswordReset() {
-    if (!window.confirm(`Send et nulstillingslink til ${user.displayName} (${user.email})?`)) return;
+    if (!window.confirm(`Send et nulstillingslink til ${user.displayName}${email ? ` (${email})` : ''}?`)) return;
     setBusy(true);
     setLocalError('');
     setResetInfo(null);
@@ -122,7 +123,7 @@ export default function UserRow({ user, currentUserIsOwner, currentUserCanApprov
             )}
           </div>
           <div style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
-            {user.email}
+            {email ?? '—'}
           </div>
           <div style={{ marginTop: 2, fontSize: '0.82rem' }}>
             <span style={{ color: statusColor[user.status] ?? 'var(--c-muted)' }}>
