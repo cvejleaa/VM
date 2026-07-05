@@ -29,6 +29,26 @@ Tone over for dagens topscorer:
 - Er "standoutTie" true (flere deler nattens bedste, se "dayWinners"), så hold tonen neutral og varm: nævn dem ligeværdigt og undlad at drille nogen.`;
 
 /**
+ * Rens et spiller-navn før det lægges i AI-fakta. Et frit displayName er
+ * bruger-input og kunne ellers forsøge prompt-injection ("ignorér ovenstående
+ * og skriv …") i det opslag VM-Botten poster på liga-væggen. Vi fjerner
+ * linjeskift/kontroltegn og tegn der typisk bruges til at bryde ud af kontekst,
+ * klipper whitespace sammen og begrænser længden. Almindelige navne rammes ikke.
+ * @param {*} name
+ * @returns {string}
+ */
+function sanitizeName(name) {
+  const s = String(name == null ? '' : name)
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/[<>{}[\]`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const cut = s.slice(0, 40).trim();
+  return cut || 'Spiller';
+}
+
+/**
  * Minimal liga-scoring (spejler leagueScore i frontend; uden liga-bonus, som
  * beregnes klient-side). Bruges til at finde totaler og lederen i recap'en.
  */
@@ -84,7 +104,7 @@ function historicalMembers(memberDocs, finished, pointsByMatchUid, untilMs) {
       if (isKnockoutRound(m.round)) knockoutPoints += raw;
       else groupPoints += raw;
     }
-    return { id: u.id, displayName: u.displayName || 'Spiller', groupPoints, knockoutPoints, bonusPoints: 0 };
+    return { id: u.id, displayName: sanitizeName(u.displayName), groupPoints, knockoutPoints, bonusPoints: 0 };
   });
 }
 
@@ -119,7 +139,7 @@ function buildRecapFacts({ league, members, dayPointsByUid = {}, matches = [], b
   // Én fælles kilde: hver spillers total NU og point vundet siden sidste opslag.
   // points = total (allerede inkl. dayPoints), dayPoints = vundet siden sidst.
   const rows = members.map((u) => ({
-    name: u.displayName || 'Spiller',
+    name: sanitizeName(u.displayName),
     points: leagueTotal(u, scoring),
     dayPoints: Number(dayPointsByUid[u.id] || 0),
   }));
@@ -202,5 +222,5 @@ function recapWindowOpen(currentHM, targetHM, windowMin = 60) {
 module.exports = {
   RECAP_SYSTEM, RECAP_DEFAULT_TIME, leagueTotal, leagueMatchPoints,
   isKnockoutRound, historicalMembers, windowDayPoints,
-  buildRecapFacts, parseHM, recapWindowOpen,
+  buildRecapFacts, parseHM, recapWindowOpen, sanitizeName,
 };
