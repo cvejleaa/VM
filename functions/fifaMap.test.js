@@ -91,6 +91,24 @@ describe('mapCalendarMatch (rigtige FIFA-kampe)', () => {
     expect(m.result).toBeNull();
   });
 
+  it('gruppekamp uden "Group" i StageName → round=group via IdGroup/GroupName', () => {
+    // FIFA navngiver gruppestadiet forskelligt; gruppen er det sikre signal.
+    const groupMatch = {
+      IdMatch: '400020000', IdStage: '285063', IdGroup: '285064',
+      StageName: [{ Locale: 'en-GB', Description: 'First stage' }],
+      GroupName: [{ Locale: 'en-GB', Description: 'Group A' }],
+      Date: '2026-06-11T19:00:00Z', MatchStatus: 1, ResultType: 0,
+      Home: { IdCountry: 'MEX', IdTeam: '1' }, Away: { IdCountry: 'RSA', IdTeam: '2' },
+      HomeTeamScore: null, AwayTeamScore: null, HomeTeamPenaltyScore: null, AwayTeamPenaltyScore: null,
+      Stadium: { Name: [{ Locale: 'en-GB', Description: 'Mexico City Stadium' }], CityName: [{ Locale: 'en-GB', Description: 'Mexico City' }] },
+      PlaceHolderA: null, PlaceHolderB: null, Winner: null,
+    };
+    const m = mapCalendarMatch(groupMatch);
+    expect(m.round).toBe('group');
+    expect(m.groupName).toBe('Group A');
+    expect(m).toMatchObject({ homeTeam: 'MEX', awayTeam: 'RSA', status: 'scheduled' });
+  });
+
   it('ukendte hold → pendingTeams med pladsholdere', () => {
     const finale = calendar.find((m) => loc(m.StageName) === 'Final');
     const m = mapCalendarMatch(finale);

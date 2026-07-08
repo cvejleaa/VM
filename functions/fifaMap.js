@@ -97,7 +97,10 @@ function mapCalendarMatch(m) {
   const home = teamCode(m.Home);
   const away = teamCode(m.Away);
   const hasTeams = !!home && !!away;
-  const round = stageToRound(loc(m.StageName));
+  // FIFA navngiver gruppespils-stadiet ikke altid "Group …" i StageName, men
+  // gruppekampe har ALTID en gruppe (IdGroup/GroupName) — det er det sikre signal.
+  let round = stageToRound(loc(m.StageName));
+  if (!round && (m.IdGroup != null || loc(m.GroupName))) round = 'group';
   const status = mapStatus(m.MatchStatus, hasTeams);
 
   // Vinder → vores holdkode (til "videre" i knockout).
