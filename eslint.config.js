@@ -57,7 +57,7 @@ export default [
 
   // Cloud Functions kildekode: CommonJS + Node
   {
-    files: ['functions/index.js', 'functions/scoring.js', 'functions/standings.js', 'functions/knockout.js', 'functions/breakdown.js', 'functions/footballData.js', 'functions/resultsSync.js', 'functions/bonusResolve.js', 'functions/invites.js', 'functions/leagueRecap.js', 'functions/fixtureImport.js', 'functions/fifaData.js', 'functions/fifaMap.js'],
+    files: ['functions/index.js', 'functions/scoring.js', 'functions/standings.js', 'functions/knockout.js', 'functions/breakdown.js', 'functions/footballData.js', 'functions/resultsSync.js', 'functions/bonusResolve.js', 'functions/invites.js', 'functions/leagueRecap.js', 'functions/fixtureImport.js', 'functions/fifaData.js', 'functions/fifaMap.js', 'functions/fifaResultsSync.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',

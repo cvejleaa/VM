@@ -2,7 +2,7 @@
 // (default Bundesliga 2025/26) og viser præcis hvordan topscorere, stilling og
 // kampdetaljer kommer til at se ud under VM. Henter intet ind i basen.
 import { useState } from 'react';
-import { callPreviewFootballData, callPreviewFifaData, callPreviewFifaScoring } from './adminActions';
+import { callPreviewFootballData, callPreviewFifaData, callPreviewFifaScoring, callPreviewFifaSync } from './adminActions';
 import { TopScorersList } from '../stats/TopScorersCard';
 import StandingsTable from '../stats/StandingsTable';
 import MatchDetails from '../matches/MatchDetails';
@@ -76,6 +76,19 @@ export default function PreviewTab() {
     if (!res.ok) { setScoreErr(res.error); return; }
     if (res.data?.error) { setScoreErr(res.data.error); return; }
     setScore(res.data);
+  }
+
+  // ── Dry-run af FIFA-resultatsynken (hvad den ville skrive) ──
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncErr, setSyncErr] = useState('');
+  const [sync, setSync] = useState(null);
+  async function handleSync() {
+    setSyncBusy(true); setSyncErr(''); setSync(null);
+    const res = await callPreviewFifaSync();
+    setSyncBusy(false);
+    if (!res.ok) { setSyncErr(res.error); return; }
+    if (res.data?.error) { setSyncErr(res.data.error); return; }
+    setSync(res.data);
   }
 
   const compName = COMPETITIONS.find((c) => c.code === code)?.name ?? code;
@@ -250,6 +263,56 @@ export default function PreviewTab() {
             </div>
           )}
           <p style={{ fontSize: '0.75rem', color: 'var(--c-muted)', marginTop: '0.5rem' }}>{score.note}</p>
+        </div>
+      )}
+
+      {/* ── Dry-run af FIFA-resultatsynken ── */}
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+      <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.4rem' }}>🔁 FIFA-synk (dry-run) — hvad ville den skrive?</h2>
+      <p style={{ color: 'var(--c-muted)', fontSize: '0.88rem', margin: '0 0 0.75rem' }}>
+        Kører FIFA-resultatsynken tørt over alle kampe og viser hvilke opdateringer den ville lave —
+        og hvilke der reelt ville <em>ændre</em> en kamp (resultat/status/videre). Skriver intet.
+        <strong> 0 reelle ændringer = synken skriver præcis det samme som nu.</strong>
+      </p>
+      <button className="btn" onClick={handleSync} disabled={syncBusy}>
+        {syncBusy ? 'Kører dry-run…' : '🔁 Kør FIFA-synk (dry-run)'}
+      </button>
+
+      {syncErr && (
+        <div role="alert" className="card" style={{ borderColor: 'var(--c-err)', color: 'var(--c-err)', margin: '1rem 0' }}>
+          Fejl: {syncErr}
+        </div>
+      )}
+
+      {sync && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.5rem',
+            color: sync.changeCount === 0 ? 'var(--c-ok)' : 'var(--c-warn)' }}>
+            {sync.changeCount === 0
+              ? '✅ 0 reelle ændringer — FIFA-synken ville skrive præcis det samme som nu.'
+              : `⚠️ ${sync.changeCount} kampe ville blive ændret.`}
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--c-muted)', marginBottom: '0.5rem' }}>
+            {sync.matches} kampe · handlinger: {Object.entries(sync.actions || {}).map(([a, n]) => `${a}:${n}`).join(', ')}
+          </div>
+          {sync.changes?.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ fontSize: '0.8rem' }}>
+                <thead><tr><th>Kamp</th><th>Handling</th><th>Felt</th><th>Nu</th><th>FIFA</th></tr></thead>
+                <tbody>
+                  {sync.changes.flatMap((c) => (
+                    ['result', 'advance', 'status'].filter((f) => c[f]).map((f) => (
+                      <tr key={c.id + f}>
+                        <td>{c.home}–{c.away}</td><td>{c.action}</td><td>{f}</td>
+                        <td>{String(c[f].ours)}</td><td>{String(c[f].fifa)}</td>
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p style={{ fontSize: '0.75rem', color: 'var(--c-muted)', marginTop: '0.5rem' }}>{sync.note}</p>
         </div>
       )}
     </div>
