@@ -2056,14 +2056,31 @@ exports.previewFootballData = onCall(
 exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async (request) => {
   const db = getFirestore();
   await requireAdmin(db, request);
+  // Owner-only + read-only: fang ALT og returnér den rå fejl (+ fase), så en
+  // uventet undtagelse ikke bare bliver til et intetsigende "internal" i browseren.
+  let phase = 'init';
+  try {
+    return await runPreviewFifa(db, request, () => { return phase; }, (p) => { phase = p; });
+  } catch (err) {
+    return {
+      source: 'fifa',
+      error: `Uventet fejl (${phase}): ${String(err?.message || err)}`,
+      stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | '),
+    };
+  }
+});
 
+async function runPreviewFifa(db, request, _getPhase, setPhase) {
+  setPhase('createClient');
   const client = createFifaClient();
   const out = { source: 'fifa', season: client.season, competition: client.competition };
 
   // 1) Hent + mapp hele kampprogrammet.
   let mapped = [];
   try {
+    setPhase('fetch-calendar');
     const data = await client.getSeasonMatches({ count: 500 });
+    setPhase('map-calendar');
     const results = Array.isArray(data?.Results) ? data.Results : [];
     mapped = results.map(fifaMap.mapCalendarMatch).filter(Boolean);
   } catch (err) {
@@ -2077,6 +2094,7 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }));
 
   // 2) Sammenlign med vores gemte kampe (parret på det uordnede holdpar).
+  setPhase('read-our-matches');
   const snap = await db.collection('matches').get();
   const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const key = (a, b) => [a, b].filter(Boolean).sort().join('_');
@@ -2103,6 +2121,7 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }
   out.comparison = { ourMatches: ours.length, matched: matchedCount, unmatchedOurs: unmatched, diffCount: diffs.length, diffs: diffs.slice(0, 40) };
 
+  setPhase('compare');
   // 3) Valgfri enkelt-kampdetalje (opstilling, mål, 90-min).
   const matchId = request.data?.matchId;
   if (matchId) {
@@ -2127,7 +2146,7 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }
 
   return out;
-});
+}
 
 // ---------------------------------------------------------------------------
 // inspectFootballData — owner/global admin: prober football-data.org-endpoints
