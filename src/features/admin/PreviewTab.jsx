@@ -2,7 +2,7 @@
 // (default Bundesliga 2025/26) og viser præcis hvordan topscorere, stilling og
 // kampdetaljer kommer til at se ud under VM. Henter intet ind i basen.
 import { useState } from 'react';
-import { callPreviewFootballData } from './adminActions';
+import { callPreviewFootballData, callPreviewFifaData } from './adminActions';
 import { TopScorersList } from '../stats/TopScorersCard';
 import StandingsTable from '../stats/StandingsTable';
 import MatchDetails from '../matches/MatchDetails';
@@ -52,6 +52,19 @@ export default function PreviewTab() {
     setData(res.data);
   }
 
+  // ── FIFA-sammenligning (verificering før evt. omlægning fra football-data) ──
+  const [fifaBusy, setFifaBusy] = useState(false);
+  const [fifaErr, setFifaErr] = useState('');
+  const [fifa, setFifa] = useState(null);
+  async function handleFifa() {
+    setFifaBusy(true); setFifaErr(''); setFifa(null);
+    const res = await callPreviewFifaData();
+    setFifaBusy(false);
+    if (!res.ok) { setFifaErr(res.error); return; }
+    if (res.data?.error) { setFifaErr(res.data.error); return; }
+    setFifa(res.data);
+  }
+
   const compName = COMPETITIONS.find((c) => c.code === code)?.name ?? code;
 
   return (
@@ -86,6 +99,73 @@ export default function PreviewTab() {
           <StandingsTable tables={data.standings} title="📊 Stilling med form" />
           <SampleMatch m={data.sampleMatch} />
         </>
+      )}
+
+      {/* ── FIFA-kilde: gratis alternativ, verificér mod vores gemte kampe ── */}
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+      <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.4rem' }}>🆚 FIFA-kilde (gratis) — sammenlign med vores kampe</h2>
+      <p style={{ color: 'var(--c-muted)', fontSize: '0.88rem', margin: '0 0 0.75rem' }}>
+        Henter VM-programmet direkte fra FIFAs gratis API, mapper det til vores skema og
+        sammenligner med vores gemte kampe (kickoff, stadion, resultat). Verificering før en
+        evt. omlægning væk fra football-data. Skriver intet.
+      </p>
+      <button className="btn" onClick={handleFifa} disabled={fifaBusy}>
+        {fifaBusy ? 'Henter fra FIFA…' : '🆚 Hent & sammenlign FIFA'}
+      </button>
+
+      {fifaErr && (
+        <div role="alert" className="card" style={{ borderColor: 'var(--c-err)', color: 'var(--c-err)', margin: '1rem 0' }}>
+          Fejl: {fifaErr}
+        </div>
+      )}
+
+      {fifa && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div style={{ fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+            FIFA leverede <strong>{fifa.fifaCount}</strong> kampe (sæson {fifa.season}).{' '}
+            Runder: {Object.entries(fifa.byRound || {}).map(([r, n]) => `${r}:${n}`).join(', ')}
+          </div>
+          <div style={{ fontSize: '0.9rem', marginBottom: '0.75rem' }}>
+            Parret med vores kampe: <strong>{fifa.comparison?.matched}</strong> · uparrede hos os:{' '}
+            {fifa.comparison?.unmatchedOurs} · <strong style={{ color: fifa.comparison?.diffCount ? 'var(--c-warn)' : 'var(--c-ok)' }}>
+              {fifa.comparison?.diffCount} afvigelser
+            </strong>
+          </div>
+          {fifa.comparison?.diffs?.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ fontSize: '0.8rem' }}>
+                <thead><tr><th>Kamp</th><th>Felt</th><th>Vores</th><th>FIFA</th></tr></thead>
+                <tbody>
+                  {fifa.comparison.diffs.flatMap((d) => (
+                    ['kickoff', 'venue', 'result'].filter((f) => d[f]).map((f) => (
+                      <tr key={d.id + f}>
+                        <td>{d.home}–{d.away}</td>
+                        <td>{f}</td>
+                        <td>{String(d[f].ours ?? '–')}</td>
+                        <td>{String(d[f].fifa ?? '–')}{f === 'result' && d[f].fifaType ? ` (${d[f].fifaType})` : ''}</td>
+                      </tr>
+                    ))
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <details style={{ marginTop: '0.75rem' }}>
+            <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--c-muted)' }}>Vis 8 eksempel-kampe fra FIFA</summary>
+            <table className="table" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
+              <thead><tr><th>Runde</th><th>Kamp</th><th>Stadion</th><th>By</th><th>Resultat</th></tr></thead>
+              <tbody>
+                {fifa.sample.map((s, i) => (
+                  <tr key={i}>
+                    <td>{s.round}</td><td>{s.home ?? '?'}–{s.away ?? '?'}</td>
+                    <td>{s.venue}</td><td>{s.city}</td>
+                    <td>{s.result ? `${s.result.home}–${s.result.away}` : s.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        </div>
       )}
     </div>
   );

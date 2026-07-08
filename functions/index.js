@@ -50,6 +50,8 @@ const { buildR32FromGroupMatches } = require('./knockout');
 const { computeBreakdown } = require('./breakdown');
 const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summarizeStandings, mapMatchDetails, mapStandings, mapCompetition, knockoutNinetyResult } = require('./footballData');
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult, knockoutScoreResult } = require('./resultsSync');
+const { createFifaClient } = require('./fifaData');
+const fifaMap = require('./fifaMap');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { computeGroupStandings } = require('./standings');
@@ -2044,6 +2046,88 @@ exports.previewFootballData = onCall(
     return out;
   }
 );
+
+// ---------------------------------------------------------------------------
+// previewFifaData — owner/global admin: hent LIVE data fra FIFA's gratis API,
+// mapp det til vores skema og SAMMENLIGN med vores gemte kampe — så vi kan
+// verificere 1:1 FØR en evt. omlægning fra football-data. Skriver INTET i basen.
+// Valgfrit `matchId` (vores kamp-id) → hent den kamps FIFA-detalje + 90-min.
+// ---------------------------------------------------------------------------
+exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+
+  const client = createFifaClient();
+  const out = { source: 'fifa', season: client.season, competition: client.competition };
+
+  // 1) Hent + mapp hele kampprogrammet.
+  let mapped = [];
+  try {
+    const data = await client.getSeasonMatches({ count: 500 });
+    const results = Array.isArray(data?.Results) ? data.Results : [];
+    mapped = results.map(fifaMap.mapCalendarMatch).filter(Boolean);
+  } catch (err) {
+    return { ...out, error: `FIFA calendar-fejl: ${String(err?.message || err)}` };
+  }
+  out.fifaCount = mapped.length;
+  out.byRound = mapped.reduce((acc, m) => { acc[m.round || '?'] = (acc[m.round || '?'] || 0) + 1; return acc; }, {});
+  out.sample = mapped.slice(0, 8).map((m) => ({
+    round: m.round, home: m.homeTeam, away: m.awayTeam, kickoff: m.kickoffISO,
+    venue: m.venue, city: m.city, status: m.status, resultType: m.resultType, result: m.result,
+  }));
+
+  // 2) Sammenlign med vores gemte kampe (parret på det uordnede holdpar).
+  const snap = await db.collection('matches').get();
+  const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const key = (a, b) => [a, b].filter(Boolean).sort().join('_');
+  const fifaByPair = new Map();
+  for (const m of mapped) { if (m.homeTeam && m.awayTeam) fifaByPair.set(key(m.homeTeam, m.awayTeam), m); }
+
+  const diffs = [];
+  let matchedCount = 0; let unmatched = 0;
+  for (const o of ours) {
+    if (!o.homeTeam || !o.awayTeam) continue;
+    const fm = fifaByPair.get(key(o.homeTeam, o.awayTeam));
+    if (!fm) { unmatched++; continue; }
+    matchedCount++;
+    const d = {};
+    const ourKick = o.kickoff?.toDate ? o.kickoff.toDate().toISOString() : (o.kickoff || null);
+    if (ourKick && fm.kickoffISO && Math.abs(new Date(ourKick) - new Date(fm.kickoffISO)) > 3600000) {
+      d.kickoff = { ours: ourKick, fifa: fm.kickoffISO };
+    }
+    if ((o.venue || null) !== (fm.venue || null)) d.venue = { ours: o.venue || null, fifa: fm.venue };
+    if (o.result && fm.result && (Number(o.result.home) !== Number(fm.result.home) || Number(o.result.away) !== Number(fm.result.away))) {
+      d.result = { ours: `${o.result.home}-${o.result.away}`, fifa: `${fm.result.home}-${fm.result.away}`, fifaType: fm.resultType };
+    }
+    if (Object.keys(d).length) diffs.push({ id: o.id, home: o.homeTeam, away: o.awayTeam, ...d });
+  }
+  out.comparison = { ourMatches: ours.length, matched: matchedCount, unmatchedOurs: unmatched, diffCount: diffs.length, diffs: diffs.slice(0, 40) };
+
+  // 3) Valgfri enkelt-kampdetalje (opstilling, mål, 90-min).
+  const matchId = request.data?.matchId;
+  if (matchId) {
+    const o = ours.find((x) => x.id === matchId);
+    const fm = o && o.homeTeam && o.awayTeam ? fifaByPair.get(key(o.homeTeam, o.awayTeam)) : null;
+    if (fm) {
+      try {
+        const [live, timeline] = await Promise.all([
+          client.getMatch(fm.externalId), client.getTimeline(fm.externalId),
+        ]);
+        const details = fifaMap.mapMatchDetails(live, timeline);
+        out.detail = {
+          externalId: fm.externalId,
+          ninety: details.ninety,
+          knockout: fifaMap.knockoutResult(fm, timeline),
+          goals: details.goals,
+          penalties: details.penalties,
+          lineupCounts: { home: details.lineups.home.length, away: details.lineups.away.length },
+        };
+      } catch (err) { out.detailError = String(err?.message || err); }
+    } else { out.detailError = 'Kunne ikke parre kampen med FIFA.'; }
+  }
+
+  return out;
+});
 
 // ---------------------------------------------------------------------------
 // inspectFootballData — owner/global admin: prober football-data.org-endpoints

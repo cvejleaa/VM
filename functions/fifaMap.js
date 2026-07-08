@@ -1,0 +1,210 @@
+// ---------------------------------------------------------------------------
+// fifaMap.js — ren, testbar oversættelse fra FIFA's offentlige data-API til
+// VORES normaliserede skema. INGEN netværk/Firebase — nem at teste isoleret mod
+// rigtige FIFA-svar (se __fixtures__/fifa/).
+//
+// FIFA-kilder (gratis, ingen nøgle):
+//   • api.fifa.com/api/v3/calendar/matches?idSeason=…  → kampprogram + resultater
+//   • api.fifa.com/api/v3/live/football/{matchId}       → detaljer (opstilling, mål, kort)
+//   • api.fifa.com/api/v3/timelines/{matchId}           → hændelses-tidslinje m. PERIODE
+//
+// Vigtigt: FIFA tagger hver hændelse med `Period` (3=1. halvleg, 5=2. halvleg,
+// 7/9=forlænget tid, 11=straffe). Det gør 90-min-resultatet (som knockout-tip
+// måles på) EKSAKT — vi behøver ikke gætte ud fra minuttal.
+// ---------------------------------------------------------------------------
+'use strict';
+
+// Regulær spilletid = 1. + 2. halvleg. Bruges til at isolere 90-min-resultatet.
+const REGULAR_PERIODS = new Set([3, 5]);
+
+// FIFA ResultType → hvordan kampen blev afgjort.
+const RESULT_TYPE = { 0: 'notPlayed', 1: 'regular', 2: 'penalties', 3: 'extraTime' };
+
+/** Pluk en lokaliseret streng ('en' foretrukket) fra FIFA's [{Locale,Description}]. */
+function loc(list) {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  const en = list.find((x) => x && typeof x.Locale === 'string' && x.Locale.startsWith('en'));
+  return (en || list[0]).Description ?? null;
+}
+
+/** FIFA-stadienavn/StageName → vores round-kode ('group'|'r32'|…|'final') eller null. */
+function stageToRound(stageName) {
+  const s = String(stageName == null ? '' : stageName).toLowerCase();
+  if (!s) return null;
+  if (s.includes('group')) return 'group';
+  if (s.includes('32')) return 'r32';
+  if (s.includes('16')) return 'r16';
+  if (s.includes('quarter')) return 'qf';
+  if (s.includes('semi')) return 'sf';
+  if (s.includes('third') || s.includes('3rd')) return 'bronze';
+  if (s.includes('final')) return 'final'; // efter quarter/semi/third
+  return null;
+}
+
+/** Vores 3-bogstavskode for et FIFA-hold (IdCountry foretrukket, ellers Abbreviation). */
+function teamCode(team) {
+  if (!team) return null;
+  const c = team.IdCountry || team.Abbreviation || null;
+  return c ? String(c).toUpperCase() : null;
+}
+
+/** ResultType-tal → 'regular'|'penalties'|'extraTime'|'notPlayed'. */
+function resultType(rt) {
+  return RESULT_TYPE[rt] || 'notPlayed';
+}
+
+/**
+ * Vores status for en FIFA-kamp.
+ *  MatchStatus: 0 = spillet/afsluttet, 1 = ikke startet. Andet (fx live) → 'live'.
+ *  Uden kendte hold bliver en ikke-spillet kamp 'pendingTeams'.
+ * NB: den præcise live-kode er endnu ikke bekræftet mod en igangværende kamp —
+ * derfor behandles alt der hverken er 0 eller 1 som live (konservativt).
+ */
+function mapStatus(matchStatus, hasTeams) {
+  if (matchStatus === 0) return 'finished';
+  if (matchStatus === 1) return hasTeams ? 'scheduled' : 'pendingTeams';
+  return 'live';
+}
+
+/**
+ * 90-minutters (ordinær tid) resultat fra tidslinjen: den løbende score ved
+ * udgangen af 2. halvleg. Robust over for selvmål (den løbende HomeGoals/AwayGoals
+ * er allerede korrekt bogført). Returnerer null hvis der ikke er ordinær-tids-data.
+ * @param {{Event:Array}} timeline
+ * @returns {{home:number, away:number}|null}
+ */
+function ninetyScore(timeline) {
+  const evs = timeline && Array.isArray(timeline.Event) ? timeline.Event : null;
+  if (!evs) return null;
+  let home = null; let away = null;
+  for (const ev of evs) {
+    if (!REGULAR_PERIODS.has(ev.Period)) continue;
+    const hg = Number(ev.HomeGoals); const ag = Number(ev.AwayGoals);
+    if (Number.isFinite(hg)) home = home == null ? hg : Math.max(home, hg);
+    if (Number.isFinite(ag)) away = away == null ? ag : Math.max(away, ag);
+  }
+  if (home == null || away == null) return null;
+  return { home, away };
+}
+
+/**
+ * Normalisér én FIFA-kalenderkamp til vores skema (samme form som football-data-
+ * importens "desired": kode-hold, kickoff, stadion, runde, status, resultat).
+ * @param {object} m  ét element fra calendar/matches → Results
+ */
+function mapCalendarMatch(m) {
+  if (!m) return null;
+  const home = teamCode(m.Home);
+  const away = teamCode(m.Away);
+  const hasTeams = !!home && !!away;
+  const round = stageToRound(loc(m.StageName));
+  const status = mapStatus(m.MatchStatus, hasTeams);
+
+  // Vinder → vores holdkode (til "videre" i knockout).
+  let advance = null;
+  if (m.Winner) {
+    if (m.Home && String(m.Home.IdTeam) === String(m.Winner)) advance = home;
+    else if (m.Away && String(m.Away.IdTeam) === String(m.Winner)) advance = away;
+  }
+
+  const played = m.MatchStatus === 0 && m.HomeTeamScore != null && m.AwayTeamScore != null;
+  const pens = (m.HomeTeamPenaltyScore != null && m.AwayTeamPenaltyScore != null)
+    ? { home: m.HomeTeamPenaltyScore, away: m.AwayTeamPenaltyScore } : null;
+
+  return {
+    externalId: String(m.IdMatch),
+    idStage: m.IdStage != null ? String(m.IdStage) : null,
+    round,
+    homeTeam: home,
+    awayTeam: away,
+    homePlaceholder: home ? null : (m.PlaceHolderA || null),
+    awayPlaceholder: away ? null : (m.PlaceHolderB || null),
+    kickoffISO: m.Date || null,
+    venue: m.Stadium ? loc(m.Stadium.Name) : null,
+    city: m.Stadium ? loc(m.Stadium.CityName) : null,
+    groupName: loc(m.GroupName),
+    status,
+    resultType: resultType(m.ResultType),
+    result: played
+      ? { home: m.HomeTeamScore, away: m.AwayTeamScore, ...(advance ? { advance } : {}), ...(pens ? { penalties: pens } : {}) }
+      : null,
+  };
+}
+
+/** Map en FIFA Goals-post (fra live/football) til {minute, period, side, idPlayer}. */
+function mapGoal(g, homeIdTeam) {
+  return {
+    minute: g.Minute || null,
+    period: g.Period ?? null,
+    side: String(g.IdTeam) === String(homeIdTeam) ? 'home' : 'away',
+    idPlayer: g.IdPlayer || null,
+    idAssist: g.IdAssistPlayer || null,
+    type: g.Type ?? null,
+  };
+}
+
+/** Map en FIFA-spiller (Players[]) til en let opstillingspost. */
+function mapPlayer(p) {
+  return {
+    idPlayer: p.IdPlayer || null,
+    name: loc(p.ShortName) || loc(p.PlayerName) || null,
+    shirt: p.ShirtNumber ?? null,
+    captain: !!p.Captain,
+    starter: p.Status === 1, // 1 = i startopstillingen
+    position: p.Position ?? null,
+  };
+}
+
+/**
+ * Kampdetaljer fra FIFA (live/football + timeline) i en form der svarer til vores
+ * mapMatchDetails: mål, kort, udskiftninger, opstillinger, straffe + 90-min.
+ * @param {object} live      /live/football/{id}-svar
+ * @param {object} [timeline] /timelines/{id}-svar (for eksakt 90-min)
+ */
+function mapMatchDetails(live, timeline) {
+  if (!live) return null;
+  const ht = live.HomeTeam || {}; const at = live.AwayTeam || {};
+  const homeId = ht.IdTeam;
+  const goals = [
+    ...((ht.Goals || []).map((g) => mapGoal(g, homeId))),
+    ...((at.Goals || []).map((g) => mapGoal(g, homeId))),
+  ];
+  const pens = (live.HomeTeamPenaltyScore != null && live.AwayTeamPenaltyScore != null)
+    ? { home: live.HomeTeamPenaltyScore, away: live.AwayTeamPenaltyScore } : null;
+  return {
+    goals,
+    penalties: pens,
+    resultType: resultType(live.ResultType),
+    lineups: {
+      home: (ht.Players || []).map(mapPlayer),
+      away: (at.Players || []).map(mapPlayer),
+    },
+    ninety: ninetyScore(timeline),
+  };
+}
+
+/**
+ * Ordinær-tids-resultat + "videre" for en knockout-kamp ud fra FIFA-data
+ * (parallel til vores healedKnockoutResult, men med eksakt periode-data).
+ * @param {object} match     mappet kalenderkamp (fra mapCalendarMatch) — for hold/advance
+ * @param {object} timeline  /timelines/{id}
+ * @returns {{home:number, away:number, advance:string|null}|null}
+ */
+function knockoutResult(match, timeline) {
+  if (!match) return null;
+  const ninety = ninetyScore(timeline);
+  if (!ninety) return null;
+  let advance = match.result && match.result.advance ? match.result.advance : null;
+  const pens = match.result && match.result.penalties;
+  if (pens && pens.home !== pens.away) {
+    advance = pens.home > pens.away ? match.homeTeam : match.awayTeam;
+  } else if (ninety.home !== ninety.away) {
+    advance = ninety.home > ninety.away ? match.homeTeam : match.awayTeam;
+  }
+  return { home: ninety.home, away: ninety.away, advance: advance || null };
+}
+
+module.exports = {
+  loc, stageToRound, teamCode, resultType, mapStatus,
+  ninetyScore, mapCalendarMatch, mapGoal, mapPlayer, mapMatchDetails, knockoutResult,
+};

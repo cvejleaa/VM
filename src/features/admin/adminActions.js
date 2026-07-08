@@ -454,6 +454,24 @@ export async function callRegenerateRecaps({ apply = false, reset = false } = {}
 }
 
 /**
+ * Kald Cloud Function 'previewFifaData' — hent LIVE data fra FIFA's gratis API,
+ * mapp det til vores skema og sammenlign med vores gemte kampe (verificering før
+ * en evt. omlægning). Skriver intet. Valgfrit matchId → hent kampdetalje.
+ */
+export async function callPreviewFifaData(matchId = null) {
+  try {
+    const fn = httpsCallable(functions, 'previewFifaData');
+    const res = await fn(matchId ? { matchId } : {});
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg = err?.code === 'functions/not-found' || err?.code === 'not-found'
+      ? 'Cloud Function "previewFifaData" er ikke deployet endnu.'
+      : err?.message ?? 'Ukendt fejl ved kald af previewFifaData.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */
