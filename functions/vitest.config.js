@@ -19,6 +19,7 @@ export default defineConfig({
       'invites.test.js',
       'leagueRecap.test.js',
       'fixtureImport.test.js',
+      'fifaMap.test.js',
     ],
     exclude: [
       'rules.test.js',
