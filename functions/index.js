@@ -2056,14 +2056,31 @@ exports.previewFootballData = onCall(
 exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async (request) => {
   const db = getFirestore();
   await requireAdmin(db, request);
+  // Owner-only + read-only: fang ALT og returnér den rå fejl (+ fase), så en
+  // uventet undtagelse ikke bare bliver til et intetsigende "internal" i browseren.
+  let phase = 'init';
+  try {
+    return await runPreviewFifa(db, request, () => { return phase; }, (p) => { phase = p; });
+  } catch (err) {
+    return {
+      source: 'fifa',
+      error: `Uventet fejl (${phase}): ${String(err?.message || err)}`,
+      stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | '),
+    };
+  }
+});
 
+async function runPreviewFifa(db, request, _getPhase, setPhase) {
+  setPhase('createClient');
   const client = createFifaClient();
   const out = { source: 'fifa', season: client.season, competition: client.competition };
 
   // 1) Hent + mapp hele kampprogrammet.
   let mapped = [];
   try {
+    setPhase('fetch-calendar');
     const data = await client.getSeasonMatches({ count: 500 });
+    setPhase('map-calendar');
     const results = Array.isArray(data?.Results) ? data.Results : [];
     mapped = results.map(fifaMap.mapCalendarMatch).filter(Boolean);
   } catch (err) {
@@ -2077,6 +2094,7 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }));
 
   // 2) Sammenlign med vores gemte kampe (parret på det uordnede holdpar).
+  setPhase('read-our-matches');
   const snap = await db.collection('matches').get();
   const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   const key = (a, b) => [a, b].filter(Boolean).sort().join('_');
@@ -2103,6 +2121,7 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }
   out.comparison = { ourMatches: ours.length, matched: matchedCount, unmatchedOurs: unmatched, diffCount: diffs.length, diffs: diffs.slice(0, 40) };
 
+  setPhase('compare');
   // 3) Valgfri enkelt-kampdetalje (opstilling, mål, 90-min).
   const matchId = request.data?.matchId;
   if (matchId) {
@@ -2127,6 +2146,105 @@ exports.previewFifaData = onCall({ region: REGION, timeoutSeconds: 120 }, async 
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// previewFifaScoring — owner/global admin: SKYGGE-SCORING. Beregn hvad hvert tip
+// (og hver spillers samlede kamp-point) VILLE blive hvis vi scorede mod FIFA-
+// hentede resultater, og sammenlign med de nuværende gemte point. Skriver INTET.
+// Formål: bevise at et kildeskift til FIFA ikke rører selve spillet (0 forskelle).
+// Bonus-point er udeladt — de afhænger ikke af kampdata-kilden.
+// ---------------------------------------------------------------------------
+exports.previewFifaScoring = onCall({ region: REGION, timeoutSeconds: 300 }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  let phase = 'init';
+  try {
+    const client = createFifaClient();
+
+    phase = 'fetch-calendar';
+    const cal = await client.getSeasonMatches({ count: 500 });
+    const fifaByPair = new Map();
+    const key = (a, b) => [a, b].filter(Boolean).sort().join('_');
+    for (const raw of (Array.isArray(cal?.Results) ? cal.Results : [])) {
+      const fm = fifaMap.mapCalendarMatch(raw);
+      if (fm && fm.homeTeam && fm.awayTeam) fifaByPair.set(key(fm.homeTeam, fm.awayTeam), fm);
+    }
+
+    phase = 'read-db';
+    const [matchSnap, betSnap] = await Promise.all([
+      db.collection('matches').get(),
+      db.collection('bets').get(),
+    ]);
+    const ours = matchSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const betsByMatch = new Map();
+    for (const d of betSnap.docs) {
+      const b = d.data();
+      if (!betsByMatch.has(b.matchId)) betsByMatch.set(b.matchId, []);
+      betsByMatch.get(b.matchId).push(b);
+    }
+
+    // For hver AFSLUTTET kamp: find FIFA-resultatet (90-min for knockout via
+    // tidslinje ved forlænget tid/straffe), scor tippene og sammenlign.
+    phase = 'score';
+    const betDiffs = [];
+    const userFifa = new Map();   // uid → FIFA-beregnet kamp-point
+    const userStored = new Map(); // uid → gemt kamp-point
+    let matchesConsidered = 0; let betsScored = 0; const skipped = [];
+
+    for (const o of ours) {
+      if (o.status !== 'finished' || !o.homeTeam || !o.awayTeam) continue;
+      const fm = fifaByPair.get(key(o.homeTeam, o.awayTeam));
+      if (!fm || !fm.result) { skipped.push({ id: o.id, reason: 'ingen FIFA-kamp/resultat' }); continue; }
+
+      // Hent tidslinje KUN for knockout afgjort på forlænget tid/straffe.
+      const isKnockout = o.round && o.round !== 'group';
+      let timeline = null;
+      if (isKnockout && (fm.resultType === 'extraTime' || fm.resultType === 'penalties')) {
+        try { timeline = await client.getTimeline(fm.externalId); }
+        catch { skipped.push({ id: o.id, reason: 'kunne ikke hente tidslinje' }); continue; }
+      }
+      let res = fifaMap.fifaScoringResult(fm, timeline);
+      if (!res) { skipped.push({ id: o.id, reason: 'mangler 90-min (ingen tidslinje)' }); continue; }
+
+      // Vend resultatet til VORES orientering hvis hjemme/ude er byttet om.
+      if (o.homeTeam === fm.awayTeam && o.homeTeam !== fm.homeTeam) {
+        res = { home: res.away, away: res.home, advance: res.advance };
+      }
+
+      matchesConsidered++;
+      for (const bet of (betsByMatch.get(o.id) || [])) {
+        const pts = isKnockout ? scoreKnockout(bet, res, o) : scoreMatch(bet, res);
+        const cur = typeof bet.points === 'number' ? bet.points : 0;
+        betsScored++;
+        userFifa.set(bet.uid, (userFifa.get(bet.uid) || 0) + pts);
+        userStored.set(bet.uid, (userStored.get(bet.uid) || 0) + cur);
+        if (pts !== cur) {
+          betDiffs.push({ matchId: o.id, home: o.homeTeam, away: o.awayTeam, uid: bet.uid, stored: cur, fifa: pts });
+        }
+      }
+    }
+
+    // Per-spiller-forskelle i samlede kamp-point.
+    const userDiffs = [];
+    for (const [uid, fifaTotal] of userFifa) {
+      const storedTotal = userStored.get(uid) || 0;
+      if (fifaTotal !== storedTotal) userDiffs.push({ uid, storedTotal, fifaTotal, delta: fifaTotal - storedTotal });
+    }
+
+    return {
+      matchesConsidered, betsScored,
+      betDiffCount: betDiffs.length,
+      userDiffCount: userDiffs.length,
+      betDiffs: betDiffs.slice(0, 50),
+      userDiffs: userDiffs.slice(0, 50),
+      skippedCount: skipped.length,
+      skipped: skipped.slice(0, 20),
+      note: 'Bonus-point er udeladt (afhænger ikke af kampdata-kilden). 0 forskelle = kildeskift rører ikke spillet.',
+    };
+  } catch (err) {
+    return { error: `Uventet fejl (${phase}): ${String(err?.message || err)}`, stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | ') };
+  }
 });
 
 // ---------------------------------------------------------------------------
