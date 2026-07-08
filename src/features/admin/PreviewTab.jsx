@@ -2,7 +2,7 @@
 // (default Bundesliga 2025/26) og viser præcis hvordan topscorere, stilling og
 // kampdetaljer kommer til at se ud under VM. Henter intet ind i basen.
 import { useState } from 'react';
-import { callPreviewFootballData, callPreviewFifaData } from './adminActions';
+import { callPreviewFootballData, callPreviewFifaData, callPreviewFifaScoring } from './adminActions';
 import { TopScorersList } from '../stats/TopScorersCard';
 import StandingsTable from '../stats/StandingsTable';
 import MatchDetails from '../matches/MatchDetails';
@@ -63,6 +63,19 @@ export default function PreviewTab() {
     if (!res.ok) { setFifaErr(res.error); return; }
     if (res.data?.error) { setFifaErr(res.data.error); return; }
     setFifa(res.data);
+  }
+
+  // ── Skygge-scoring: FIFA-afledte point vs. nuværende (rører vi spillet?) ──
+  const [scoreBusy, setScoreBusy] = useState(false);
+  const [scoreErr, setScoreErr] = useState('');
+  const [score, setScore] = useState(null);
+  async function handleScoring() {
+    setScoreBusy(true); setScoreErr(''); setScore(null);
+    const res = await callPreviewFifaScoring();
+    setScoreBusy(false);
+    if (!res.ok) { setScoreErr(res.error); return; }
+    if (res.data?.error) { setScoreErr(res.data.error); return; }
+    setScore(res.data);
   }
 
   const compName = COMPETITIONS.find((c) => c.code === code)?.name ?? code;
@@ -165,6 +178,78 @@ export default function PreviewTab() {
               </tbody>
             </table>
           </details>
+        </div>
+      )}
+
+      {/* ── Skygge-scoring: bevis at et kildeskift ikke rører spillet ── */}
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+      <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.4rem' }}>🎯 Skygge-scoring — FIFA-point vs. nuværende</h2>
+      <p style={{ color: 'var(--c-muted)', fontSize: '0.88rem', margin: '0 0 0.75rem' }}>
+        Beregner hvad hvert tip (og hver spillers samlede kamp-point) <em>ville</em> blive hvis vi
+        scorede mod FIFA-resultater — og sammenligner med de nuværende gemte point. Skriver intet.
+        <strong> 0 forskelle = et skift til FIFA rører ikke selve spillet.</strong>
+      </p>
+      <button className="btn" onClick={handleScoring} disabled={scoreBusy}>
+        {scoreBusy ? 'Beregner…' : '🎯 Kør skygge-scoring'}
+      </button>
+
+      {scoreErr && (
+        <div role="alert" className="card" style={{ borderColor: 'var(--c-err)', color: 'var(--c-err)', margin: '1rem 0' }}>
+          Fejl: {scoreErr}
+        </div>
+      )}
+
+      {score && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.5rem',
+            color: (score.betDiffCount === 0 && score.userDiffCount === 0) ? 'var(--c-ok)' : 'var(--c-warn)' }}>
+            {(score.betDiffCount === 0 && score.userDiffCount === 0)
+              ? '✅ Ingen forskelle — FIFA giver præcis samme point som nu.'
+              : `⚠️ ${score.betDiffCount} tip og ${score.userDiffCount} spillere ville få andre point.`}
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--c-muted)', marginBottom: '0.5rem' }}>
+            {score.matchesConsidered} afsluttede kampe · {score.betsScored} tip scoret
+            {score.skippedCount > 0 ? ` · ${score.skippedCount} kampe sprunget over` : ''}
+          </div>
+          {score.userDiffs?.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ fontSize: '0.8rem' }}>
+                <thead><tr><th>Spiller (uid)</th><th>Nu</th><th>FIFA</th><th>Δ</th></tr></thead>
+                <tbody>
+                  {score.userDiffs.map((u) => (
+                    <tr key={u.uid}>
+                      <td style={{ fontFamily: 'monospace' }}>{u.uid.slice(0, 10)}…</td>
+                      <td>{u.storedTotal}</td><td>{u.fifaTotal}</td>
+                      <td style={{ color: u.delta > 0 ? 'var(--c-ok)' : 'var(--c-err)' }}>{u.delta > 0 ? '+' : ''}{u.delta}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {score.betDiffs?.length > 0 && (
+            <details style={{ marginTop: '0.6rem' }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--c-muted)' }}>Vis tip-forskelle</summary>
+              <table className="table" style={{ fontSize: '0.78rem', marginTop: '0.5rem' }}>
+                <thead><tr><th>Kamp</th><th>Spiller</th><th>Nu</th><th>FIFA</th></tr></thead>
+                <tbody>
+                  {score.betDiffs.map((b, i) => (
+                    <tr key={i}>
+                      <td>{b.home}–{b.away}</td>
+                      <td style={{ fontFamily: 'monospace' }}>{b.uid.slice(0, 8)}…</td>
+                      <td>{b.stored}</td><td>{b.fifa}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
+          {score.skipped?.length > 0 && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--c-muted)', marginTop: '0.5rem' }}>
+              Sprunget over: {score.skipped.map((s) => `${s.id} (${s.reason})`).join(', ')}
+            </div>
+          )}
+          <p style={{ fontSize: '0.75rem', color: 'var(--c-muted)', marginTop: '0.5rem' }}>{score.note}</p>
         </div>
       )}
     </div>

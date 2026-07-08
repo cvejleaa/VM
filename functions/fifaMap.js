@@ -207,7 +207,31 @@ function knockoutResult(match, timeline) {
   return { home: ninety.home, away: ninety.away, advance: advance || null };
 }
 
+/**
+ * Hvilket FIFA-resultat skal et tip scores IMOD — på samme grundlag som i dag
+ * (ordinær tid for knockout)? Bruges af skygge-scoringen der sammenligner
+ * FIFA-afledte point med de nuværende UDEN at skrive noget.
+ *  - Gruppekamp → fuldtidsresultatet (ingen forlænget tid i gruppespil).
+ *  - Knockout afgjort i ordinær tid → resultatet som det er (= 90-min).
+ *  - Knockout på forlænget tid/straffe → 90-min fra tidslinjen (knockoutResult).
+ *    Mangler tidslinjen, returneres null (kalderen springer over/flagger) — vi
+ *    scorer ALDRIG på et oppustet fuldtidsresultat.
+ * @param {object} fm        mappet FIFA-kamp (fra mapCalendarMatch)
+ * @param {object} [timeline] /timelines/{id} (kræves kun for ET/straffe)
+ * @returns {{home:number, away:number, advance?:string|null}|null}
+ */
+function fifaScoringResult(fm, timeline) {
+  if (!fm || !fm.result) return null;
+  const isKnockout = fm.round && fm.round !== 'group';
+  if (!isKnockout) return { home: fm.result.home, away: fm.result.away };
+  if (fm.resultType === 'extraTime' || fm.resultType === 'penalties') {
+    return timeline ? knockoutResult(fm, timeline) : null;
+  }
+  return { home: fm.result.home, away: fm.result.away, advance: fm.result.advance || null };
+}
+
 module.exports = {
   loc, stageToRound, teamCode, resultType, mapStatus,
   ninetyScore, mapCalendarMatch, mapGoal, mapPlayer, mapMatchDetails, knockoutResult,
+  fifaScoringResult,
 };

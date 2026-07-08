@@ -472,6 +472,24 @@ export async function callPreviewFifaData(matchId = null) {
 }
 
 /**
+ * Kald Cloud Function 'previewFifaScoring' — skygge-scoring: beregn hvad point
+ * ville blive hvis vi scorede mod FIFA-resultater, og sammenlign med de gemte.
+ * Skriver intet. Bruges til at bevise at et kildeskift ikke rører spillet.
+ */
+export async function callPreviewFifaScoring() {
+  try {
+    const fn = httpsCallable(functions, 'previewFifaScoring');
+    const res = await fn({});
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg = err?.code === 'functions/not-found' || err?.code === 'not-found'
+      ? 'Cloud Function "previewFifaScoring" er ikke deployet endnu.'
+      : err?.message ?? 'Ukendt fejl ved kald af previewFifaScoring.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */

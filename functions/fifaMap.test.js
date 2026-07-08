@@ -7,7 +7,7 @@ import { dirname, join } from 'path';
 const require = createRequire(import.meta.url);
 const {
   stageToRound, teamCode, resultType, mapStatus, loc,
-  ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult,
+  ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult, fifaScoringResult,
 } = require('./fifaMap');
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -139,6 +139,25 @@ describe('knockoutResult (90-min + videre, parallel til healedKnockoutResult)', 
   it('afgøres i ordinær tid → videre = 90-min-vinderen', () => {
     const match = { homeTeam: 'BRA', awayTeam: 'NOR', result: {} };
     expect(knockoutResult(match, tlRegular)).toEqual({ home: 1, away: 2, advance: 'NOR' });
+  });
+});
+
+describe('fifaScoringResult (grundlag for skygge-scoring)', () => {
+  it('gruppekamp → fuldtidsresultat', () => {
+    const fm = { round: 'group', resultType: 'regular', result: { home: 2, away: 1 } };
+    expect(fifaScoringResult(fm, null)).toEqual({ home: 2, away: 1 });
+  });
+  it('knockout i ordinær tid → resultatet som det er (= 90-min), uden tidslinje', () => {
+    const fm = { round: 'r32', resultType: 'regular', homeTeam: 'MEX', awayTeam: 'ECU', result: { home: 2, away: 0, advance: 'MEX' } };
+    expect(fifaScoringResult(fm, null)).toEqual({ home: 2, away: 0, advance: 'MEX' });
+  });
+  it('knockout på straffe → 90-min fra tidslinjen', () => {
+    const fm = { round: 'r16', resultType: 'penalties', homeTeam: 'SUI', awayTeam: 'COL', result: { home: 0, away: 0, penalties: { home: 4, away: 3 } } };
+    expect(fifaScoringResult(fm, tlPenalties)).toEqual({ home: 0, away: 0, advance: 'SUI' });
+  });
+  it('knockout på ET/straffe UDEN tidslinje → null (scorer aldrig på oppustet fuldtid)', () => {
+    const fm = { round: 'r16', resultType: 'penalties', homeTeam: 'SUI', awayTeam: 'COL', result: { home: 0, away: 0 } };
+    expect(fifaScoringResult(fm, null)).toBeNull();
   });
 });
 
