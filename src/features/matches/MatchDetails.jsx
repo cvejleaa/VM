@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 import { useState } from 'react';
 import { flipSide, goalsWithRunningScore } from './matchHelpers';
+import FormationPitch from './FormationPitch';
 
 const CARD_ICON = { YELLOW: '🟨', RED: '🟥', YELLOW_RED: '🟨🟥' };
 
@@ -33,6 +34,44 @@ function eventIcon(ev) {
   if (ev.kind === 'goal') return '⚽';
   if (ev.kind === 'sub') return '🔄';
   return CARD_ICON[ev.card] ?? '🟨';
+}
+
+// Ikon for en FIFA-feed-hændelse (ud fra type/label).
+function feedIcon(ev) {
+  const t = ev.type;
+  const label = (ev.label || '').toLowerCase();
+  if (t === 0 || t === 41) return '⚽';
+  if (label.includes('red')) return '🟥';
+  if (label.includes('yellow') || t === 2) return '🟨';
+  if (t === 5) return '🔄';
+  if (t === 57 || label.includes('prevention') || label.includes('save')) return '🧤';
+  if (t === 12 || label.includes('attempt') || label.includes('shot')) return '👟';
+  if (t === 16 || label.includes('corner')) return '🚩';
+  if (t === 15 || label.includes('offside')) return '🚫';
+  if (t === 18 || label.includes('foul')) return '⚠️';
+  if (t === 71 || label.includes('var')) return '📺';
+  if (t === 26 || t === 8) return '🏁';
+  if (t === 7 || t === 78) return '▶️';
+  return '•';
+}
+
+// Én række i det fulde live-feed (FIFA-kommentar).
+function FeedRow({ ev }) {
+  const min = ev.minute == null ? '' : (ev.injuryTime ? `${ev.minute}+${ev.injuryTime}'` : `${ev.minute}'`);
+  const isGoal = ev.type === 0 || ev.type === 41;
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '0.5rem', alignItems: 'baseline',
+      padding: '0.2rem 0', fontSize: '0.8rem', borderBottom: '1px solid var(--c-border, #eee)',
+    }}>
+      <span style={{ color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 34, textAlign: 'right' }}>{min}</span>
+      <span>{feedIcon(ev)}</span>
+      <span style={{ fontWeight: isGoal ? 700 : 400 }}>
+        {ev.text}
+        {isGoal && ev.home != null && ev.period !== 11 && <span style={{ color: 'var(--c-muted)' }}> ({ev.home}–{ev.away})</span>}
+      </span>
+    </div>
+  );
 }
 
 // Én begivenheds-række (mål, kort eller udskiftning), venstre = hjemme, højre = ude.
@@ -103,6 +142,9 @@ function TeamLineup({ title, team }) {
  */
 export default function MatchDetails({ match, homeName, awayName }) {
   const [showLineups, setShowLineups] = useState(false);
+  const [pitchView, setPitchView] = useState(true);
+  const [showFeed, setShowFeed] = useState(false);
+  const [feedAll, setFeedAll] = useState(false);
   const d = match.details;
   if (!d) return null;
 
@@ -125,7 +167,11 @@ export default function MatchDetails({ match, homeName, awayName }) {
 
   const hasLineups = !!d.lineups && (d.lineups.home?.lineup?.length || d.lineups.away?.lineup?.length);
 
-  if (events.length === 0 && meta.length === 0 && !hasLineups) return null;
+  // Fuldt live hændelses-feed (FIFA). Nyeste øverst; kan filtreres til store hændelser.
+  const feed = Array.isArray(d.events) ? d.events : [];
+  const feedShown = (feedAll ? feed : feed.filter((e) => e.major)).slice().reverse();
+
+  if (events.length === 0 && meta.length === 0 && !hasLineups && feed.length === 0) return null;
 
   return (
     <div style={{ marginBottom: '0.6rem', borderTop: '1px solid var(--c-border)', paddingTop: '0.5rem' }}>
@@ -141,6 +187,30 @@ export default function MatchDetails({ match, homeName, awayName }) {
         </div>
       )}
 
+      {feed.length > 0 && (
+        <div style={{ marginTop: '0.4rem' }}>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => setShowFeed((v) => !v)}
+            aria-expanded={showFeed}
+            data-testid="toggle-feed"
+          >
+            {showFeed ? '▾ Skjul kampforløb' : '▸ Vis kampforløb (live)'}
+          </button>
+          {showFeed && (
+            <div style={{ marginTop: '0.4rem' }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--c-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                <input type="checkbox" checked={feedAll} onChange={(e) => setFeedAll(e.target.checked)} />
+                Vis alt (også skud, hjørner, offside)
+              </label>
+              <div data-testid="live-feed">
+                {feedShown.map((ev, i) => <FeedRow key={i} ev={ev} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {hasLineups && (
         <div style={{ marginTop: '0.4rem' }}>
           <button
@@ -151,10 +221,26 @@ export default function MatchDetails({ match, homeName, awayName }) {
             {showLineups ? '▾ Skjul opstillinger' : '▸ Vis opstillinger'}
           </button>
           {showLineups && (
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-              <TeamLineup title={homeName} team={d.lineups.home} />
-              <TeamLineup title={awayName} team={d.lineups.away} />
-            </div>
+            <>
+              <div style={{ margin: '0.4rem 0' }}>
+                <button className="btn btn--ghost btn--sm" onClick={() => setPitchView((v) => !v)} data-testid="toggle-pitch">
+                  {pitchView ? '☰ Vis som liste' : '⬛ Vis på banen'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }} data-testid="lineups">
+                {pitchView ? (
+                  <>
+                    <FormationPitch title={homeName} team={d.lineups.home} />
+                    <FormationPitch title={awayName} team={d.lineups.away} />
+                  </>
+                ) : (
+                  <>
+                    <TeamLineup title={homeName} team={d.lineups.home} />
+                    <TeamLineup title={awayName} team={d.lineups.away} />
+                  </>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

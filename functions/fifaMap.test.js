@@ -194,4 +194,28 @@ describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visnin
     expect(d.penalties).toBeNull();
     expect(d.ninety).toEqual({ home: 1, away: 2 });
   });
+  it('udelader straffesparkskonkurrencen (Period 11) fra mål-feed\'et', () => {
+    // 0-0 efter ordinær/forl. tid, afgjort på straffe 4-3 — straffemålene (Period 11)
+    // ligger i FIFA's Goals, men må IKKE vises som kampmål.
+    const live2 = {
+      HomeTeam: { IdTeam: '1', Players: [{ IdPlayer: 'a', ShortName: [{ Locale: 'en', Description: 'XHAKA' }] }],
+        Goals: [{ Period: 11, IdPlayer: 'a', Minute: null }, { Period: 11, IdPlayer: 'a', Minute: null }] },
+      AwayTeam: { IdTeam: '2', Players: [{ IdPlayer: 'b', ShortName: [{ Locale: 'en', Description: 'DIAZ' }] }],
+        Goals: [{ Period: 11, IdPlayer: 'b', Minute: null }] },
+      HomeTeamPenaltyScore: 4, AwayTeamPenaltyScore: 3, ResultType: 2, MatchTime: "120'",
+    };
+    const d2 = mapMatchDetails(live2, null);
+    expect(d2.goals).toHaveLength(0); // ingen kampmål — kun straffe
+    expect(d2.penalties).toEqual({ home: 4, away: 3 });
+  });
+
+  it('live hændelses-feed med FIFA-kommentar', () => {
+    expect(Array.isArray(d.events)).toBe(true);
+    expect(d.events.length).toBeGreaterThan(20); // rig tidslinje
+    expect(d.events.every((e) => typeof e.text === 'string' && e.text.length > 0)).toBe(true);
+    expect(d.events.some((e) => e.major)).toBe(true); // mindst ét stort event (mål/kort/…)
+    const goal = d.events.find((e) => e.type === 0 || e.type === 41);
+    expect(goal).toBeTruthy();
+    expect(goal.side === 'home' || goal.side === 'away').toBe(true);
+  });
 });
