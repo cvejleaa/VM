@@ -2371,6 +2371,18 @@ exports.backfillFifaVenuesNow = onCall({ region: REGION, timeoutSeconds: 120 }, 
 });
 
 // ---------------------------------------------------------------------------
+// resyncFifaDetailsNow — owner/global admin: gen-hent kampdetaljer (opstilling,
+// mål, kort) fra FIFA for ALLE parrede kampe, også historiske — så gamle kampe
+// (med gamle football-data-detaljer) får det fulde FIFA-billede. Rører ikke
+// resultater. Kan tage lidt tid (henter pr. kamp).
+// ---------------------------------------------------------------------------
+exports.resyncFifaDetailsNow = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  return fifaSync.runFifaDetailsSync(db, { full: true });
+});
+
+// ---------------------------------------------------------------------------
 // inspectFootballData — owner/global admin: prober football-data.org-endpoints
 // med jeres token og rapporterer hvilke felter jeres TIER giver adgang til.
 // Henter intet ind i basen; bruges kun til at beslutte hvad vi kan bygge på.
