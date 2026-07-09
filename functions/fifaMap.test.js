@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const {
   stageToRound, teamCode, resultType, mapStatus, loc, parseMinute,
   ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult, fifaScoringResult,
+  mapTeamStats, mapPowerRanking,
 } = require('./fifaMap');
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,8 @@ const calendar = fx('calendar-sample.json').Results;
 const tlRegular = fx('timeline-regular.json');   // IdMatch 400021532, ordinær 1-2
 const tlPenalties = fx('timeline-penalties.json'); // IdMatch 400021535, 0-0 → straffe 4-3
 const live = fx('live-match.json');              // 400021532 (BRA 43924 vs NOR 43961)
+const statsTeams = fx('stats-teams.json');       // fdh-api teams.json, home 43924
+const powerRank = fx('powerranking.json');       // fdh-api powerranking
 
 describe('stageToRound', () => {
   it('mapper FIFA-stadier til vores runde-koder', () => {
@@ -139,6 +142,35 @@ describe('knockoutResult (90-min + videre, parallel til healedKnockoutResult)', 
   it('afgøres i ordinær tid → videre = 90-min-vinderen', () => {
     const match = { homeTeam: 'BRA', awayTeam: 'NOR', result: {} };
     expect(knockoutResult(match, tlRegular)).toEqual({ home: 1, away: 2, advance: 'NOR' });
+  });
+});
+
+describe('mapTeamStats (fdh-api holdstatistik)', () => {
+  const s = mapTeamStats(statsTeams, '43924'); // 43924 = hjemme
+  it('mapper besiddelse (%), skud, skud på mål, afleveringer + præcision, hjørner', () => {
+    expect(s.home.possession).toBe(32); // 0.3209… → 32%
+    expect(s.home.shots).toBe(14);
+    expect(s.home.onTarget).toBe(4);
+    expect(s.home.passes).toBe(347);
+    expect(s.home.passPct).toBe(86); // 298/347
+    expect(s.home.corners).toBe(5);
+    expect(s.home.offsides).toBe(1);
+    expect(s.away.possession).toBeGreaterThan(0);
+  });
+  it('null når data mangler', () => {
+    expect(mapTeamStats(null, '1')).toBeNull();
+    expect(mapTeamStats({ 43924: [] }, '43924')).toBeNull(); // kun ét hold
+  });
+});
+
+describe('mapPowerRanking (fdh-api spiller-power-index)', () => {
+  const top = mapPowerRanking(powerRank, '43924', 6);
+  it('top-spillere sorteret efter samlet score, med navn og side', () => {
+    expect(top.length).toBeGreaterThan(0);
+    expect(top.length).toBeLessThanOrEqual(6);
+    expect(top.every((p) => typeof p.name === 'string' && p.name.length > 0)).toBe(true);
+    expect(top.every((p) => p.side === 'home' || p.side === 'away')).toBe(true);
+    for (let i = 1; i < top.length; i++) expect(top[i - 1].total).toBeGreaterThanOrEqual(top[i].total);
   });
 });
 
