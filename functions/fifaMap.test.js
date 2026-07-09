@@ -167,6 +167,27 @@ describe('mapTeamStats (fdh-api holdstatistik)', () => {
     expect(s.home.distanceKm).toBe(113); // 113299 m → 113 km
     expect(s.home.sprints).toBe(405);
   });
+  it('mapper gruppen Mål & afslutninger (xG, trussel, mål, assist, hovedstød, straffeskud, mål i/uden for felt, skud imod)', () => {
+    expect(s.home.xg).toBeCloseTo(2.57, 2); // XG 2.5699… → 2.57
+    expect(s.home.threat).toBe(44);
+    expect(s.home.goals).toBe(1);
+    expect(s.home.assists).toBe(0);
+    expect(s.home.headedShots).toBe(1);
+    expect(s.home.penaltyShots).toBe(2); // AttemptAtGoalFromPenalty
+    expect(s.home.goalsInBox).toBe(1);
+    expect(s.home.goalsOutBox).toBe(0);
+    expect(s.home.shotsAgainst).toBe(9);
+    expect(s.home.shotsAgainstOnTarget).toBe(5);
+  });
+  it('mapper gruppen Målmand & forsvar (redningsprocent, redninger på mål, keeper-aktioner, clean sheet, boldtab, frispark imod)', () => {
+    expect(s.home.savePct).toBe(60); // 0.60 → 60%
+    expect(s.home.savesOnTarget).toBe(3);
+    expect(s.home.gkActionsInBox).toBe(13);
+    expect(s.home.gkActionsOutBox).toBe(12);
+    expect(s.home.cleanSheets).toBe(0);
+    expect(s.home.forcedTurnovers).toBe(38);
+    expect(s.home.foulsAgainst).toBe(7);
+  });
   it('null når data mangler', () => {
     expect(mapTeamStats(null, '1')).toBeNull();
     expect(mapTeamStats({ 43924: [] }, '43924')).toBeNull(); // kun ét hold
