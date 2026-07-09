@@ -151,6 +151,36 @@ function cardCode(card) {
   return card === 1 ? 'YELLOW' : 'RED';
 }
 
+// Store hændelser (fremhæves/vises som standard i feed'et): mål, straffemål,
+// kort, udskiftning, straffe tildelt, VAR, kampslut.
+const MAJOR_EVENT_TYPES = new Set([0, 41, 2, 5, 6, 71, 26]);
+
+/**
+ * Live hændelses-feed fra tidslinjen: hver kommentar-værdig hændelse (mål, skud,
+ * redninger, hjørner, offside, kort, udskiftninger, VAR …) med FIFA's egen tekst.
+ * @param {object} timeline    /timelines/{id}
+ * @param {string} homeIdTeam  hjemmeholdets IdTeam (til side)
+ */
+function mapTimelineEvents(timeline, homeIdTeam) {
+  const evs = timeline && Array.isArray(timeline.Event) ? timeline.Event : [];
+  const out = [];
+  for (const e of evs) {
+    const text = loc(e.EventDescription);
+    if (!text) continue; // kun hændelser med kommentar
+    const { minute, injuryTime } = parseMinute(e.MatchMinute);
+    out.push({
+      minute, injuryTime, period: e.Period ?? null,
+      side: e.IdTeam == null ? null : (String(e.IdTeam) === String(homeIdTeam) ? 'home' : 'away'),
+      type: e.Type ?? null,
+      label: loc(e.TypeLocalized),
+      text,
+      home: e.HomeGoals ?? null, away: e.AwayGoals ?? null,
+      major: MAJOR_EVENT_TYPES.has(e.Type),
+    });
+  }
+  return out;
+}
+
 /**
  * Kampdetaljer fra FIFA (live/football + timeline) i PRÆCIS samme form som
  * football-datas mapMatchDetails, så MatchDetails-visningen renderer uændret:
@@ -204,6 +234,7 @@ function mapMatchDetails(live, timeline) {
     resultType: resultType(live.ResultType),
     minute, injuryTime, // spilleminut til live-badgen
     period: live.Period ?? null,
+    events: mapTimelineEvents(timeline, ht.IdTeam), // live hændelses-feed
     ninety: ninetyScore(timeline),
   };
 }
@@ -254,6 +285,6 @@ function fifaScoringResult(fm, timeline) {
 
 module.exports = {
   loc, stageToRound, teamCode, resultType, mapStatus, parseMinute, cardCode,
-  ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult,
+  ninetyScore, mapCalendarMatch, mapMatchDetails, mapTimelineEvents, knockoutResult,
   fifaScoringResult,
 };

@@ -194,4 +194,13 @@ describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visnin
     expect(d.penalties).toBeNull();
     expect(d.ninety).toEqual({ home: 1, away: 2 });
   });
+  it('live hændelses-feed med FIFA-kommentar', () => {
+    expect(Array.isArray(d.events)).toBe(true);
+    expect(d.events.length).toBeGreaterThan(20); // rig tidslinje
+    expect(d.events.every((e) => typeof e.text === 'string' && e.text.length > 0)).toBe(true);
+    expect(d.events.some((e) => e.major)).toBe(true); // mindst ét stort event (mål/kort/…)
+    const goal = d.events.find((e) => e.type === 0 || e.type === 41);
+    expect(goal).toBeTruthy();
+    expect(goal.side === 'home' || goal.side === 'away').toBe(true);
+  });
 });
