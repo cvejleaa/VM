@@ -200,7 +200,9 @@ function mapMatchDetails(live, timeline) {
   }
   const nameOf = (id) => (id != null ? names.get(String(id)) || null : null);
 
-  const mapGoals = (arr, side) => (arr || []).map((g) => {
+  // Kampmål — men UDELAD straffesparkskonkurrencen (Period 11): FIFA lægger den
+  // ind i holdenes Goals, og den hører hjemme i "Straffe"-summen, ikke i mål-feed'et.
+  const mapGoals = (arr, side) => (arr || []).filter((g) => g.Period !== 11).map((g) => {
     const { minute, injuryTime } = parseMinute(g.Minute);
     return { minute, injuryTime, type: 'REGULAR', side, scorer: nameOf(g.IdPlayer), assist: nameOf(g.IdAssistPlayer) };
   });

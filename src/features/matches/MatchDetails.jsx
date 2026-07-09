@@ -68,7 +68,7 @@ function FeedRow({ ev }) {
       <span>{feedIcon(ev)}</span>
       <span style={{ fontWeight: isGoal ? 700 : 400 }}>
         {ev.text}
-        {isGoal && ev.home != null && <span style={{ color: 'var(--c-muted)' }}> ({ev.home}–{ev.away})</span>}
+        {isGoal && ev.home != null && ev.period !== 11 && <span style={{ color: 'var(--c-muted)' }}> ({ev.home}–{ev.away})</span>}
       </span>
     </div>
   );
