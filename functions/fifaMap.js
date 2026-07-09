@@ -285,8 +285,78 @@ function fifaScoringResult(fm, timeline) {
   return { home: fm.result.home, away: fm.result.away, advance: fm.result.advance || null };
 }
 
+/** Byg {StatName: value} fra fdh-api's [[navn, værdi, bool], …]. */
+function statMap(rows) {
+  const m = {};
+  for (const r of (Array.isArray(rows) ? rows : [])) {
+    if (Array.isArray(r) && r.length >= 2) m[r[0]] = r[1];
+  }
+  return m;
+}
+
+function pickStats(m) {
+  const passes = m.Passes ?? null;
+  const completed = m.PassesCompleted ?? null;
+  return {
+    possession: m.Possession != null ? Math.round(m.Possession * 100) : null, // 0-1 → %
+    shots: m.AttemptAtGoal ?? null,
+    onTarget: m.AttemptAtGoalOnTarget ?? null,
+    passes,
+    passPct: (passes && completed != null) ? Math.round((completed / passes) * 100) : null,
+    corners: m.Corners ?? null,
+    fouls: m.FoulsFor ?? null,
+    offsides: m.Offsides ?? null,
+  };
+}
+
+/**
+ * Holdstatistik fra fdh-api teams.json → {home, away} med besiddelse, skud,
+ * skud på mål, afleveringer + præcision, hjørner, fouls, offside.
+ * @param {object} teamsJson   {teamId: [[StatName, value, bool], …]}
+ * @param {string} homeIdTeam  hjemmeholdets IdTeam
+ */
+function mapTeamStats(teamsJson, homeIdTeam) {
+  if (!teamsJson || typeof teamsJson !== 'object') return null;
+  const ids = Object.keys(teamsJson);
+  if (ids.length < 2) return null;
+  const homeId = String(homeIdTeam);
+  const homeKey = ids.includes(homeId) ? homeId : ids[0];
+  const awayKey = ids.find((k) => k !== homeKey) || ids[1];
+  return { home: pickStats(statMap(teamsJson[homeKey])), away: pickStats(statMap(teamsJson[awayKey])) };
+}
+
+/** Pluk lokaliseret tekst fra fdh-api's små-bogstavs [{locale, description}]. */
+function locLower(list) {
+  if (!Array.isArray(list) || !list.length) return null;
+  const en = list.find((x) => x && typeof x.locale === 'string' && x.locale.startsWith('en'));
+  return (en || list[0]).description ?? null;
+}
+
+/**
+ * FIFA spiller-power-index fra fdh-api powerranking → top-N spillere efter samlet
+ * score (angreb+forsvar+kreativitet).
+ * @param {object} prJson       {outfieldPlayers:[{teamId, playerName, attackingScore, …}]}
+ * @param {string} homeIdTeam   hjemmeholdets id (til side)
+ * @param {number} [topN]
+ */
+function mapPowerRanking(prJson, homeIdTeam, topN = 6) {
+  const players = prJson && Array.isArray(prJson.outfieldPlayers) ? prJson.outfieldPlayers : [];
+  const homeId = String(homeIdTeam);
+  const mapped = players.map((p) => {
+    const att = p.attackingScore || 0; const def = p.defensiveScore || 0; const cre = p.creativityScore || 0;
+    return {
+      name: locLower(p.playerName),
+      side: String(p.teamId) === homeId ? 'home' : 'away',
+      att: Math.round(att * 10) / 10, def: Math.round(def * 10) / 10, cre: Math.round(cre * 10) / 10,
+      total: Math.round((att + def + cre) * 10) / 10,
+    };
+  }).filter((p) => p.name);
+  mapped.sort((a, b) => b.total - a.total);
+  return mapped.slice(0, topN);
+}
+
 module.exports = {
   loc, stageToRound, teamCode, resultType, mapStatus, parseMinute, cardCode,
   ninetyScore, mapCalendarMatch, mapMatchDetails, mapTimelineEvents, knockoutResult,
-  fifaScoringResult,
+  fifaScoringResult, mapTeamStats, mapPowerRanking,
 };

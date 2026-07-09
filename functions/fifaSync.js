@@ -167,10 +167,24 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
     } catch { continue; }
     const details = fifaMap.mapMatchDetails(live, timeline);
     if (!details) continue;
-    // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger).
-    const before = JSON.stringify(m.details?.goals || []) + '|' + JSON.stringify(m.details?.lineups || null);
-    const after = JSON.stringify(details.goals || []) + '|' + JSON.stringify(details.lineups || null);
-    if (before === after) continue;
+    // Holdstatistik + spiller-power-index fra fdh-api (valgfri; kræver stats-id).
+    const idIFES = live.Properties && live.Properties.IdIFES;
+    if (idIFES) {
+      const [teamsJson, prJson] = await Promise.all([
+        client.getMatchStats(idIFES).catch(() => null),
+        client.getPowerRanking(idIFES).catch(() => null),
+      ]);
+      const hid = live.HomeTeam && live.HomeTeam.IdTeam;
+      if (teamsJson) details.stats = fifaMap.mapTeamStats(teamsJson, hid);
+      if (prJson) details.powerRanking = fifaMap.mapPowerRanking(prJson, hid);
+    }
+    // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger). Inkl.
+    // spilleminut + stats, så live-opdateringer (der ændrer disse) også skrives.
+    const sig = (dd) => JSON.stringify([
+      dd?.goals || [], dd?.lineups || null, dd?.bookings || [], dd?.substitutions || [],
+      dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, dd?.powerRanking?.length || 0,
+    ]);
+    if (sig(m.details) === sig(details)) continue;
     await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     updated++;
   }

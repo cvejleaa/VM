@@ -74,6 +74,56 @@ function FeedRow({ ev }) {
   );
 }
 
+// Én statistik-linje: hjemme-værdi | label | ude-værdi + en fordelings-bar.
+function StatBar({ label, home, away, pct }) {
+  const h = Number(home) || 0; const a = Number(away) || 0;
+  const total = h + a || 1;
+  const suffix = pct ? '%' : '';
+  return (
+    <div style={{ marginBottom: '0.35rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+        <strong>{home == null ? '–' : home}{home == null ? '' : suffix}</strong>
+        <span style={{ color: 'var(--c-muted)' }}>{label}</span>
+        <strong>{away == null ? '–' : away}{away == null ? '' : suffix}</strong>
+      </div>
+      <div style={{ display: 'flex', height: 5, borderRadius: 3, overflow: 'hidden', background: 'var(--c-border, #eee)' }}>
+        <div style={{ width: `${(h / total) * 100}%`, background: 'var(--c-pitch, #16a34a)' }} />
+        <div style={{ width: `${(a / total) * 100}%`, background: '#888' }} />
+      </div>
+    </div>
+  );
+}
+
+function MatchStats({ stats }) {
+  const { home, away } = stats;
+  const rows = [
+    ['Boldbesiddelse', home.possession, away.possession, true],
+    ['Skud', home.shots, away.shots],
+    ['Skud på mål', home.onTarget, away.onTarget],
+    ['Afleveringer', home.passes, away.passes],
+    ['Afl.-præcision', home.passPct, away.passPct, true],
+    ['Hjørner', home.corners, away.corners],
+    ['Frispark begået', home.fouls, away.fouls],
+    ['Offside', home.offsides, away.offsides],
+  ];
+  return <div>{rows.map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}</div>;
+}
+
+function PowerRankingList({ list, homeName, awayName }) {
+  return (
+    <div>
+      {list.map((p, i) => (
+        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '0.15rem 0' }}>
+          <span>{i + 1}. {p.name}{' '}
+            <span style={{ color: 'var(--c-muted)', fontSize: '0.7rem' }}>({p.side === 'home' ? homeName : awayName})</span>
+          </span>
+          <strong title={`Angreb ${p.att} · Forsvar ${p.def} · Kreativitet ${p.cre}`}>{p.total}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Én begivenheds-række (mål, kort eller udskiftning), venstre = hjemme, højre = ude.
 function EventRow({ ev }) {
   const home = ev.side === 'home';
@@ -145,6 +195,8 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const [pitchView, setPitchView] = useState(true);
   const [showFeed, setShowFeed] = useState(false);
   const [feedAll, setFeedAll] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [showPower, setShowPower] = useState(false);
   const d = match.details;
   if (!d) return null;
 
@@ -171,7 +223,7 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const feed = Array.isArray(d.events) ? d.events : [];
   const feedShown = (feedAll ? feed : feed.filter((e) => e.major)).slice().reverse();
 
-  if (events.length === 0 && meta.length === 0 && !hasLineups && feed.length === 0) return null;
+  if (events.length === 0 && meta.length === 0 && !hasLineups && feed.length === 0 && !d.stats && !d.powerRanking) return null;
 
   return (
     <div style={{ marginBottom: '0.6rem', borderTop: '1px solid var(--c-border)', paddingTop: '0.5rem' }}>
@@ -184,6 +236,35 @@ export default function MatchDetails({ match, homeName, awayName }) {
       {meta.length > 0 && (
         <div style={{ fontSize: '0.76rem', color: 'var(--c-muted)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {meta.map((t) => <span key={t}>{t}</span>)}
+        </div>
+      )}
+
+      {d.stats && (
+        <div style={{ marginTop: '0.4rem' }}>
+          <button className="btn btn--ghost btn--sm" onClick={() => setShowStats((v) => !v)} aria-expanded={showStats} data-testid="toggle-stats">
+            {showStats ? '▾ Skjul statistik' : '▸ Vis statistik'}
+          </button>
+          {showStats && (
+            <div style={{ marginTop: '0.4rem' }} data-testid="match-stats">
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', fontWeight: 700, marginBottom: '0.3rem' }}>
+                <span>{homeName}</span><span>{awayName}</span>
+              </div>
+              <MatchStats stats={d.stats} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {Array.isArray(d.powerRanking) && d.powerRanking.length > 0 && (
+        <div style={{ marginTop: '0.4rem' }}>
+          <button className="btn btn--ghost btn--sm" onClick={() => setShowPower((v) => !v)} aria-expanded={showPower} data-testid="toggle-power">
+            {showPower ? '▾ Skjul bedste spillere' : '▸ Bedste spillere (FIFA power-index)'}
+          </button>
+          {showPower && (
+            <div style={{ marginTop: '0.3rem' }} data-testid="power-ranking">
+              <PowerRankingList list={d.powerRanking} homeName={homeName} awayName={awayName} />
+            </div>
+          )}
         </div>
       )}
 

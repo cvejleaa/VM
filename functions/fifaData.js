@@ -29,20 +29,21 @@ function createFifaClient({ fetchImpl, sleepImpl = sleep, competition = ID_COMPE
   const doFetch = fetchImpl || (typeof globalThis.fetch === 'function' ? globalThis.fetch : null);
   if (!doFetch) throw new Error('Ingen fetch tilgængelig (kræver Node 18+ eller injiceret fetch).');
 
-  async function request(path) {
+  async function fetchJson(url) {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const res = await doFetch(`${BASE}${path}`, {
-        headers: { Accept: 'application/json', 'User-Agent': UA },
-      });
+      const res = await doFetch(url, { headers: { Accept: 'application/json', 'User-Agent': UA } });
       if (res.status === 429 || res.status === 503) {
         await sleepImpl((attempt + 1) * 2000); // simpel backoff
         continue;
       }
-      if (!res.ok) throw new Error(`FIFA ${res.status} for ${path}`);
+      if (!res.ok) throw new Error(`FIFA ${res.status} for ${url}`);
       return res.json();
     }
-    throw new Error(`FIFA: gav op efter gentagne fejl for ${path}`);
+    throw new Error(`FIFA: gav op efter gentagne fejl for ${url}`);
   }
+  const request = (path) => fetchJson(`${BASE}${path}`);
+  // fdh-api.fifa.com — statistik/power-ranking, nøglet på match-stats-id'et (IdIFES).
+  const fdh = (path) => fetchJson(`https://fdh-api.fifa.com${path}`);
 
   return {
     competition,
@@ -60,6 +61,10 @@ function createFifaClient({ fetchImpl, sleepImpl = sleep, competition = ID_COMPE
     getTimeline: (matchId) => request(`/timelines/${matchId}?language=en`),
     // Gruppestilling for et stage.
     getStandings: (stageId) => request(`/calendar/${competition}/${season}/${stageId}/standing?language=en&count=200`),
+    // Holdstatistik (besiddelse, skud, afleveringer …) — kræver stats-id (IdIFES).
+    getMatchStats: (idIFES) => fdh(`/v1/stats/match/${idIFES}/teams.json`),
+    // Spiller-power-index (angreb/forsvar/kreativitet pr. spiller) — IdIFES.
+    getPowerRanking: (idIFES) => fdh(`/v1/powerranking/match/${idIFES}.json`),
   };
 }
 
