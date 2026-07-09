@@ -89,6 +89,27 @@ describe('decideFifaUpdate', () => {
     expect(res.patch.result).toMatchObject({ home: 0, away: 2, advance: 'MEX' });
   });
 
+  it('SIKKERHEDSVÆRN: "afsluttet" kort efter kickoff → behandles som live (ingen for tidlig scoring)', () => {
+    const now = new Date('2026-07-09T21:00:00Z');
+    const fm = { status: 'finished', round: 'group', resultType: 'regular',
+      homeTeam: 'FRA', awayTeam: 'MAR', homeScore: 1, awayScore: 0, result: { home: 1, away: 0 } };
+    const ourMatch = { round: 'group', status: 'scheduled', homeTeam: 'FRA', awayTeam: 'MAR', kickoff: '2026-07-09T20:30:00Z' }; // 30 min siden
+    const res = decideFifaUpdate(ourMatch, fm, null, { now });
+    expect(res.action).toBe('live');
+    expect(res.patch.status).toBe('live');
+    expect(res.patch.result).toMatchObject({ home: 1, away: 0 });
+  });
+
+  it('afsluttet kamp længe efter kickoff → afsluttes normalt', () => {
+    const now = new Date('2026-07-09T23:00:00Z');
+    const fm = { status: 'finished', round: 'group', resultType: 'regular',
+      homeTeam: 'FRA', awayTeam: 'MAR', homeScore: 2, awayScore: 1, result: { home: 2, away: 1 } };
+    const ourMatch = { round: 'group', status: 'scheduled', homeTeam: 'FRA', awayTeam: 'MAR', kickoff: '2026-07-09T20:30:00Z' }; // 150 min siden
+    const res = decideFifaUpdate(ourMatch, fm, null, { now });
+    expect(res.action).toBe('finish');
+    expect(res.patch.result).toMatchObject({ home: 2, away: 1 });
+  });
+
   it('live kamp → foreløbig live-score', () => {
     const fm = { status: 'live', homeScore: 1, awayScore: 0, homeTeam: 'BRA', awayTeam: 'NOR' };
     const res = decideFifaUpdate({ round: 'r16', status: 'scheduled', homeTeam: 'BRA', awayTeam: 'NOR' }, fm);

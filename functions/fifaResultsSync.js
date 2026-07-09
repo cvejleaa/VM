@@ -13,6 +13,13 @@
 'use strict';
 
 const { fifaScoringResult } = require('./fifaMap');
+const { kickoffMs } = require('./resultsSync');
+
+// En kamp kan ikke være færdig før ~100 min efter kickoff (2×45 + pause +
+// tillægstid). Sikkerhedsværn: rapporterer FIFA en igangværende kamp som
+// "afsluttet" (fx status=0 midt i kampen), afslutter vi den IKKE så tæt på
+// kickoff — vi viser den som live, så tips ikke scores for tidligt.
+const MIN_FINISH_MINUTES = 100;
 
 /**
  * Beslut hvad der skal skrives for én kamp ud fra FIFA-data.
@@ -51,6 +58,19 @@ function decideFifaUpdate(ourMatch, fm, timeline, { now = null, koSyncVersion = 
   // Knockout allerede afsluttet hos os → rør ikke (vi ejer 90-min-resultatet).
   if (isKnockout && ourMatch.status === 'finished') {
     return { action: 'skip', reason: 'knockout-finished' };
+  }
+
+  // Sikkerhedsværn mod for tidlig afslutning: er kampen sparket i gang for mindre
+  // end ~100 min siden, KAN den ikke være færdig endnu → behandl som live (vis
+  // den løbende score) i stedet for at afslutte og score tips.
+  const koMs = kickoffMs(ourMatch.kickoff);
+  const ageMin = (now && !Number.isNaN(koMs)) ? (now.getTime() - koMs) / 60000 : Infinity;
+  if (ageMin < MIN_FINISH_MINUTES) {
+    if (fm.homeScore != null && fm.awayScore != null) {
+      const s = orient({ home: fm.homeScore, away: fm.awayScore });
+      return { action: 'live', patch: { result: { home: s.home, away: s.away }, status: 'live', resultSource: 'auto', autoUpdatedAt: now } };
+    }
+    return { action: 'skip', reason: 'too-early-to-finish' };
   }
 
   let scoring = fifaScoringResult(fm, timeline);
