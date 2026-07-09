@@ -161,7 +161,7 @@ jobs:
           # KUN callable (onCall) funktioner må være allUsers-kaldbare fra browseren.
           # Cloud Run-servicenavnet = funktionsnavnet i små bogstaver. Skemalagte og
           # trigger-funktioner SKAL forblive private (de har ingen egne auth-tjek).
-          CALLABLES="adminlistuseremails adminscrubuseremails adminsendpasswordreset awardderivedgroupwinnersnow backfillfifavenuesnow backfilltipparticipation buildknockout setdatasource generateleaguerecapnow importknockoutfromfootballdata inspectfootballdata inspectmatchraw postsharpshooternote previewfifadata previewfifascoring previewfifasync previewfootballdata pruneorphanmatches recomputeallpointsnow redeeminvitecode regeneraterecaps sendtestremindertome sendtipremindersnow syncfixtures syncgroupwinnersnow syncmatchdetailsnow syncresultsnow syncscorersnow syncstandingsnow"
+          CALLABLES="adminlistuseremails adminscrubuseremails adminsendpasswordreset awardderivedgroupwinnersnow backfillfifavenuesnow backfilltipparticipation buildknockout setdatasource generateleaguerecapnow importknockoutfromfootballdata inspectfootballdata inspectmatchraw postsharpshooternote previewfifadata previewfifascoring previewfifasync previewfootballdata pruneorphanmatches recomputeallpointsnow redeeminvitecode regeneraterecaps resyncfifadetailsnow sendtestremindertome sendtipremindersnow syncfixtures syncgroupwinnersnow syncmatchdetailsnow syncresultsnow syncscorersnow syncstandingsnow"
           grant() {
             gcloud run services add-iam-policy-binding "$1" \
               --region=europe-west1 --member=allUsers --role=roles/run.invoker \

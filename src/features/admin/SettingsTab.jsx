@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { COL } from '../../lib/constants';
-import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote, scrubUserEmails, callSetDataSource, callBackfillFifaVenues } from './adminActions';
+import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote, scrubUserEmails, callSetDataSource, callBackfillFifaVenues, callResyncFifaDetails } from './adminActions';
 import { DEFAULT_UNTIPPED_PENALTY } from '../leaderboard/useUntippedPenalty';
 import { fmtPenalty } from '../leaderboard/sharpFormat';
 
@@ -38,6 +38,8 @@ export default function SettingsTab() {
   const [srcMsg, setSrcMsg] = useState(null);
   const [venueBusy, setVenueBusy] = useState(false);
   const [venueMsg, setVenueMsg] = useState(null);
+  const [resyncBusy, setResyncBusy] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState(null);
 
   useEffect(() => {
     const ref = doc(db, COL.CONFIG, 'settings');
@@ -125,6 +127,15 @@ export default function SettingsTab() {
     setVenueBusy(false);
     if (res.ok) setVenueMsg({ kind: 'ok', text: `Stadion/by opdateret på ${res.data?.updated ?? 0} kampe.` });
     else setVenueMsg({ kind: 'err', text: res.error });
+  };
+
+  const doResyncDetails = async () => {
+    if (!window.confirm('Gen-hent kampdetaljer fra FIFA for ALLE kampe (også historiske)? Overskriver gamle detaljer med de rige FIFA-data. Rører ikke resultater. Kan tage lidt tid.')) return;
+    setResyncBusy(true); setResyncMsg(null);
+    const res = await callResyncFifaDetails();
+    setResyncBusy(false);
+    if (res.ok) setResyncMsg({ kind: 'ok', text: `Detaljer gen-hentet for ${res.data?.updated ?? 0} kampe.` });
+    else setResyncMsg({ kind: 'err', text: res.error });
   };
 
   const doScrub = async () => {
@@ -295,6 +306,18 @@ export default function SettingsTab() {
       {venueMsg && (
         <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: venueMsg.kind === 'ok' ? 'var(--c-ok)' : 'var(--c-err)' }}>
           {venueMsg.kind === 'ok' ? '✓ ' : ''}{venueMsg.text}
+        </p>
+      )}
+
+      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="btn" onClick={doResyncDetails} disabled={resyncBusy} data-testid="resync-details">
+          {resyncBusy ? 'Gen-henter detaljer…' : '🔄 Gen-hent alle detaljer fra FIFA'}
+        </button>
+        <span style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>Giver også historiske kampe det fulde FIFA-billede (opstilling, mål, kort). Rører ikke resultater.</span>
+      </div>
+      {resyncMsg && (
+        <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: resyncMsg.kind === 'ok' ? 'var(--c-ok)' : 'var(--c-err)' }}>
+          {resyncMsg.kind === 'ok' ? '✓ ' : ''}{resyncMsg.text}
         </p>
       )}
 

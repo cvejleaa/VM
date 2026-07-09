@@ -44,16 +44,28 @@ async function fetchFifaByPair(client) {
 }
 
 /**
- * FIFA-resultatsynk — parallel til runSyncResults. Skriver også stadion+by, så
- * ét gennemløb backfiller alle spillesteder. Idempotent: skriver kun ved reel
- * ændring (resultat/status ELLER manglende stadion). Knockout scores på eksakt
- * 90-min (via tidslinjen) og markeres bekræftet (koSyncVersion) med det samme.
+ * FIFA-resultatsynk — parallel til runSyncResults. Idempotent: skriver kun ved
+ * reel ændring (resultat/status ELLER manglende stadion). Knockout scores på
+ * eksakt 90-min (via tidslinjen) og markeres bekræftet (koSyncVersion) med det
+ * samme.
+ *
+ * Læser som standard KUN kampe i tidsvinduet (kickoff ~-3,5t..+15min) — så den
+ * skemalagte kørsel hvert minut ikke scanner hele samlingen (sparer Firestore-
+ * læsninger). `full`/`venueOnly` scanner alle kampe (til engangs-backfill).
  */
-async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSyncVersion = null, venueOnly = false } = {}) {
+async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSyncVersion = null, venueOnly = false, full = false } = {}) {
   const client = createFifaClient();
   const { byPair } = await fetchFifaByPair(client);
 
-  const snap = await db.collection('matches').get();
+  const scanAll = full || venueOnly;
+  let snap;
+  if (scanAll) {
+    snap = await db.collection('matches').get();
+  } else {
+    const fromTs = Timestamp.fromMillis(now.getTime() - 3.5 * 3600 * 1000);
+    const toTs = Timestamp.fromMillis(now.getTime() + 15 * 60 * 1000);
+    snap = await db.collection('matches').where('kickoff', '>=', fromTs).where('kickoff', '<=', toTs).get();
+  }
   const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   let updated = 0; let review = 0; const changes = [];
@@ -100,32 +112,48 @@ async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSync
 
 /**
  * FIFA-kampdetaljesynk — henter opstillinger/mål/kort fra live/football (+ tidslinje)
- * for kampe i tidsvinduet og skriver match.details. RØRER IKKE resultatet — det
- * ejer resultatsynken (90-min sættes der). Idempotent på detalje-indhold.
+ * og skriver match.details. RØRER IKKE resultatet — det ejer resultatsynken.
+ * Idempotent på detalje-indhold.
+ *
+ * Standard (skemalagt): kampe i tidsvinduet + en LILLE portion afsluttede kampe
+ * uden detaljer (backfill), hvor den 96-doc-brede backfill-scan kun køres hvert
+ * 10. minut (sparer Firestore-læsninger). `full`=true genhenter detaljer for ALLE
+ * parrede kampe (også dem der allerede har detaljer) — til engangs-genhentning.
  */
-async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8 } = {}) {
+async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8, full = false } = {}) {
   const client = createFifaClient();
   const { byPair } = await fetchFifaByPair(client);
 
-  const fromTs = Timestamp.fromMillis(now.getTime() - windowBeforeH * 3600 * 1000);
-  const toTs = Timestamp.fromMillis(now.getTime() + windowAfterMin * 60 * 1000);
-  const windowSnap = await db.collection('matches')
-    .where('kickoff', '>=', fromTs).where('kickoff', '<=', toTs).get();
-
   const targets = new Map();
-  for (const d of windowSnap.docs) {
-    const m = { id: d.id, ...d.data() };
-    if (m.homeTeam && m.awayTeam) targets.set(m.id, m);
-  }
-  // Backfill: afsluttede kampe uden gemte detaljer (begrænset antal).
-  const finishedSnap = await db.collection('matches').where('status', '==', 'finished').get();
-  let backfilled = 0;
-  for (const d of finishedSnap.docs) {
-    if (backfilled >= maxBackfill) break;
-    if (targets.has(d.id)) continue;
-    const m = { id: d.id, ...d.data() };
-    const hasDetails = m.details && Array.isArray(m.details.goals);
-    if (m.homeTeam && m.awayTeam && !hasDetails) { targets.set(m.id, m); backfilled++; }
+  if (full) {
+    // Genhent ALT: alle parrede kampe (overskriver gamle detaljer).
+    const allSnap = await db.collection('matches').get();
+    for (const d of allSnap.docs) {
+      const m = { id: d.id, ...d.data() };
+      if (m.homeTeam && m.awayTeam) targets.set(m.id, m);
+    }
+  } else {
+    const fromTs = Timestamp.fromMillis(now.getTime() - windowBeforeH * 3600 * 1000);
+    const toTs = Timestamp.fromMillis(now.getTime() + windowAfterMin * 60 * 1000);
+    const windowSnap = await db.collection('matches')
+      .where('kickoff', '>=', fromTs).where('kickoff', '<=', toTs).get();
+    for (const d of windowSnap.docs) {
+      const m = { id: d.id, ...d.data() };
+      if (m.homeTeam && m.awayTeam) targets.set(m.id, m);
+    }
+    // Backfill af afsluttede kampe uden detaljer — kun hvert 10. minut (den brede
+    // scan er dyr), så vi ikke læser hele samlingen hvert minut.
+    if (now.getMinutes() % 10 === 0) {
+      const finishedSnap = await db.collection('matches').where('status', '==', 'finished').get();
+      let backfilled = 0;
+      for (const d of finishedSnap.docs) {
+        if (backfilled >= maxBackfill) break;
+        if (targets.has(d.id)) continue;
+        const m = { id: d.id, ...d.data() };
+        const hasDetails = m.details && Array.isArray(m.details.goals);
+        if (m.homeTeam && m.awayTeam && !hasDetails) { targets.set(m.id, m); backfilled++; }
+      }
+    }
   }
 
   let updated = 0;
@@ -164,7 +192,9 @@ async function runFifaKnockoutTeams(db) {
     if (fm && fm.round && fm.round !== 'group' && fm.homeTeam && fm.awayTeam && fm.kickoffISO) fifaKO.push(fm);
   }
 
-  const snap = await db.collection('matches').get();
+  // Kun kampe der mangler hold (pendingTeams) skal fyldes — så vi ikke scanner
+  // hele samlingen hvert minut. Det er præcis TBD-knockout-pladserne.
+  const snap = await db.collection('matches').where('status', '==', 'pendingTeams').get();
   let updated = 0; const ids = [];
   for (const d of snap.docs) {
     const m = { id: d.id, ...d.data() };

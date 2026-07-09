@@ -518,6 +518,20 @@ export async function callBackfillFifaVenues() {
 }
 
 /**
+ * Kald Cloud Function 'resyncFifaDetailsNow' — gen-hent kampdetaljer fra FIFA for
+ * ALLE kampe (også historiske), så gamle kampe får det fulde FIFA-billede.
+ */
+export async function callResyncFifaDetails() {
+  try {
+    const fn = httpsCallable(functions, 'resyncFifaDetailsNow');
+    const res = await fn({});
+    return { ok: true, data: res.data };
+  } catch (err) {
+    return { ok: false, error: err?.message ?? 'Kunne ikke gen-hente detaljer.' };
+  }
+}
+
+/**
  * Kald Cloud Function 'previewFifaSync' — dry-run af FIFA-resultatsynken: viser
  * hvilke patches den ville skrive og hvilke der reelt ville ændre en kamp.
  * Skriver intet. Sidste verificering før et kildeskift.
