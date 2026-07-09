@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 import { useState } from 'react';
 import { flipSide, goalsWithRunningScore } from './matchHelpers';
+import FormationPitch from './FormationPitch';
 
 const CARD_ICON = { YELLOW: '🟨', RED: '🟥', YELLOW_RED: '🟨🟥' };
 
@@ -141,6 +142,7 @@ function TeamLineup({ title, team }) {
  */
 export default function MatchDetails({ match, homeName, awayName }) {
   const [showLineups, setShowLineups] = useState(false);
+  const [pitchView, setPitchView] = useState(true);
   const [showFeed, setShowFeed] = useState(false);
   const [feedAll, setFeedAll] = useState(false);
   const d = match.details;
@@ -219,10 +221,26 @@ export default function MatchDetails({ match, homeName, awayName }) {
             {showLineups ? '▾ Skjul opstillinger' : '▸ Vis opstillinger'}
           </button>
           {showLineups && (
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-              <TeamLineup title={homeName} team={d.lineups.home} />
-              <TeamLineup title={awayName} team={d.lineups.away} />
-            </div>
+            <>
+              <div style={{ margin: '0.4rem 0' }}>
+                <button className="btn btn--ghost btn--sm" onClick={() => setPitchView((v) => !v)} data-testid="toggle-pitch">
+                  {pitchView ? '☰ Vis som liste' : '⬛ Vis på banen'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }} data-testid="lineups">
+                {pitchView ? (
+                  <>
+                    <FormationPitch title={homeName} team={d.lineups.home} />
+                    <FormationPitch title={awayName} team={d.lineups.away} />
+                  </>
+                ) : (
+                  <>
+                    <TeamLineup title={homeName} team={d.lineups.home} />
+                    <TeamLineup title={awayName} team={d.lineups.away} />
+                  </>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}
