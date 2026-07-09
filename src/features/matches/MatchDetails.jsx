@@ -94,9 +94,32 @@ function StatBar({ label, home, away, pct }) {
   );
 }
 
+// Skjul linjer hvor FIFA endnu ikke har data for nogen af holdene (tidligt i kampen).
+const withData = (rows) => rows.filter(([, h, a]) => h != null || a != null);
+
+// En foldbar undergruppe af statistik-linjer (fx "Mål & afslutninger").
+function StatGroup({ title, rows }) {
+  const [open, setOpen] = useState(false);
+  const shown = withData(rows);
+  if (shown.length === 0) return null;
+  return (
+    <div style={{ marginTop: '0.4rem' }}>
+      <button className="btn btn--ghost btn--sm" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        {open ? `▾ ${title}` : `▸ ${title}`}
+      </button>
+      {open && (
+        <div style={{ marginTop: '0.3rem' }}>
+          {shown.map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MatchStats({ stats }) {
   const { home, away } = stats;
-  const rows = [
+  // Kerne-nøgletal: altid synlige.
+  const core = [
     ['Boldbesiddelse', home.possession, away.possession, true],
     ['Skud', home.shots, away.shots],
     ['Skud på mål', home.onTarget, away.onTarget],
@@ -114,9 +137,36 @@ function MatchStats({ stats }) {
     ['Løbedistance (km)', home.distanceKm, away.distanceKm],
     ['Spurter', home.sprints, away.sprints],
   ];
-  // Skjul linjer hvor FIFA endnu ikke har data for nogen af holdene (tidligt i kampen).
-  const shown = rows.filter(([, h, a]) => h != null || a != null);
-  return <div>{shown.map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}</div>;
+  // Foldbar gruppe: dybere angrebstal.
+  const attack = [
+    ['Forventede mål (xG)', home.xg, away.xg],
+    ['Trussel', home.threat, away.threat],
+    ['Mål', home.goals, away.goals],
+    ['Assist', home.assists, away.assists],
+    ['Hovedstødsforsøg', home.headedShots, away.headedShots],
+    ['Skud på straffe', home.penaltyShots, away.penaltyShots],
+    ['Mål i feltet', home.goalsInBox, away.goalsInBox],
+    ['Mål uden for feltet', home.goalsOutBox, away.goalsOutBox],
+    ['Skud imod', home.shotsAgainst, away.shotsAgainst],
+    ['Skud imod på mål', home.shotsAgainstOnTarget, away.shotsAgainstOnTarget],
+  ];
+  // Foldbar gruppe: målmand & forsvar.
+  const keeper = [
+    ['Redningsprocent', home.savePct, away.savePct, true],
+    ['Redninger af skud på mål', home.savesOnTarget, away.savesOnTarget],
+    ['Keeper-aktioner i feltet', home.gkActionsInBox, away.gkActionsInBox],
+    ['Keeper-aktioner uden for feltet', home.gkActionsOutBox, away.gkActionsOutBox],
+    ['Clean sheet', home.cleanSheets, away.cleanSheets],
+    ['Fremtvungne boldtab', home.forcedTurnovers, away.forcedTurnovers],
+    ['Frispark imod', home.foulsAgainst, away.foulsAgainst],
+  ];
+  return (
+    <div>
+      {withData(core).map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}
+      <StatGroup title="Mål & afslutninger" rows={attack} />
+      <StatGroup title="Målmand & forsvar" rows={keeper} />
+    </div>
+  );
 }
 
 function PowerRankingList({ list, homeName, awayName }) {

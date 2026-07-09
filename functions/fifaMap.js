@@ -315,6 +315,27 @@ function pickStats(m) {
     // Samlet løbedistance for holdet (meter → hele km).
     distanceKm: m.TotalDistance != null ? Math.round(m.TotalDistance / 1000) : null,
     sprints: m.Sprints ?? null,
+
+    // Gruppe: Mål & afslutninger (vises foldet i appen).
+    xg: m.XG != null ? Math.round(m.XG * 100) / 100 : null, // forventede mål, 2 decimaler
+    threat: m.Threat != null ? Math.round(m.Threat) : null,
+    goals: m.Goals ?? null,
+    assists: m.Assists ?? null,
+    headedShots: m.HeadedAttemptAtGoal ?? null,
+    penaltyShots: m.AttemptAtGoalFromPenalty ?? null,
+    goalsInBox: m.GoalsInsideThePenaltyArea ?? null,
+    goalsOutBox: m.GoalsOutsideThePenaltyArea ?? null,
+    shotsAgainst: m.AttemptAtGoalAgainst ?? null,
+    shotsAgainstOnTarget: m.AttemptAtGoalAgainstOnTarget ?? null,
+
+    // Gruppe: Målmand & forsvar (vises foldet i appen).
+    savePct: m.GoalkeeperSavePercentage != null ? Math.round(m.GoalkeeperSavePercentage * 100) : null, // 0-1 → %
+    savesOnTarget: m.GoalkeeperSavesOnTarget ?? null,
+    gkActionsInBox: m.GoalkeeperDefensiveActionsInsidePenaltyArea ?? null,
+    gkActionsOutBox: m.GoalkeeperDefensiveActionsOutsidePenaltyArea ?? null,
+    cleanSheets: m.CleanSheets ?? null,
+    forcedTurnovers: m.ForcedTurnovers ?? null,
+    foulsAgainst: m.FoulsAgainst ?? null,
   };
 }
 
