@@ -1688,10 +1688,10 @@ async function runSyncKnockoutTeams(db, token, { now = new Date() } = {}) {
   return { updated: updates.length, ids: updates.map((u) => u.id) };
 }
 
-// Skemalagt: hvert 5. minut. Fylder næste runde ind kort efter football-data
-// afgør den. Idempotent og billig (intet at gøre når der ikke er nyt).
+// Skemalagt: hvert minut. Fylder næste runde ind kort efter kilden afgør den.
+// Idempotent og billig (ét kalender-kald; intet at skrive når der ikke er nyt).
 exports.syncKnockoutTeams = onSchedule(
-  { schedule: 'every 5 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
     const source = await fifaSync.getDataSource(db);
@@ -1909,7 +1909,7 @@ async function runHealKnockoutResults(db) {
 // rate-limit ud (op til ~60s) UDEN at blive dræbt midt i — ellers når den aldrig at
 // gemme mål-data for kampe der afsluttes samtidig (hele knockout-runden på én gang).
 exports.syncMatchDetails = onSchedule(
-  { schedule: 'every 3 minutes', timeoutSeconds: 150, timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
+  { schedule: 'every 1 minutes', timeoutSeconds: 150, timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
     const source = await fifaSync.getDataSource(db);
@@ -2168,7 +2168,7 @@ async function runPreviewFifa(db, request, _getPhase, setPhase) {
           knockout: fifaMap.knockoutResult(fm, timeline),
           goals: details.goals,
           penalties: details.penalties,
-          lineupCounts: { home: details.lineups.home.length, away: details.lineups.away.length },
+          lineupCounts: { home: details.lineups.home.lineup.length, away: details.lineups.away.lineup.length },
         };
       } catch (err) { out.detailError = String(err?.message || err); }
     } else { out.detailError = 'Kunne ikke parre kampen med FIFA.'; }

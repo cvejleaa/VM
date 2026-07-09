@@ -6,7 +6,7 @@ import { dirname, join } from 'path';
 
 const require = createRequire(import.meta.url);
 const {
-  stageToRound, teamCode, resultType, mapStatus, loc,
+  stageToRound, teamCode, resultType, mapStatus, loc, parseMinute,
   ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult, fifaScoringResult,
 } = require('./fifaMap');
 
@@ -161,19 +161,37 @@ describe('fifaScoringResult (grundlag for skygge-scoring)', () => {
   });
 });
 
-describe('mapMatchDetails (live/football + timeline)', () => {
+describe('parseMinute', () => {
+  it('parser ordinær og tillægstid', () => {
+    expect(parseMinute("79'")).toEqual({ minute: 79, injuryTime: null });
+    expect(parseMinute("90'+6'")).toEqual({ minute: 90, injuryTime: 6 });
+    expect(parseMinute(null)).toEqual({ minute: null, injuryTime: null });
+  });
+});
+
+describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visning)', () => {
   const d = mapMatchDetails(live, tlRegular);
-  it('mål med side, straffe, opstillinger og eksakt 90-min', () => {
+  it('mål med scorer-NAVN, side og type', () => {
     expect(d.goals).toHaveLength(3); // 1 hjemme + 2 ude
     expect(d.goals.every((g) => g.side === 'home' || g.side === 'away')).toBe(true);
-    expect(d.penalties).toBeNull(); // afgjort i ordinær tid
-    expect(d.lineups.home).toHaveLength(25);
-    expect(d.lineups.away).toHaveLength(25);
-    expect(d.ninety).toEqual({ home: 1, away: 2 });
+    expect(d.goals.every((g) => typeof g.scorer === 'string' && g.scorer.length > 0)).toBe(true);
+    expect(d.goals.every((g) => 'type' in g)).toBe(true);
   });
-  it('opstillingsposter har navn + trøjenummer', () => {
-    const p = d.lineups.home[0];
-    expect(p.name).toBeTruthy();
-    expect(typeof p.shirt).toBe('number');
+  it('kort og udskiftninger med navne', () => {
+    expect(Array.isArray(d.bookings)).toBe(true);
+    expect(d.bookings.every((b) => b.card === 'YELLOW' || b.card === 'RED')).toBe(true);
+    expect(d.substitutions.every((s) => s.playerIn && s.playerOut)).toBe(true);
+  });
+  it('opstillinger: 11 i startelveren + bænk, med formation', () => {
+    expect(d.lineups.home.lineup).toHaveLength(11);
+    expect(d.lineups.away.lineup).toHaveLength(11);
+    expect(d.lineups.home.formation).toBe('4-1-2-3');
+    expect(d.lineups.home.lineup[0].name).toBeTruthy();
+    expect(typeof d.lineups.home.lineup[0].shirt).toBe('number');
+  });
+  it('spilleminut (til live-badge), straffe og eksakt 90-min', () => {
+    expect(typeof d.minute).toBe('number'); // fra MatchTime "102'"
+    expect(d.penalties).toBeNull();
+    expect(d.ninety).toEqual({ home: 1, away: 2 });
   });
 });
