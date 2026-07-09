@@ -157,6 +157,16 @@ describe('mapTeamStats (fdh-api holdstatistik)', () => {
     expect(s.home.offsides).toBe(1);
     expect(s.away.possession).toBeGreaterThan(0);
   });
+  it('mapper de udvidede nøgletal (skud ved siden af/blokeret, indlæg, redninger, kort, distance, spurter)', () => {
+    expect(s.home.offTarget).toBe(3); // AttemptAtGoalOffTarget
+    expect(s.home.blocked).toBe(3); // AttemptAtGoalBlocked
+    expect(s.home.crosses).toBe(16);
+    expect(s.home.saves).toBe(3); // GoalkeeperSaves
+    expect(s.home.yellowCards).toBe(1);
+    expect(s.home.redCards).toBe(0);
+    expect(s.home.distanceKm).toBe(113); // 113299 m → 113 km
+    expect(s.home.sprints).toBe(405);
+  });
   it('null når data mangler', () => {
     expect(mapTeamStats(null, '1')).toBeNull();
     expect(mapTeamStats({ 43924: [] }, '43924')).toBeNull(); // kun ét hold

@@ -301,11 +301,20 @@ function pickStats(m) {
     possession: m.Possession != null ? Math.round(m.Possession * 100) : null, // 0-1 → %
     shots: m.AttemptAtGoal ?? null,
     onTarget: m.AttemptAtGoalOnTarget ?? null,
+    offTarget: m.AttemptAtGoalOffTarget ?? null,
+    blocked: m.AttemptAtGoalBlocked ?? null,
     passes,
     passPct: (passes && completed != null) ? Math.round((completed / passes) * 100) : null,
+    crosses: m.Crosses ?? null,
     corners: m.Corners ?? null,
-    fouls: m.FoulsFor ?? null,
     offsides: m.Offsides ?? null,
+    fouls: m.FoulsFor ?? null,
+    saves: m.GoalkeeperSaves ?? null,
+    yellowCards: m.YellowCards ?? null,
+    redCards: m.RedCards ?? null,
+    // Samlet løbedistance for holdet (meter → hele km).
+    distanceKm: m.TotalDistance != null ? Math.round(m.TotalDistance / 1000) : null,
+    sprints: m.Sprints ?? null,
   };
 }
 
