@@ -2168,7 +2168,7 @@ async function runPreviewFifa(db, request, _getPhase, setPhase) {
           knockout: fifaMap.knockoutResult(fm, timeline),
           goals: details.goals,
           penalties: details.penalties,
-          lineupCounts: { home: details.lineups.home.length, away: details.lineups.away.length },
+          lineupCounts: { home: details.lineups.home.lineup.length, away: details.lineups.away.lineup.length },
         };
       } catch (err) { out.detailError = String(err?.message || err); }
     } else { out.detailError = 'Kunne ikke parre kampen med FIFA.'; }

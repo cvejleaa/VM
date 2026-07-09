@@ -139,54 +139,71 @@ function mapCalendarMatch(m) {
   };
 }
 
-/** Map en FIFA Goals-post (fra live/football) til {minute, period, side, idPlayer}. */
-function mapGoal(g, homeIdTeam) {
-  return {
-    minute: g.Minute || null,
-    period: g.Period ?? null,
-    side: String(g.IdTeam) === String(homeIdTeam) ? 'home' : 'away',
-    idPlayer: g.IdPlayer || null,
-    idAssist: g.IdAssistPlayer || null,
-    type: g.Type ?? null,
-  };
+/** Parse FIFA-minut ("79'" / "90'+6'") → {minute, injuryTime}. */
+function parseMinute(s) {
+  const m = String(s == null ? '' : s).match(/(\d+)(?:'?\+(\d+))?/);
+  if (!m) return { minute: null, injuryTime: null };
+  return { minute: Number(m[1]), injuryTime: m[2] ? Number(m[2]) : null };
 }
 
-/** Map en FIFA-spiller (Players[]) til en let opstillingspost. */
-function mapPlayer(p) {
-  return {
-    idPlayer: p.IdPlayer || null,
-    name: loc(p.ShortName) || loc(p.PlayerName) || null,
-    shirt: p.ShirtNumber ?? null,
-    captain: !!p.Captain,
-    starter: p.Status === 1, // 1 = i startopstillingen
-    position: p.Position ?? null,
-  };
+/** FIFA Card-tal → vores kode. 1 = gult; alt andet = udvisning. */
+function cardCode(card) {
+  return card === 1 ? 'YELLOW' : 'RED';
 }
 
 /**
- * Kampdetaljer fra FIFA (live/football + timeline) i en form der svarer til vores
- * mapMatchDetails: mål, kort, udskiftninger, opstillinger, straffe + 90-min.
+ * Kampdetaljer fra FIFA (live/football + timeline) i PRÆCIS samme form som
+ * football-datas mapMatchDetails, så MatchDetails-visningen renderer uændret:
+ * mål (med scorer-navn + running score), kort, udskiftninger, opstillinger
+ * (startelver/bænk/formation), straffe, spilleminut og 90-min.
  * @param {object} live      /live/football/{id}-svar
  * @param {object} [timeline] /timelines/{id}-svar (for eksakt 90-min)
  */
 function mapMatchDetails(live, timeline) {
   if (!live) return null;
   const ht = live.HomeTeam || {}; const at = live.AwayTeam || {};
-  const homeId = ht.IdTeam;
-  const goals = [
-    ...((ht.Goals || []).map((g) => mapGoal(g, homeId))),
-    ...((at.Goals || []).map((g) => mapGoal(g, homeId))),
-  ];
+
+  // IdPlayer → navn (fra begge holds spillere).
+  const names = new Map();
+  for (const p of [...(ht.Players || []), ...(at.Players || [])]) {
+    if (p.IdPlayer) names.set(String(p.IdPlayer), loc(p.ShortName) || loc(p.PlayerName) || null);
+  }
+  const nameOf = (id) => (id != null ? names.get(String(id)) || null : null);
+
+  const mapGoals = (arr, side) => (arr || []).map((g) => {
+    const { minute, injuryTime } = parseMinute(g.Minute);
+    return { minute, injuryTime, type: 'REGULAR', side, scorer: nameOf(g.IdPlayer), assist: nameOf(g.IdAssistPlayer) };
+  });
+  const mapBookings = (arr, side) => (arr || []).map((b) => {
+    const { minute } = parseMinute(b.Minute);
+    return { minute, side, player: nameOf(b.IdPlayer), card: cardCode(b.Card) };
+  });
+  const mapSubs = (arr, side) => (arr || []).map((s) => {
+    const { minute, injuryTime } = parseMinute(s.Minute);
+    return { minute, injuryTime, side, playerIn: loc(s.PlayerOnName), playerOut: loc(s.PlayerOffName) };
+  });
+  const team = (t) => ({
+    formation: t?.Tactics ?? null,
+    coach: loc(t?.Coaches?.[0]?.Name || t?.Coaches?.[0]?.CoachName) || null,
+    lineup: (t?.Players || []).filter((p) => p.Status === 1)
+      .map((p) => ({ name: loc(p.ShortName) || loc(p.PlayerName), position: p.Position ?? null, shirt: p.ShirtNumber ?? null, x: p.LineupX ?? null, y: p.LineupY ?? null, captain: !!p.Captain })),
+    bench: (t?.Players || []).filter((p) => p.Status === 2)
+      .map((p) => ({ name: loc(p.ShortName) || loc(p.PlayerName), position: p.Position ?? null, shirt: p.ShirtNumber ?? null })),
+  });
+
   const pens = (live.HomeTeamPenaltyScore != null && live.AwayTeamPenaltyScore != null)
     ? { home: live.HomeTeamPenaltyScore, away: live.AwayTeamPenaltyScore } : null;
+  const { minute, injuryTime } = parseMinute(live.MatchTime);
+
   return {
-    goals,
+    goals: [...mapGoals(ht.Goals, 'home'), ...mapGoals(at.Goals, 'away')],
+    bookings: [...mapBookings(ht.Bookings, 'home'), ...mapBookings(at.Bookings, 'away')],
+    substitutions: [...mapSubs(ht.Substitutions, 'home'), ...mapSubs(at.Substitutions, 'away')],
+    lineups: { home: team(ht), away: team(at) },
     penalties: pens,
     resultType: resultType(live.ResultType),
-    lineups: {
-      home: (ht.Players || []).map(mapPlayer),
-      away: (at.Players || []).map(mapPlayer),
-    },
+    minute, injuryTime, // spilleminut til live-badgen
+    period: live.Period ?? null,
     ninety: ninetyScore(timeline),
   };
 }
@@ -236,7 +253,7 @@ function fifaScoringResult(fm, timeline) {
 }
 
 module.exports = {
-  loc, stageToRound, teamCode, resultType, mapStatus,
-  ninetyScore, mapCalendarMatch, mapGoal, mapPlayer, mapMatchDetails, knockoutResult,
+  loc, stageToRound, teamCode, resultType, mapStatus, parseMinute, cardCode,
+  ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult,
   fifaScoringResult,
 };
