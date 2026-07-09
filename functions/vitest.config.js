@@ -21,6 +21,7 @@ export default defineConfig({
       'fixtureImport.test.js',
       'fifaMap.test.js',
       'fifaResultsSync.test.js',
+      'fifaSync.test.js',
     ],
     exclude: [
       'rules.test.js',

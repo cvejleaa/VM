@@ -490,6 +490,34 @@ export async function callPreviewFifaScoring() {
 }
 
 /**
+ * Kald Cloud Function 'setDataSource' — skift kampdata-kilden (footballdata|fifa).
+ * Øjeblikkeligt og rollback-sikkert (intet deploy). Kun ejer.
+ */
+export async function callSetDataSource(source) {
+  try {
+    const fn = httpsCallable(functions, 'setDataSource');
+    const res = await fn({ source });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    return { ok: false, error: err?.message ?? 'Kunne ikke skifte datakilde.' };
+  }
+}
+
+/**
+ * Kald Cloud Function 'backfillFifaVenuesNow' — skriv stadion+by fra FIFA på alle
+ * kampe (uafhængigt af kilde-flaget). Rører ikke resultater.
+ */
+export async function callBackfillFifaVenues() {
+  try {
+    const fn = httpsCallable(functions, 'backfillFifaVenuesNow');
+    const res = await fn({});
+    return { ok: true, data: res.data };
+  } catch (err) {
+    return { ok: false, error: err?.message ?? 'Kunne ikke backfille stadioner.' };
+  }
+}
+
+/**
  * Kald Cloud Function 'previewFifaSync' — dry-run af FIFA-resultatsynken: viser
  * hvilke patches den ville skrive og hvilke der reelt ville ændre en kamp.
  * Skriver intet. Sidste verificering før et kildeskift.

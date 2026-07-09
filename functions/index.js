@@ -53,6 +53,7 @@ const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode
 const { createFifaClient } = require('./fifaData');
 const fifaMap = require('./fifaMap');
 const { decideFifaUpdate } = require('./fifaResultsSync');
+const fifaSync = require('./fifaSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { computeGroupStandings } = require('./standings');
@@ -1416,8 +1417,9 @@ exports.syncResults = onSchedule(
   async () => {
     const db = getFirestore();
     const statusRef = db.collection('config').doc('syncStatus');
+    const source = await fifaSync.getDataSource(db);
     const token = FOOTBALL_DATA_TOKEN.value();
-    if (!token) {
+    if (source !== 'fifa' && !token) {
       console.log('syncResults: FOOTBALL_DATA_TOKEN ikke sat — springer over.');
       await statusRef.set({
         lastRunAt: FieldValue.serverTimestamp(),
@@ -1427,7 +1429,9 @@ exports.syncResults = onSchedule(
       return;
     }
     try {
-      const res = await runSyncResults(db, token);
+      const res = source === 'fifa'
+        ? await fifaSync.runFifaResultsSync(db, { koSyncVersion: KO_SYNC_VERSION })
+        : await runSyncResults(db, token);
       await statusRef.set({
         lastRunAt: FieldValue.serverTimestamp(),
         lastSuccessAt: FieldValue.serverTimestamp(),
@@ -1454,6 +1458,10 @@ exports.syncResultsNow = onCall(
   async (request) => {
     const db = getFirestore();
     await requireAdmin(db, request);
+    const source = await fifaSync.getDataSource(db);
+    if (source === 'fifa') {
+      return fifaSync.runFifaResultsSync(db, { dryRun: request.data?.dryRun === true, koSyncVersion: KO_SYNC_VERSION });
+    }
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
     return runSyncResults(db, token, {
@@ -1686,11 +1694,16 @@ exports.syncKnockoutTeams = onSchedule(
   { schedule: 'every 5 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
-    const token = FOOTBALL_DATA_TOKEN.value();
-    if (!token) { console.log('syncKnockoutTeams: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
+    const source = await fifaSync.getDataSource(db);
     try {
-      const res = await runSyncKnockoutTeams(db, token);
-      if (res.updated) console.log(`syncKnockoutTeams: udfyldte ${res.updated} knockout-kamp(e)`, res.ids);
+      const res = source === 'fifa'
+        ? await fifaSync.runFifaKnockoutTeams(db)
+        : await (async () => {
+            const token = FOOTBALL_DATA_TOKEN.value();
+            if (!token) { console.log('syncKnockoutTeams: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return { updated: 0, ids: [] }; }
+            return runSyncKnockoutTeams(db, token);
+          })();
+      if (res.updated) console.log(`syncKnockoutTeams(${source}): udfyldte ${res.updated} knockout-kamp(e)`, res.ids);
     } catch (err) {
       console.error('syncKnockoutTeams: fejl', err?.message || err);
     }
@@ -1899,6 +1912,17 @@ exports.syncMatchDetails = onSchedule(
   { schedule: 'every 3 minutes', timeoutSeconds: 150, timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    const source = await fifaSync.getDataSource(db);
+    if (source === 'fifa') {
+      // FIFA sætter 90-min direkte i resultatsynken → ingen separat heal nødvendig.
+      try {
+        const res = await fifaSync.runFifaDetailsSync(db);
+        if (res.updated) console.log(`syncMatchDetails(fifa): opdaterede detaljer for ${res.updated} kamp(e).`);
+      } catch (err) {
+        console.error('syncMatchDetails(fifa): fejl', err);
+      }
+      return;
+    }
     // Ret knockout-resultater fra gemte detaljer FØRST (ingen API → ingen rate-limit).
     try {
       const h = await runHealKnockoutResults(db);
@@ -1938,6 +1962,10 @@ exports.syncMatchDetailsNow = onCall(
   async (request) => {
     const db = getFirestore();
     await requireAdmin(db, request);
+    const source = await fifaSync.getDataSource(db);
+    if (source === 'fifa') {
+      return fifaSync.runFifaDetailsSync(db);
+    }
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) throw new HttpsError('failed-precondition', 'FOOTBALL_DATA_TOKEN er ikke sat.');
     // Ret knockout-resultater fra gemte detaljer (ingen API) + hent friske detaljer.
@@ -2314,6 +2342,32 @@ exports.previewFifaSync = onCall({ region: REGION, timeoutSeconds: 300 }, async 
   } catch (err) {
     return { error: `Uventet fejl (${phase}): ${String(err?.message || err)}`, stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | ') };
   }
+});
+
+// ---------------------------------------------------------------------------
+// setDataSource — KUN ejeren: skift kampdata-kilden (config/settings.dataSource)
+// mellem 'footballdata' og 'fifa'. Øjeblikkeligt og rollback-sikkert (intet deploy).
+// ---------------------------------------------------------------------------
+exports.setDataSource = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+  if (callerSnap.data()?.role !== 'owner') {
+    throw new HttpsError('permission-denied', 'Kun ejeren kan skifte datakilde.');
+  }
+  const source = request.data?.source === 'fifa' ? 'fifa' : 'footballdata';
+  await db.collection('config').doc('settings').set({ dataSource: source }, { merge: true });
+  return { source };
+});
+
+// ---------------------------------------------------------------------------
+// backfillFifaVenuesNow — owner/global admin: skriv stadion+by fra FIFA på ALLE
+// kampe (også gruppespil), uafhængigt af kilde-flaget. Rører ikke resultater.
+// ---------------------------------------------------------------------------
+exports.backfillFifaVenuesNow = onCall({ region: REGION, timeoutSeconds: 120 }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  return fifaSync.runFifaResultsSync(db, { venueOnly: true });
 });
 
 // ---------------------------------------------------------------------------
