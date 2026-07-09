@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { COL } from '../../lib/constants';
-import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote, scrubUserEmails } from './adminActions';
+import { setRecapTime, setUntippedPenalty, callPostSharpshooterNote, scrubUserEmails, callSetDataSource, callBackfillFifaVenues } from './adminActions';
 import { DEFAULT_UNTIPPED_PENALTY } from '../leaderboard/useUntippedPenalty';
 import { fmtPenalty } from '../leaderboard/sharpFormat';
 
@@ -32,6 +32,13 @@ export default function SettingsTab() {
   const [scrubBusy, setScrubBusy] = useState(false);
   const [scrubMsg, setScrubMsg] = useState(null); // { kind:'ok'|'err', text } | null
 
+  // Kildeskift: hvilken datakilde synken bruger + stadion-backfill
+  const [dataSource, setDataSource] = useState('footballdata');
+  const [srcBusy, setSrcBusy] = useState(false);
+  const [srcMsg, setSrcMsg] = useState(null);
+  const [venueBusy, setVenueBusy] = useState(false);
+  const [venueMsg, setVenueMsg] = useState(null);
+
   useEffect(() => {
     const ref = doc(db, COL.CONFIG, 'settings');
     const unsub = onSnapshot(
@@ -41,6 +48,7 @@ export default function SettingsTab() {
         setTime((d && d.recapTime) || DEFAULT_RECAP_TIME);
         const p = d && Number.isFinite(Number(d.untippedPenalty)) ? Math.abs(Number(d.untippedPenalty)) : DEFAULT_UNTIPPED_PENALTY;
         setPenalty(p);
+        setDataSource(d && d.dataSource === 'fifa' ? 'fifa' : 'footballdata');
         setLoaded(true);
       },
       () => setLoaded(true),
@@ -98,6 +106,25 @@ export default function SettingsTab() {
     } else {
       setNoteMsg({ kind: 'err', text: res.error });
     }
+  };
+
+  const switchSource = async (next) => {
+    if (next === dataSource) return;
+    const label = next === 'fifa' ? 'FIFA' : 'football-data';
+    if (!window.confirm(`Skift kampdata-kilden til ${label}? Synken begynder straks at hente fra ${label}. Kan rulles tilbage øjeblikkeligt her.`)) return;
+    setSrcBusy(true); setSrcMsg(null);
+    const res = await callSetDataSource(next);
+    setSrcBusy(false);
+    if (res.ok) { setDataSource(res.data?.source ?? next); setSrcMsg({ kind: 'ok', text: `Kilde skiftet til ${label}.` }); }
+    else setSrcMsg({ kind: 'err', text: res.error });
+  };
+
+  const doVenueBackfill = async () => {
+    setVenueBusy(true); setVenueMsg(null);
+    const res = await callBackfillFifaVenues();
+    setVenueBusy(false);
+    if (res.ok) setVenueMsg({ kind: 'ok', text: `Stadion/by opdateret på ${res.data?.updated ?? 0} kampe.` });
+    else setVenueMsg({ kind: 'err', text: res.error });
   };
 
   const doScrub = async () => {
@@ -226,6 +253,49 @@ export default function SettingsTab() {
             {preview.text}
           </div>
         </div>
+      )}
+
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+
+      {/* ── 🔀 Kampdata-kilde (football-data ↔ FIFA) ────────────────────── */}
+      <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', color: 'var(--c-pitch)' }}>
+        🔀 Kampdata-kilde
+      </h2>
+      <p style={{ margin: '0 0 1rem', fontSize: '0.92rem', lineHeight: 1.5, color: 'var(--c-muted)' }}>
+        Vælg hvor resultater, detaljer og stadion hentes fra. FIFA er gratis; football-data kræver
+        abonnement. Skiftet virker øjeblikkeligt og kan rulles tilbage her — intet deploy nødvendigt.
+        Verificér altid med “🔁 FIFA-synk (dry-run)” under 🔮 Forhåndsvisning først.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Aktiv kilde:</span>
+        <button
+          className={`btn btn--sm${dataSource === 'footballdata' ? '' : ' btn--ghost'}`}
+          onClick={() => switchSource('footballdata')} disabled={srcBusy || !loaded} data-testid="src-footballdata"
+        >football-data</button>
+        <button
+          className={`btn btn--sm${dataSource === 'fifa' ? '' : ' btn--ghost'}`}
+          onClick={() => switchSource('fifa')} disabled={srcBusy || !loaded} data-testid="src-fifa"
+        >FIFA (gratis)</button>
+        <span style={{ fontSize: '0.85rem', color: dataSource === 'fifa' ? 'var(--c-ok)' : 'var(--c-muted)' }}>
+          {dataSource === 'fifa' ? '● FIFA er aktiv' : '● football-data er aktiv'}
+        </span>
+      </div>
+      {srcMsg && (
+        <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: srcMsg.kind === 'ok' ? 'var(--c-ok)' : 'var(--c-err)' }}>
+          {srcMsg.kind === 'ok' ? '✓ ' : ''}{srcMsg.text}
+        </p>
+      )}
+
+      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="btn" onClick={doVenueBackfill} disabled={venueBusy} data-testid="backfill-venues">
+          {venueBusy ? 'Henter stadioner…' : '📍 Backfill stadion+by fra FIFA'}
+        </button>
+        <span style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>Skriver stadion/by på alle kampe (også gruppespil). Rører ikke resultater.</span>
+      </div>
+      {venueMsg && (
+        <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: venueMsg.kind === 'ok' ? 'var(--c-ok)' : 'var(--c-err)' }}>
+          {venueMsg.kind === 'ok' ? '✓ ' : ''}{venueMsg.text}
+        </p>
       )}
 
       <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />

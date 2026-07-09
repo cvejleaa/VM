@@ -1,0 +1,198 @@
+// ---------------------------------------------------------------------------
+// fifaSync.js — orkestrering af FIFA-baseret synk (resultater, kampdetaljer,
+// knockout-hold, stadion). Parallel til football-data-synken i index.js, men
+// bygger på FIFA's gratis API via fifaData/fifaMap. Ren beslutningslogik ligger
+// i fifaResultsSync.js/fifaMap.js — dette lag rører Firestore.
+//
+// Kilde-flag: config/settings.dataSource ('fifa' | 'footballdata', default sidste).
+// De skemalagte synk-funktioner router hertil når flaget er 'fifa'.
+// ---------------------------------------------------------------------------
+'use strict';
+
+const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { createFifaClient } = require('./fifaData');
+const fifaMap = require('./fifaMap');
+const { decideFifaUpdate } = require('./fifaResultsSync');
+const { patchChangesDoc, kickoffMs } = require('./resultsSync');
+
+const SLOT_WINDOW_MS = 6 * 3600 * 1000; // knockout-slot: samme runde + kickoff inden for 6t
+
+const pairKey = (a, b) => [a, b].filter(Boolean).sort().join('_');
+
+/** Læs kilde-flaget. Default 'footballdata' (sikker fallback). */
+async function getDataSource(db) {
+  try {
+    const snap = await db.collection('config').doc('settings').get();
+    return snap.data()?.dataSource === 'fifa' ? 'fifa' : 'footballdata';
+  } catch {
+    return 'footballdata';
+  }
+}
+
+/** Hent FIFA-kampprogrammet og indeksér efter uordnet holdpar. */
+async function fetchFifaByPair(client) {
+  const cal = await client.getSeasonMatches({ count: 500 });
+  const byPair = new Map();
+  const byExternal = new Map();
+  for (const raw of (Array.isArray(cal?.Results) ? cal.Results : [])) {
+    const fm = fifaMap.mapCalendarMatch(raw);
+    if (!fm) continue;
+    byExternal.set(fm.externalId, fm);
+    if (fm.homeTeam && fm.awayTeam) byPair.set(pairKey(fm.homeTeam, fm.awayTeam), fm);
+  }
+  return { byPair, byExternal };
+}
+
+/**
+ * FIFA-resultatsynk — parallel til runSyncResults. Skriver også stadion+by, så
+ * ét gennemløb backfiller alle spillesteder. Idempotent: skriver kun ved reel
+ * ændring (resultat/status ELLER manglende stadion). Knockout scores på eksakt
+ * 90-min (via tidslinjen) og markeres bekræftet (koSyncVersion) med det samme.
+ */
+async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSyncVersion = null, venueOnly = false } = {}) {
+  const client = createFifaClient();
+  const { byPair } = await fetchFifaByPair(client);
+
+  const snap = await db.collection('matches').get();
+  const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  let updated = 0; let review = 0; const changes = [];
+  for (const m of ours) {
+    if (!m.homeTeam || !m.awayTeam) continue;
+    const fm = byPair.get(pairKey(m.homeTeam, m.awayTeam));
+    if (!fm) continue;
+
+    const isKnockout = m.round && m.round !== 'group';
+    // Kun hent tidslinje når en knockout AFGØRES nu på forlænget tid/straffe
+    // (ellers er 90-min = fuldtid, eller kampen er allerede afsluttet hos os).
+    let timeline = null;
+    if (!venueOnly && isKnockout && fm.status === 'finished' && m.status !== 'finished'
+        && (fm.resultType === 'extraTime' || fm.resultType === 'penalties')) {
+      try { timeline = await client.getTimeline(fm.externalId); } catch { /* → review */ }
+    }
+
+    const { action, patch } = venueOnly
+      ? { action: 'skip', patch: null }
+      : decideFifaUpdate(m, fm, timeline, { now, koSyncVersion });
+    const resultChanged = !!patch && action !== 'skip' && patchChangesDoc(m, patch);
+
+    // Stadion/by: skriv når det mangler/afviger — uafhængigt af resultat-action.
+    const venuePatch = {};
+    if (fm.venue && (m.venue || null) !== fm.venue) venuePatch.venue = fm.venue;
+    if (fm.city && (m.city || null) !== fm.city) venuePatch.city = fm.city;
+
+    if (!resultChanged && Object.keys(venuePatch).length === 0) continue;
+    if (action === 'review') review++;
+
+    const writeData = { ...(resultChanged ? patch : {}), ...venuePatch };
+    changes.push({
+      id: m.id, action,
+      ...(resultChanged ? { result: patch.result, status: patch.status } : {}),
+      ...(venuePatch.venue ? { venue: venuePatch.venue } : {}),
+    });
+    if (!dryRun) {
+      await db.collection('matches').doc(m.id).update({ ...writeData, autoUpdatedAt: FieldValue.serverTimestamp() });
+    }
+    updated++;
+  }
+  return { source: 'fifa', checked: ours.length, updated, review, changes };
+}
+
+/**
+ * FIFA-kampdetaljesynk — henter opstillinger/mål/kort fra live/football (+ tidslinje)
+ * for kampe i tidsvinduet og skriver match.details. RØRER IKKE resultatet — det
+ * ejer resultatsynken (90-min sættes der). Idempotent på detalje-indhold.
+ */
+async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8 } = {}) {
+  const client = createFifaClient();
+  const { byPair } = await fetchFifaByPair(client);
+
+  const fromTs = Timestamp.fromMillis(now.getTime() - windowBeforeH * 3600 * 1000);
+  const toTs = Timestamp.fromMillis(now.getTime() + windowAfterMin * 60 * 1000);
+  const windowSnap = await db.collection('matches')
+    .where('kickoff', '>=', fromTs).where('kickoff', '<=', toTs).get();
+
+  const targets = new Map();
+  for (const d of windowSnap.docs) {
+    const m = { id: d.id, ...d.data() };
+    if (m.homeTeam && m.awayTeam) targets.set(m.id, m);
+  }
+  // Backfill: afsluttede kampe uden gemte detaljer (begrænset antal).
+  const finishedSnap = await db.collection('matches').where('status', '==', 'finished').get();
+  let backfilled = 0;
+  for (const d of finishedSnap.docs) {
+    if (backfilled >= maxBackfill) break;
+    if (targets.has(d.id)) continue;
+    const m = { id: d.id, ...d.data() };
+    const hasDetails = m.details && Array.isArray(m.details.goals);
+    if (m.homeTeam && m.awayTeam && !hasDetails) { targets.set(m.id, m); backfilled++; }
+  }
+
+  let updated = 0;
+  for (const m of targets.values()) {
+    const fm = byPair.get(pairKey(m.homeTeam, m.awayTeam));
+    if (!fm) continue;
+    let live; let timeline = null;
+    try {
+      live = await client.getMatch(fm.externalId);
+      timeline = await client.getTimeline(fm.externalId).catch(() => null);
+    } catch { continue; }
+    const details = fifaMap.mapMatchDetails(live, timeline);
+    if (!details) continue;
+    // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger).
+    const before = JSON.stringify(m.details?.goals || []) + '|' + JSON.stringify(m.details?.lineups || null);
+    const after = JSON.stringify(details.goals || []) + '|' + JSON.stringify(details.lineups || null);
+    if (before === after) continue;
+    await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    updated++;
+  }
+  return { source: 'fifa', targets: targets.size, updated };
+}
+
+/**
+ * FIFA knockout-holdudfyldning — fylder hjemme/ude-hold ind på TBD-knockout-kampe
+ * når FIFA har afgjort dem. Vores knockout-slots og FIFA's deler ikke id, så vi
+ * matcher på bracket-position = samme runde + nærmeste kickoff (hver slot har et
+ * distinkt tidspunkt). Ikke-destruktiv: rører aldrig manuelt låste/spillede kampe.
+ */
+async function runFifaKnockoutTeams(db) {
+  const client = createFifaClient();
+  const cal = await client.getSeasonMatches({ count: 500 });
+  const fifaKO = [];
+  for (const raw of (Array.isArray(cal?.Results) ? cal.Results : [])) {
+    const fm = fifaMap.mapCalendarMatch(raw);
+    if (fm && fm.round && fm.round !== 'group' && fm.homeTeam && fm.awayTeam && fm.kickoffISO) fifaKO.push(fm);
+  }
+
+  const snap = await db.collection('matches').get();
+  let updated = 0; const ids = [];
+  for (const d of snap.docs) {
+    const m = { id: d.id, ...d.data() };
+    const isKnockout = m.round && m.round !== 'group';
+    if (!isKnockout || m.manualLock || m.result) continue;
+    const ourMs = kickoffMs(m.kickoff);
+    if (Number.isNaN(ourMs)) continue;
+
+    let best = null; let bestDelta = Infinity;
+    for (const fm of fifaKO) {
+      if (fm.round !== m.round) continue;
+      const delta = Math.abs(new Date(fm.kickoffISO).getTime() - ourMs);
+      if (delta < bestDelta && delta <= SLOT_WINDOW_MS) { best = fm; bestDelta = delta; }
+    }
+    if (!best) continue;
+    if (m.homeTeam === best.homeTeam && m.awayTeam === best.awayTeam) continue; // uændret
+
+    await db.collection('matches').doc(m.id).set({
+      homeTeam: best.homeTeam, awayTeam: best.awayTeam,
+      homePlaceholder: null, awayPlaceholder: null, status: 'scheduled',
+      venue: best.venue || null,
+    }, { merge: true });
+    updated++; ids.push(m.id);
+  }
+  return { source: 'fifa', updated, ids };
+}
+
+module.exports = {
+  getDataSource, fetchFifaByPair, pairKey,
+  runFifaResultsSync, runFifaDetailsSync, runFifaKnockoutTeams,
+};
