@@ -100,13 +100,23 @@ function MatchStats({ stats }) {
     ['Boldbesiddelse', home.possession, away.possession, true],
     ['Skud', home.shots, away.shots],
     ['Skud på mål', home.onTarget, away.onTarget],
+    ['Skud ved siden af', home.offTarget, away.offTarget],
+    ['Blokerede skud', home.blocked, away.blocked],
     ['Afleveringer', home.passes, away.passes],
     ['Afl.-præcision', home.passPct, away.passPct, true],
+    ['Indlæg', home.crosses, away.crosses],
     ['Hjørner', home.corners, away.corners],
-    ['Frispark begået', home.fouls, away.fouls],
     ['Offside', home.offsides, away.offsides],
+    ['Frispark begået', home.fouls, away.fouls],
+    ['Redninger', home.saves, away.saves],
+    ['Gule kort', home.yellowCards, away.yellowCards],
+    ['Røde kort', home.redCards, away.redCards],
+    ['Løbedistance (km)', home.distanceKm, away.distanceKm],
+    ['Spurter', home.sprints, away.sprints],
   ];
-  return <div>{rows.map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}</div>;
+  // Skjul linjer hvor FIFA endnu ikke har data for nogen af holdene (tidligt i kampen).
+  const shown = rows.filter(([, h, a]) => h != null || a != null);
+  return <div>{shown.map(([l, h, a, p]) => <StatBar key={l} label={l} home={h} away={a} pct={p} />)}</div>;
 }
 
 function PowerRankingList({ list, homeName, awayName }) {
