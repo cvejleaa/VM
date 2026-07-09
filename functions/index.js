@@ -52,6 +52,7 @@ const { createClient, mapScorers, summarizeScorers, summarizeMatchDetail, summar
 const { decideUpdate, matchFixture, patchChangesDoc, auditKickoffs, winnerToCode, healedKnockoutResult, knockoutScoreResult } = require('./resultsSync');
 const { createFifaClient } = require('./fifaData');
 const fifaMap = require('./fifaMap');
+const { decideFifaUpdate } = require('./fifaResultsSync');
 const { learnCodes, resolveCode, buildDesiredKnockout, reconcileKnockout, knockoutTeamUpdates } = require('./fixtureImport');
 const { resolveGroupWinners } = require('./bonusResolve');
 const { computeGroupStandings } = require('./standings');
@@ -2241,6 +2242,74 @@ exports.previewFifaScoring = onCall({ region: REGION, timeoutSeconds: 300 }, asy
       skippedCount: skipped.length,
       skipped: skipped.slice(0, 20),
       note: 'Bonus-point er udeladt (afhænger ikke af kampdata-kilden). 0 forskelle = kildeskift rører ikke spillet.',
+    };
+  } catch (err) {
+    return { error: `Uventet fejl (${phase}): ${String(err?.message || err)}`, stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | ') };
+  }
+});
+
+// ---------------------------------------------------------------------------
+// previewFifaSync — owner/global admin: DRY-RUN af FIFA-resultatsynken. Kører
+// decideFifaUpdate over alle kampe og rapporterer hvilke patches den VILLE skrive
+// (og hvilke der reelt ville ÆNDRE en kamp) — uden at skrive noget. Sidste
+// verificering før vi skifter kilden: forventet 0 reelle ændringer, da football-
+// data allerede har sat samme resultater.
+// ---------------------------------------------------------------------------
+exports.previewFifaSync = onCall({ region: REGION, timeoutSeconds: 300 }, async (request) => {
+  const db = getFirestore();
+  await requireAdmin(db, request);
+  let phase = 'init';
+  try {
+    const client = createFifaClient();
+    phase = 'fetch-calendar';
+    const cal = await client.getSeasonMatches({ count: 500 });
+    const key = (a, b) => [a, b].filter(Boolean).sort().join('_');
+    const fifaByPair = new Map();
+    for (const raw of (Array.isArray(cal?.Results) ? cal.Results : [])) {
+      const fm = fifaMap.mapCalendarMatch(raw);
+      if (fm && fm.homeTeam && fm.awayTeam) fifaByPair.set(key(fm.homeTeam, fm.awayTeam), fm);
+    }
+
+    phase = 'read-db';
+    const snap = await db.collection('matches').get();
+    const ours = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    phase = 'decide';
+    const counts = { finish: 0, live: 0, review: 0, skip: 0, nofifa: 0 };
+    const changes = []; // kampe hvor patchen reelt ville ændre result/status
+    for (const o of ours) {
+      if (!o.homeTeam || !o.awayTeam) { counts.nofifa++; continue; }
+      const fm = fifaByPair.get(key(o.homeTeam, o.awayTeam));
+      if (!fm) { counts.nofifa++; continue; }
+
+      let timeline = null;
+      const isKnockout = o.round && o.round !== 'group';
+      if (isKnockout && fm.status === 'finished' && (fm.resultType === 'extraTime' || fm.resultType === 'penalties')) {
+        try { timeline = await client.getTimeline(fm.externalId); } catch { /* → review */ }
+      }
+      const { action, patch } = decideFifaUpdate(o, fm, timeline, { koSyncVersion: KO_SYNC_VERSION });
+      counts[action] = (counts[action] || 0) + 1;
+      if (!patch || !patch.result) continue;
+
+      // Ville patchen reelt ændre kampen? (sammenlign med nuværende gemte felter)
+      const cur = o.result || {};
+      const diff = {};
+      if (Number(cur.home) !== Number(patch.result.home) || Number(cur.away) !== Number(patch.result.away)) {
+        diff.result = { ours: cur.home != null ? `${cur.home}-${cur.away}` : '–', fifa: `${patch.result.home}-${patch.result.away}` };
+      }
+      if ((cur.advance || null) !== (patch.result.advance || null)) {
+        diff.advance = { ours: cur.advance || '–', fifa: patch.result.advance || '–' };
+      }
+      if (patch.status && patch.status !== o.status) diff.status = { ours: o.status || '–', fifa: patch.status };
+      if (Object.keys(diff).length) changes.push({ id: o.id, home: o.homeTeam, away: o.awayTeam, action, ...diff });
+    }
+
+    return {
+      matches: ours.length,
+      actions: counts,
+      changeCount: changes.length,
+      changes: changes.slice(0, 50),
+      note: '0 reelle ændringer = FIFA-synken skriver præcis samme resultater/status som nu. Dry-run — intet er skrevet.',
     };
   } catch (err) {
     return { error: `Uventet fejl (${phase}): ${String(err?.message || err)}`, stack: String(err?.stack || '').split('\n').slice(0, 5).join(' | ') };

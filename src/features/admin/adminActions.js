@@ -490,6 +490,24 @@ export async function callPreviewFifaScoring() {
 }
 
 /**
+ * Kald Cloud Function 'previewFifaSync' — dry-run af FIFA-resultatsynken: viser
+ * hvilke patches den ville skrive og hvilke der reelt ville ændre en kamp.
+ * Skriver intet. Sidste verificering før et kildeskift.
+ */
+export async function callPreviewFifaSync() {
+  try {
+    const fn = httpsCallable(functions, 'previewFifaSync');
+    const res = await fn({});
+    return { ok: true, data: res.data };
+  } catch (err) {
+    const msg = err?.code === 'functions/not-found' || err?.code === 'not-found'
+      ? 'Cloud Function "previewFifaSync" er ikke deployet endnu.'
+      : err?.message ?? 'Ukendt fejl ved kald af previewFifaSync.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'inspectFootballData' — rapporterer hvilke felter jeres
  * football-data.org-tier giver adgang til (scorers, standings, kampdetaljer).
  */

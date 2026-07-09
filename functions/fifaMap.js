@@ -127,7 +127,12 @@ function mapCalendarMatch(m) {
     city: m.Stadium ? loc(m.Stadium.CityName) : null,
     groupName: loc(m.GroupName),
     status,
+    matchStatusRaw: m.MatchStatus ?? null,
     resultType: resultType(m.ResultType),
+    // Rå løbende score (kan være sat for LIVE-kampe, ikke kun afsluttede) — bruges
+    // af synken til foreløbige live-resultater.
+    homeScore: m.HomeTeamScore != null ? Number(m.HomeTeamScore) : null,
+    awayScore: m.AwayTeamScore != null ? Number(m.AwayTeamScore) : null,
     result: played
       ? { home: m.HomeTeamScore, away: m.AwayTeamScore, ...(advance ? { advance } : {}), ...(pens ? { penalties: pens } : {}) }
       : null,
