@@ -32,6 +32,11 @@ describe('stageToRound', () => {
     expect(stageToRound('Final')).toBe('final');
     expect(stageToRound('')).toBeNull();
   });
+  it('genkender 3.-pladskampen selv når FIFA bruger "bronze"/"3/4" (fanges før final)', () => {
+    expect(stageToRound('Bronze Final')).toBe('bronze');
+    expect(stageToRound('Match for 3/4 place')).toBe('bronze');
+    expect(stageToRound('3rd place play-off')).toBe('bronze');
+  });
   it('"quarter/semi-final" bliver IKKE til final (delstreng-fælde)', () => {
     expect(stageToRound('Quarter-final')).not.toBe('final');
     expect(stageToRound('Semi-final')).not.toBe('final');

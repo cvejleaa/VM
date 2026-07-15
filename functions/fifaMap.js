@@ -36,7 +36,9 @@ function stageToRound(stageName) {
   if (s.includes('16')) return 'r16';
   if (s.includes('quarter')) return 'qf';
   if (s.includes('semi')) return 'sf';
-  if (s.includes('third') || s.includes('3rd')) return 'bronze';
+  // 3.-pladskampen kan hedde flere ting hos FIFA ("third place", "bronze", "3/4").
+  // Fanges FØR 'final', da FIFA ofte lumper den under finale-stadiet.
+  if (s.includes('third') || s.includes('3rd') || s.includes('bronze') || s.includes('3/4')) return 'bronze';
   if (s.includes('final')) return 'final'; // efter quarter/semi/third
   return null;
 }
