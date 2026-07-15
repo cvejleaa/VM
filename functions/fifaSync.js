@@ -19,6 +19,32 @@ const SLOT_WINDOW_MS = 6 * 3600 * 1000; // knockout-slot: samme runde + kickoff 
 
 const pairKey = (a, b) => [a, b].filter(Boolean).sort().join('_');
 
+// Bracket-bucket til knockout-matchning. FIFA lumper 3.-pladskampen (bronze)
+// sammen med finalen under samme stadie (begge mappes til 'final' hos os), så de
+// deler bucket. De skelnes stadig på kickoff — hver slot har sit eget tidspunkt.
+const bracketBucket = (round) => (round === 'bronze' ? 'final' : round);
+
+/**
+ * Vælg den FIFA-knockoutkamp der udfylder én af vores TBD-slots. Match på
+ * bracket-bucket (så bronze også kan ramme FIFA's 'final'-bucket) + nærmeste
+ * kickoff inden for vinduet. Ren funktion — ingen Firestore/netværk.
+ * @param {{round:string, kickoffMs:number}} slot   vores slot (kickoff i ms)
+ * @param {Array<{round:string, kickoffISO:string, homeTeam:string, awayTeam:string}>} fifaKO
+ * @param {number} windowMs
+ * @returns {object|null} bedste FIFA-kamp eller null
+ */
+function selectKnockoutFill(slot, fifaKO, windowMs = SLOT_WINDOW_MS) {
+  if (!slot || Number.isNaN(slot.kickoffMs)) return null;
+  let best = null; let bestDelta = Infinity;
+  for (const fm of fifaKO) {
+    if (bracketBucket(fm.round) !== bracketBucket(slot.round)) continue;
+    if (!fm.kickoffISO) continue;
+    const delta = Math.abs(new Date(fm.kickoffISO).getTime() - slot.kickoffMs);
+    if (delta < bestDelta && delta <= windowMs) { best = fm; bestDelta = delta; }
+  }
+  return best;
+}
+
 /** Læs kilde-flaget. Default 'footballdata' (sikker fallback). */
 async function getDataSource(db) {
   try {
@@ -217,12 +243,7 @@ async function runFifaKnockoutTeams(db) {
     const ourMs = kickoffMs(m.kickoff);
     if (Number.isNaN(ourMs)) continue;
 
-    let best = null; let bestDelta = Infinity;
-    for (const fm of fifaKO) {
-      if (fm.round !== m.round) continue;
-      const delta = Math.abs(new Date(fm.kickoffISO).getTime() - ourMs);
-      if (delta < bestDelta && delta <= SLOT_WINDOW_MS) { best = fm; bestDelta = delta; }
-    }
+    const best = selectKnockoutFill({ round: m.round, kickoffMs: ourMs }, fifaKO);
     if (!best) continue;
     if (m.homeTeam === best.homeTeam && m.awayTeam === best.awayTeam) continue; // uændret
 
@@ -239,4 +260,5 @@ async function runFifaKnockoutTeams(db) {
 module.exports = {
   getDataSource, fetchFifaByPair, pairKey,
   runFifaResultsSync, runFifaDetailsSync, runFifaKnockoutTeams,
+  selectKnockoutFill, bracketBucket,
 };
