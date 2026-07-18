@@ -307,7 +307,9 @@ function goalBin(minute, injuryTime) {
 export function computeGoalsByInterval(matches) {
   const counts = Object.fromEntries(INTERVAL_BINS.map((b) => [b, 0]));
   let total = 0;
-  for (const g of allGoals(matches)) {
+  // Kun afgjorte kampe — samme sæt som computeTournamentFacts, så "mål i alt"
+  // stemmer på tværs af kortene (live-kampes mål tælles ikke med her).
+  for (const g of allGoals(finishedWithResult(matches))) {
     const bin = goalBin(g.minute, g.injuryTime);
     if (!bin) continue;
     counts[bin] += 1;
@@ -328,31 +330,43 @@ export function computeGoalsByInterval(matches) {
 export function computeTournamentFacts(matches) {
   const finished = finishedWithResult(matches);
   const played = finished.length;
+
+  // ALLE mål-tal (i alt, hjemme/ude, typer, tidligste/seneste) tælles fra samme
+  // kilde: kampenes mål-feed (details.goals), over de afgjorte kampe. Så stemmer
+  // "mål i alt" med typefordelingen OG minut-fordelingen. Mål-feedet indeholder
+  // også mål i forlænget tid (straffesparkskonkurrence er filtreret fra i mapningen)
+  // — modsat resultatets scoringer, der for knockout er 90-minutters-tallet.
   let homeGoals = 0;
   let awayGoals = 0;
-  const resultTally = new Map(); // "hi-lo" -> count
-  for (const m of finished) {
-    homeGoals += Number(m.result.home || 0);
-    awayGoals += Number(m.result.away || 0);
-    const hi = Math.max(m.result.home, m.result.away);
-    const lo = Math.min(m.result.home, m.result.away);
-    const key = `${hi}-${lo}`;
-    resultTally.set(key, (resultTally.get(key) ?? 0) + 1);
-  }
-  const totalGoals = homeGoals + awayGoals;
-
-  // Mål-typer fra detaljer
+  let totalGoals = 0;
   const typeBreakdown = { regular: 0, penalty: 0, own: 0 };
+  const resultTally = new Map(); // "hi-lo" -> count (det viste slutresultat)
   let earliest = null;
   let latest = null;
-  for (const g of allGoals(matches)) {
-    if (g.type === 'PENALTY') typeBreakdown.penalty += 1;
-    else if (g.type === 'OWN') typeBreakdown.own += 1;
-    else typeBreakdown.regular += 1;
-    if (g.minute != null) {
-      const key = g.minute * 100 + (g.injuryTime || 0);
-      if (!earliest || key < earliest._k) earliest = { ...g, _k: key };
-      if (!latest || key > latest._k) latest = { ...g, _k: key };
+
+  for (const m of finished) {
+    const hi = Math.max(m.result.home, m.result.away);
+    const lo = Math.min(m.result.home, m.result.away);
+    resultTally.set(`${hi}-${lo}`, (resultTally.get(`${hi}-${lo}`) ?? 0) + 1);
+
+    const goals = Array.isArray(m?.details?.goals) ? m.details.goals : [];
+    for (const g of goals) {
+      totalGoals += 1;
+      // Eget mål tæller for MODSTANDEREN (som på tavlen).
+      const scoringSide = g.type === 'OWN' ? (g.side === 'home' ? 'away' : 'home') : g.side;
+      if (scoringSide === 'home') homeGoals += 1;
+      else if (scoringSide === 'away') awayGoals += 1;
+
+      if (g.type === 'PENALTY') typeBreakdown.penalty += 1;
+      else if (g.type === 'OWN') typeBreakdown.own += 1;
+      else typeBreakdown.regular += 1;
+
+      if (g.minute != null) {
+        const key = g.minute * 100 + (g.injuryTime || 0);
+        const eg = { ...g, home: m.homeTeam, away: m.awayTeam, matchId: m.id, _k: key };
+        if (!earliest || key < earliest._k) earliest = eg;
+        if (!latest || key > latest._k) latest = eg;
+      }
     }
   }
 

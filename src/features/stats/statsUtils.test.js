@@ -190,7 +190,7 @@ const g = (minute, side, type = 'REGULAR', injuryTime = 0) => ({ minute, side, t
 
 describe('computeGoalsByInterval', () => {
   it('fordeler mål på de rigtige intervaller', () => {
-    const matches = [{ id: 'm', homeTeam: 'A', awayTeam: 'B', details: { goals: [
+    const matches = [{ id: 'm', homeTeam: 'A', awayTeam: 'B', result: { home: 3, away: 3 }, details: { goals: [
       g(3, 'home'), g(15, 'away'), g(45, 'home', 'REGULAR', 2), g(60, 'away'),
       g(90, 'home', 'REGULAR', 4), g(105, 'away'),
     ] } }];
@@ -202,6 +202,14 @@ describe('computeGoalsByInterval', () => {
     expect(by['46-60']).toBe(1);  // 60'
     expect(by['90+']).toBe(2);    // 90+4 og 105'
     expect(peak.count).toBe(2);
+  });
+
+  it('tæller kun afgjorte kampe (live kamp uden resultat udelades)', () => {
+    const matches = [
+      { id: 'done', homeTeam: 'A', awayTeam: 'B', result: { home: 1, away: 0 }, details: { goals: [g(10, 'home')] } },
+      { id: 'live', homeTeam: 'C', awayTeam: 'D', details: { goals: [g(20, 'home'), g(30, 'away')] } }, // intet resultat
+    ];
+    expect(computeGoalsByInterval(matches).total).toBe(1); // kun 'done'-kampens mål
   });
 
   it('håndterer tomt input', () => {
@@ -216,14 +224,27 @@ describe('computeTournamentFacts', () => {
     { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 1, away: 2 },
       details: { goals: [g(5, 'away')] } },
   ];
-  it('beregner mål/kamp, hjemme/ude og mål-typer', () => {
+  it('tæller mål fra mål-feedet, så i alt = hjemme+ude = sum af typer', () => {
     const f = computeTournamentFacts(matches);
     expect(f.played).toBe(2);
-    expect(f.totalGoals).toBe(6);
-    expect(f.goalsPerMatch).toBe(3);
-    expect(f.homeGoals).toBe(3);
+    // 4 mål i feedet: match1 [home10, away20 (str.), home80 (selvmål)] + match2 [away5].
+    expect(f.totalGoals).toBe(4);
+    expect(f.goalsPerMatch).toBe(2);
+    // Selvmålet (side 'home') tæller for MODSTANDEREN → ude.
+    expect(f.homeGoals).toBe(1);
     expect(f.awayGoals).toBe(3);
     expect(f.typeBreakdown).toEqual({ regular: 2, penalty: 1, own: 1 });
+    // Konsistens: i alt = hjemme+ude = sum af typer.
+    expect(f.homeGoals + f.awayGoals).toBe(f.totalGoals);
+    const t = f.typeBreakdown;
+    expect(t.regular + t.penalty + t.own).toBe(f.totalGoals);
+  });
+  it('en afgjort kamp uden mål-feed bidrager 0 (undgår modstrid med typefordelingen)', () => {
+    const only = [{ id: 'x', homeTeam: 'A', awayTeam: 'B', result: { home: 3, away: 1 } }];
+    const f = computeTournamentFacts(only);
+    expect(f.played).toBe(1);
+    expect(f.totalGoals).toBe(0);
+    expect(f.typeBreakdown).toEqual({ regular: 0, penalty: 0, own: 0 });
   });
   it('finder hyppigste resultat (rækkefølge-uafhængigt) samt tidligste/seneste mål', () => {
     const f = computeTournamentFacts(matches);
