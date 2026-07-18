@@ -245,6 +245,19 @@ describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visnin
     expect(d.goals.every((g) => typeof g.scorer === 'string' && g.scorer.length > 0)).toBe(true);
     expect(d.goals.every((g) => 'type' in g)).toBe(true);
   });
+  it('beriger straffemål fra tidslinjen (Type 41), resten er åbent spil', () => {
+    // Tidslinjen: spiller 314197 @90+10 = "Penalty Goal"; 419652 @79/@90 = "Goal!".
+    const pen = d.goals.filter((g) => g.type === 'PENALTY');
+    const reg = d.goals.filter((g) => g.type === 'REGULAR');
+    expect(pen).toHaveLength(1);
+    expect(pen[0].minute).toBe(90);
+    expect(pen[0].injuryTime).toBe(10);
+    expect(reg).toHaveLength(2);
+  });
+  it('uden tidslinje falder alle mål tilbage på åbent spil (REGULAR)', () => {
+    const d3 = mapMatchDetails(live, null);
+    expect(d3.goals.every((g) => g.type === 'REGULAR')).toBe(true);
+  });
   it('kort og udskiftninger med navne', () => {
     expect(Array.isArray(d.bookings)).toBe(true);
     expect(d.bookings.every((b) => b.card === 'YELLOW' || b.card === 'RED')).toBe(true);
