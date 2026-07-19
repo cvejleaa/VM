@@ -196,9 +196,10 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
     // Holdstatistik + spiller-power-index fra fdh-api (valgfri; kræver stats-id).
     const idIFES = live.Properties && live.Properties.IdIFES;
     if (idIFES) {
-      const [teamsJson, prJson] = await Promise.all([
+      const [teamsJson, prJson, playersJson] = await Promise.all([
         client.getMatchStats(idIFES).catch(() => null),
         client.getPowerRanking(idIFES).catch(() => null),
+        client.getPlayerStats(idIFES).catch(() => null),
       ]);
       const hid = live.HomeTeam && live.HomeTeam.IdTeam;
       if (teamsJson) {
@@ -206,6 +207,7 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
         details.statsRaw = fifaMap.mapTeamStatsRaw(teamsJson, hid); // hele feltsættet (~141/hold)
       }
       if (prJson) details.powerRanking = fifaMap.mapPowerRanking(prJson, hid);
+      if (playersJson) details.playerStats = fifaMap.mapPlayerStats(playersJson, live); // ~61 felter/spiller
     }
     // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger). Inkl.
     // spilleminut + stats, så live-opdateringer (der ændrer disse) også skrives.
@@ -215,6 +217,7 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
       dd?.goals || [], dd?.lineups || null, dd?.bookings || [], dd?.substitutions || [],
       dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, prLen(dd),
       dd?.statsRaw ? Object.keys(dd.statsRaw.home || {}).length : 0, dd?.attendance ?? null,
+      dd?.playerStats ? Object.keys(dd.playerStats).length : 0,
     ]);
     if (!full && sig(m.details) === sig(details)) continue;
     await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });

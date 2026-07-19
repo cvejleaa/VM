@@ -448,6 +448,23 @@ function mapPowerRanking(prJson, homeIdTeam, topN = 10) {
   return { outfield, goalkeepers };
 }
 
+// Per-spiller-statistik fra fdh-api players.json ({playerId:[[Navn,værdi,..]]}),
+// beriget med spillernavn + side fra live-svarets Players. → spiller-leaderboards.
+function mapPlayerStats(playersJson, live) {
+  if (!playersJson || typeof playersJson !== 'object') return null;
+  const ht = (live && live.HomeTeam) || {}; const at = (live && live.AwayTeam) || {};
+  const info = new Map();
+  for (const p of (ht.Players || [])) if (p.IdPlayer) info.set(String(p.IdPlayer), { name: loc(p.ShortName) || loc(p.PlayerName), side: 'home' });
+  for (const p of (at.Players || [])) if (p.IdPlayer) info.set(String(p.IdPlayer), { name: loc(p.ShortName) || loc(p.PlayerName), side: 'away' });
+  const out = {};
+  for (const [pid, rows] of Object.entries(playersJson)) {
+    if (!Array.isArray(rows)) continue;
+    const meta = info.get(String(pid)) || {};
+    out[pid] = { name: meta.name || null, side: meta.side || null, stats: statMap(rows) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // Rå holdstatistik: HELE feltsættet (~141 pr. hold) som {home:{Navn:værdi}, away:{…}}.
 // Fremtidssikret — nye statistik-features kan bruge et hvilket som helst felt uden
 // endnu en gen-hentning. Den kuraterede mapTeamStats bruges stadig til den eksisterende UI.
@@ -464,5 +481,5 @@ function mapTeamStatsRaw(teamsJson, homeIdTeam) {
 module.exports = {
   loc, stageToRound, teamCode, resultType, mapStatus, parseMinute, cardCode,
   ninetyScore, mapCalendarMatch, mapMatchDetails, mapTimelineEvents, knockoutResult,
-  fifaScoringResult, mapTeamStats, mapTeamStatsRaw, mapPowerRanking,
+  fifaScoringResult, mapTeamStats, mapTeamStatsRaw, mapPlayerStats, mapPowerRanking,
 };
