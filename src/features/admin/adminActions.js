@@ -458,10 +458,12 @@ export async function callRegenerateRecaps({ apply = false, reset = false } = {}
  * mapp det til vores skema og sammenlign med vores gemte kampe (verificering før
  * en evt. omlægning). Skriver intet. Valgfrit matchId → hent kampdetalje.
  */
-export async function callPreviewFifaData(matchId = null) {
+export async function callPreviewFifaData(arg = null) {
   try {
     const fn = httpsCallable(functions, 'previewFifaData');
-    const res = await fn(matchId ? { matchId } : {});
+    // arg kan være et matchId (streng) eller et payload-objekt (fx {probePair}).
+    const payload = arg == null ? {} : (typeof arg === 'string' ? { matchId: arg } : arg);
+    const res = await fn(payload);
     return { ok: true, data: res.data };
   } catch (err) {
     const msg = err?.code === 'functions/not-found' || err?.code === 'not-found'
