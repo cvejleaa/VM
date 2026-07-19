@@ -612,18 +612,18 @@ export function computeRecords(matches) {
  * Kampens spiller → turneringens MVP: hvor mange gange hver spiller toppede
  * power-indekset. Håndterer både gammelt (liste) og nyt ({outfield}) format.
  */
-export function computeMvpTally(matches, limit = 10) {
+export function computeMvpTally(matches) {
   const tally = {};
   for (const m of finishedWithResult(matches)) {
     const pr = m?.details?.powerRanking;
     const outfield = Array.isArray(pr) ? pr : (pr?.outfield ?? []);
     const top = outfield[0];
     if (!top || !top.name) continue;
-    tally[top.name] = tally[top.name] || { name: top.name, count: 0, picture: top.picture || null };
-    tally[top.name].count += 1;
-    if (!tally[top.name].picture && top.picture) tally[top.name].picture = top.picture;
+    const code = top.side === 'home' ? m.homeTeam : top.side === 'away' ? m.awayTeam : null;
+    const t = (tally[top.name] = tally[top.name] || { name: top.name, count: 0, picture: top.picture || null, code: code || null });
+    t.count += 1;
+    if (!t.picture && top.picture) t.picture = top.picture;
+    if (!t.code && code) t.code = code;
   }
-  return Object.values(tally)
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'da'))
-    .slice(0, limit);
+  return Object.values(tally).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'da'));
 }

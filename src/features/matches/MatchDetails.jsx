@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { flipSide, goalsWithRunningScore } from './matchHelpers';
 import FormationPitch from './FormationPitch';
+import ShotMap, { buildShotPoints } from './ShotMap';
 
 const CARD_ICON = { YELLOW: '🟨', RED: '🟥', YELLOW_RED: '🟨🟥' };
 
@@ -256,6 +257,7 @@ export default function MatchDetails({ match, homeName, awayName }) {
   const [showFeed, setShowFeed] = useState(false);
   const [feedAll, setFeedAll] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showShots, setShowShots] = useState(false);
   const [showPower, setShowPower] = useState(false);
   const d = match.details;
   if (!d) return null;
@@ -312,6 +314,15 @@ export default function MatchDetails({ match, homeName, awayName }) {
               <MatchStats stats={d.stats} />
             </div>
           )}
+        </div>
+      )}
+
+      {buildShotPoints(d.events).length > 0 && (
+        <div style={{ marginTop: '0.4rem' }}>
+          <button className="btn btn--ghost btn--sm" onClick={() => setShowShots((v) => !v)} aria-expanded={showShots} data-testid="toggle-shots">
+            {showShots ? '▾ Skjul skudkort' : '▸ Skudkort'}
+          </button>
+          {showShots && <ShotMap events={d.events} homeName={homeName} awayName={awayName} />}
         </div>
       )}
 
