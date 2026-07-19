@@ -65,6 +65,20 @@ export default function PreviewTab() {
     setFifa(res.data);
   }
 
+  // ── Selvmåls-probe: dump rå FIFA-struktur for et holdpar (diagnose) ──
+  const [probePair, setProbePair] = useState('BEL_EGY');
+  const [probeBusy, setProbeBusy] = useState(false);
+  const [probeErr, setProbeErr] = useState('');
+  const [probe, setProbe] = useState(null);
+  async function handleProbe() {
+    setProbeBusy(true); setProbeErr(''); setProbe(null);
+    const res = await callPreviewFifaData({ probePair });
+    setProbeBusy(false);
+    if (!res.ok) { setProbeErr(res.error); return; }
+    if (res.data?.probeError) { setProbeErr(res.data.probeError); return; }
+    setProbe(res.data?.probe ?? null);
+  }
+
   // ── Skygge-scoring: FIFA-afledte point vs. nuværende (rører vi spillet?) ──
   const [scoreBusy, setScoreBusy] = useState(false);
   const [scoreErr, setScoreErr] = useState('');
@@ -191,6 +205,39 @@ export default function PreviewTab() {
               </tbody>
             </table>
           </details>
+        </div>
+      )}
+
+      {/* ── Selvmåls-probe: rå FIFA-struktur for et holdpar (diagnose) ── */}
+      <hr style={{ margin: '1.75rem 0', border: 'none', borderTop: '1px solid var(--c-border)' }} />
+      <h2 style={{ fontSize: '1.05rem', margin: '0 0 0.4rem' }}>🔬 Selvmåls-probe — rå FIFA-struktur</h2>
+      <p style={{ color: 'var(--c-muted)', fontSize: '0.88rem', margin: '0 0 0.75rem' }}>
+        Henter den rå FIFA-struktur (mål-lister pr. hold + tidslinjens mål-hændelser) for et
+        holdpar, så vi kan se præcis hvordan et selvmål kodes. Holdpar som 3-bogstavskoder
+        adskilt af underscore, fx <code>BEL_EGY</code>. Skriver intet.
+      </p>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={probePair} onChange={(e) => setProbePair(e.target.value.toUpperCase())}
+          style={{ padding: '0.45rem 0.6rem', borderRadius: 8, border: '1px solid var(--c-border)', width: 140, fontFamily: 'monospace' }} />
+        <button className="btn" onClick={handleProbe} disabled={probeBusy}>
+          {probeBusy ? 'Henter…' : '🔬 Kør selvmåls-probe'}
+        </button>
+      </div>
+
+      {probeErr && (
+        <div role="alert" className="card" style={{ borderColor: 'var(--c-err)', color: 'var(--c-err)', margin: '1rem 0' }}>
+          Fejl: {probeErr}
+        </div>
+      )}
+
+      {probe && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+            {probe.pair} · kamp-id {probe.externalId} · hjemme {probe.home.IdCountry} / ude {probe.away.IdCountry}
+          </div>
+          <pre style={{ overflowX: 'auto', fontSize: '0.72rem', background: 'var(--c-bg-alt, #f5f5f5)', padding: '0.6rem', borderRadius: 8 }}>
+            {JSON.stringify(probe, null, 2)}
+          </pre>
         </div>
       )}
 

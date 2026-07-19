@@ -2174,6 +2174,43 @@ async function runPreviewFifa(db, request, _getPhase, setPhase) {
     } else { out.detailError = 'Kunne ikke parre kampen med FIFA.'; }
   }
 
+  // 4) Valgfri SELVMÅLS-PROBE: dump den RÅ FIFA-struktur for et holdpar, så vi kan
+  //    se præcis hvordan et selvmål kodes (hvilket holds Goals-liste + tidslinje-Type).
+  //    Kald med { probePair: 'BEL_EGY' }. Skriver intet.
+  const probePair = request.data?.probePair;
+  if (probePair) {
+    const want = String(probePair).split('_').filter(Boolean).sort().join('_').toUpperCase();
+    const fm = mapped.find((m) => m.homeTeam && m.awayTeam && key(m.homeTeam, m.awayTeam) === want);
+    if (!fm) { out.probeError = `Ingen FIFA-kamp for par ${want}.`; return out; }
+    try {
+      const [live, timeline] = await Promise.all([
+        client.getMatch(fm.externalId), client.getTimeline(fm.externalId),
+      ]);
+      const ht = live.HomeTeam || {}; const at = live.AwayTeam || {};
+      const names = new Map();
+      for (const p of [...(ht.Players || []), ...(at.Players || [])]) {
+        if (p.IdPlayer) names.set(String(p.IdPlayer), fifaMap.loc(p.ShortName) || fifaMap.loc(p.PlayerName) || null);
+      }
+      const nameOf = (id) => (id != null ? names.get(String(id)) || null : null);
+      const dumpGoals = (arr) => (arr || []).map((g) => ({
+        Type: g.Type, IdPlayer: g.IdPlayer, scorer: nameOf(g.IdPlayer), Minute: g.Minute, Period: g.Period,
+      }));
+      const tlGoals = (timeline && Array.isArray(timeline.Event) ? timeline.Event : [])
+        .filter((e) => e.Period !== 11 && (e.Type === 0 || e.Type === 41 || `${fifaMap.loc(e.TypeLocalized) || ''}`.toLowerCase().includes('goal')))
+        .map((e) => ({
+          Type: e.Type, label: fifaMap.loc(e.TypeLocalized), desc: fifaMap.loc(e.EventDescription),
+          IdTeam: e.IdTeam, IdPlayer: e.IdPlayer, scorer: nameOf(e.IdPlayer),
+          MatchMinute: e.MatchMinute, Period: e.Period, HomeGoals: e.HomeGoals, AwayGoals: e.AwayGoals,
+        }));
+      out.probe = {
+        pair: want, externalId: fm.externalId,
+        home: { IdTeam: ht.IdTeam, IdCountry: ht.IdCountry, Goals: dumpGoals(ht.Goals) },
+        away: { IdTeam: at.IdTeam, IdCountry: at.IdCountry, Goals: dumpGoals(at.Goals) },
+        timelineGoals: tlGoals,
+      };
+    } catch (err) { out.probeError = String(err?.message || err); }
+  }
+
   return out;
 }
 
