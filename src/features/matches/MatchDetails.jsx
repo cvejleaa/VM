@@ -315,18 +315,23 @@ export default function MatchDetails({ match, homeName, awayName }) {
         </div>
       )}
 
-      {Array.isArray(d.powerRanking) && d.powerRanking.length > 0 && (
-        <div style={{ marginTop: '0.4rem' }}>
-          <button className="btn btn--ghost btn--sm" onClick={() => setShowPower((v) => !v)} aria-expanded={showPower} data-testid="toggle-power">
-            {showPower ? '▾ Skjul bedste spillere' : '▸ Bedste spillere (FIFA power-index)'}
-          </button>
-          {showPower && (
-            <div style={{ marginTop: '0.3rem' }} data-testid="power-ranking">
-              <PowerRankingList list={d.powerRanking} homeName={homeName} awayName={awayName} />
-            </div>
-          )}
-        </div>
-      )}
+      {(() => {
+        // Power-index kan være en liste (gammelt format) eller {outfield, goalkeepers}.
+        const powerList = Array.isArray(d.powerRanking) ? d.powerRanking : (d.powerRanking?.outfield ?? []);
+        if (powerList.length === 0) return null;
+        return (
+          <div style={{ marginTop: '0.4rem' }}>
+            <button className="btn btn--ghost btn--sm" onClick={() => setShowPower((v) => !v)} aria-expanded={showPower} data-testid="toggle-power">
+              {showPower ? '▾ Skjul bedste spillere' : '▸ Bedste spillere (FIFA power-index)'}
+            </button>
+            {showPower && (
+              <div style={{ marginTop: '0.3rem' }} data-testid="power-ranking">
+                <PowerRankingList list={powerList} homeName={homeName} awayName={awayName} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {feed.length > 0 && (
         <div style={{ marginTop: '0.4rem' }}>

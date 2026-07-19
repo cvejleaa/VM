@@ -163,7 +163,7 @@ const MAJOR_EVENT_TYPES = new Set([0, 41, 2, 5, 6, 71, 26]);
  * @param {object} timeline    /timelines/{id}
  * @param {string} homeIdTeam  hjemmeholdets IdTeam (til side)
  */
-function mapTimelineEvents(timeline, homeIdTeam) {
+function mapTimelineEvents(timeline, homeIdTeam, nameOf = () => null) {
   const evs = timeline && Array.isArray(timeline.Event) ? timeline.Event : [];
   const out = [];
   for (const e of evs) {
@@ -177,6 +177,11 @@ function mapTimelineEvents(timeline, homeIdTeam) {
       label: loc(e.TypeLocalized),
       text,
       home: e.HomeGoals ?? null, away: e.AwayGoals ?? null,
+      // Bane-koordinat for on-ball-hændelser (skud, mål, hjørner…) → skudkort/heatmap.
+      x: e.PositionX != null ? Number(e.PositionX) : null,
+      y: e.PositionY != null ? Number(e.PositionY) : null,
+      idPlayer: e.IdPlayer != null ? String(e.IdPlayer) : null,
+      player: nameOf(e.IdPlayer),
       major: MAJOR_EVENT_TYPES.has(e.Type),
     });
   }
@@ -257,6 +262,12 @@ function mapMatchDetails(live, timeline) {
     ? { home: live.HomeTeamPenaltyScore, away: live.AwayTeamPenaltyScore } : null;
   const { minute, injuryTime } = parseMinute(live.MatchTime);
 
+  // Kampdommer (OfficialType 1). Navnet er en almindelig streng i FIFA-svaret.
+  const officials = Array.isArray(live.Officials) ? live.Officials : [];
+  const refObj = officials.find((o) => o.OfficialType === 1);
+  const refName = refObj ? (typeof refObj.Name === 'string' ? refObj.Name : loc(refObj.Name)) : null;
+  const att = live.Attendance != null && live.Attendance !== '' ? Number(live.Attendance) : null;
+
   return {
     goals: [...mapGoals(ht.Goals, 'home'), ...mapGoals(at.Goals, 'away')],
     bookings: [...mapBookings(ht.Bookings, 'home'), ...mapBookings(at.Bookings, 'away')],
@@ -266,7 +277,9 @@ function mapMatchDetails(live, timeline) {
     resultType: resultType(live.ResultType),
     minute, injuryTime, // spilleminut til live-badgen
     period: live.Period ?? null,
-    events: mapTimelineEvents(timeline, ht.IdTeam), // live hændelses-feed
+    attendance: Number.isFinite(att) ? att : null,
+    referee: refName || null,
+    events: mapTimelineEvents(timeline, ht.IdTeam, nameOf), // live hændelses-feed (m. bane-koordinat)
     ninety: ninetyScore(timeline),
   };
 }
@@ -399,24 +412,57 @@ function locLower(list) {
  * @param {string} homeIdTeam   hjemmeholdets id (til side)
  * @param {number} [topN]
  */
-function mapPowerRanking(prJson, homeIdTeam, topN = 6) {
-  const players = prJson && Array.isArray(prJson.outfieldPlayers) ? prJson.outfieldPlayers : [];
+const r1 = (x) => Math.round((Number(x) || 0) * 10) / 10;
+const pictureOf = (p) => (p && p.playerPicture && p.playerPicture.pictureUrl) || null;
+
+// Spiller-power-index fra fdh-api. Returnerer BÅDE markspillere (top-N efter samlet
+// score, med rang + billede) OG målmænd (egne scorer), så vi kan lave MVP-galleri
+// og "turneringens målmand". Bagudkompatibelt: consumers der forventer en liste kan
+// læse .outfield.
+function mapPowerRanking(prJson, homeIdTeam, topN = 10) {
   const homeId = String(homeIdTeam);
-  const mapped = players.map((p) => {
-    const att = p.attackingScore || 0; const def = p.defensiveScore || 0; const cre = p.creativityScore || 0;
-    return {
-      name: locLower(p.playerName),
-      side: String(p.teamId) === homeId ? 'home' : 'away',
-      att: Math.round(att * 10) / 10, def: Math.round(def * 10) / 10, cre: Math.round(cre * 10) / 10,
-      total: Math.round((att + def + cre) * 10) / 10,
-    };
-  }).filter((p) => p.name);
-  mapped.sort((a, b) => b.total - a.total);
-  return mapped.slice(0, topN);
+  const sideOf = (teamId) => (String(teamId) === homeId ? 'home' : 'away');
+
+  const outfield = (prJson && Array.isArray(prJson.outfieldPlayers) ? prJson.outfieldPlayers : [])
+    .map((p) => {
+      const att = p.attackingScore || 0; const def = p.defensiveScore || 0; const cre = p.creativityScore || 0;
+      return {
+        name: locLower(p.playerName), side: sideOf(p.teamId),
+        att: r1(att), def: r1(def), cre: r1(cre), total: r1(att + def + cre),
+        picture: pictureOf(p),
+      };
+    })
+    .filter((p) => p.name)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, topN);
+
+  const goalkeepers = (prJson && Array.isArray(prJson.goalkeepers) ? prJson.goalkeepers : [])
+    .map((p) => ({
+      name: locLower(p.playerName), side: sideOf(p.teamId),
+      inPossession: r1(p.inPossessionScore), defending: r1(p.defendingTheGoalScore),
+      total: r1((p.inPossessionScore || 0) + (p.defendingTheGoalScore || 0)),
+      picture: pictureOf(p),
+    }))
+    .filter((p) => p.name);
+
+  return { outfield, goalkeepers };
+}
+
+// Rå holdstatistik: HELE feltsættet (~141 pr. hold) som {home:{Navn:værdi}, away:{…}}.
+// Fremtidssikret — nye statistik-features kan bruge et hvilket som helst felt uden
+// endnu en gen-hentning. Den kuraterede mapTeamStats bruges stadig til den eksisterende UI.
+function mapTeamStatsRaw(teamsJson, homeIdTeam) {
+  if (!teamsJson || typeof teamsJson !== 'object') return null;
+  const ids = Object.keys(teamsJson);
+  if (ids.length < 2) return null;
+  const homeId = String(homeIdTeam);
+  const homeKey = ids.includes(homeId) ? homeId : ids[0];
+  const awayKey = ids.find((k) => k !== homeKey) || ids[1];
+  return { home: statMap(teamsJson[homeKey]), away: statMap(teamsJson[awayKey]) };
 }
 
 module.exports = {
   loc, stageToRound, teamCode, resultType, mapStatus, parseMinute, cardCode,
   ninetyScore, mapCalendarMatch, mapMatchDetails, mapTimelineEvents, knockoutResult,
-  fifaScoringResult, mapTeamStats, mapPowerRanking,
+  fifaScoringResult, mapTeamStats, mapTeamStatsRaw, mapPowerRanking,
 };
