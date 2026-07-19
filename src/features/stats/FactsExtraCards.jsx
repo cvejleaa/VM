@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { computeXgOverUnder, computeRecords, computeMvpTally } from './statsUtils';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
+import PlayerLink from '../../components/PlayerLink';
 
 const minLabel = (r) => (r == null ? '' : (r.injuryTime ? `${r.minute}+${r.injuryTime}'` : `${r.minute}'`));
 
@@ -103,7 +104,7 @@ export function MvpCard({ matches }) {
               : <span style={{ width: 26 }} />}
             <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               {p.code && <Flag code={p.code} size={16} />}
-              <span style={{ fontWeight: 600 }}>{p.name}</span>
+              <PlayerLink id={p.id} style={{ fontWeight: 600 }}>{p.name}</PlayerLink>
               {p.code && <span style={{ color: 'var(--c-muted)', fontSize: '0.8rem' }}>· {teamName(p.code)}</span>}
             </span>
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{p.count}×</span>

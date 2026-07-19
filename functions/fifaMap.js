@@ -427,6 +427,7 @@ function mapPowerRanking(prJson, homeIdTeam, topN = 10) {
     .map((p) => {
       const att = p.attackingScore || 0; const def = p.defensiveScore || 0; const cre = p.creativityScore || 0;
       return {
+        id: p.playerId != null ? String(p.playerId) : null,
         name: locLower(p.playerName), side: sideOf(p.teamId),
         att: r1(att), def: r1(def), cre: r1(cre), total: r1(att + def + cre),
         picture: pictureOf(p),
@@ -438,6 +439,7 @@ function mapPowerRanking(prJson, homeIdTeam, topN = 10) {
 
   const goalkeepers = (prJson && Array.isArray(prJson.goalkeepers) ? prJson.goalkeepers : [])
     .map((p) => ({
+      id: p.playerId != null ? String(p.playerId) : null,
       name: locLower(p.playerName), side: sideOf(p.teamId),
       inPossession: r1(p.inPossessionScore), defending: r1(p.defendingTheGoalScore),
       total: r1((p.inPossessionScore || 0) + (p.defendingTheGoalScore || 0)),

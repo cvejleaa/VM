@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { computeGoalkeeperRanking, computePenaltyShootouts } from './statsUtils';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
+import PlayerLink from '../../components/PlayerLink';
 
 // ── Turneringens målmand ─────────────────────────────────────────────────────
 export function GoalkeeperCard({ matches }) {
@@ -26,7 +27,7 @@ export function GoalkeeperCard({ matches }) {
               : <span style={{ width: 26 }} />}
             <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               {k.code && <Flag code={k.code} size={16} />}
-              <span style={{ fontWeight: 600 }}>{k.name}</span>
+              <PlayerLink id={k.id} style={{ fontWeight: 600 }}>{k.name}</PlayerLink>
               <span style={{ color: 'var(--c-muted)', fontSize: '0.75rem' }}>· {k.matches} kampe</span>
             </span>
             <strong style={{ fontVariantNumeric: 'tabular-nums' }} title="Gnsn. forsvarsscore">{k.avgDef}</strong>
@@ -77,7 +78,9 @@ export function PenaltyShootoutCard({ matches }) {
       ))}
       {missers.length > 0 && (
         <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'var(--c-muted)' }}>
-          Flest brændte: {missers.slice(0, 5).map((t) => `${t.name} (${t.missed})`).join(' · ')}
+          Flest brændte: {missers.slice(0, 5).map((t, i) => (
+            <span key={t.name}>{i > 0 ? ' · ' : ''}<PlayerLink id={t.id}>{t.name}</PlayerLink> ({t.missed})</span>
+          ))}
         </div>
       )}
     </div>

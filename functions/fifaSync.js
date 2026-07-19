@@ -148,7 +148,15 @@ async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSync
  */
 // Har kampen det NYE detalje-skema (efter data-oplåsningen)? Bruges til at genhente
 // kampe med forældet skema — både i den skemalagte backfill og i den manuelle resync.
-const hasCurrentShape = (m) => !!(m.details && Array.isArray(m.details.goals) && m.details.playerStats);
+const hasCurrentShape = (m) => {
+  const d = m.details;
+  if (!(d && Array.isArray(d.goals) && d.playerStats)) return false;
+  // Har power-index spiller-id? (nyt felt, så MVP/målmand kan linke). Kræv kun id
+  // når power-index faktisk findes — ellers ville kampe uden power-index genhentes evigt.
+  const of = d.powerRanking && d.powerRanking.outfield;
+  if (Array.isArray(of) && of.length > 0 && !of[0].id) return false;
+  return true;
+};
 
 async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8, maxWrites = Infinity, full = false } = {}) {
   const client = createFifaClient();
