@@ -689,3 +689,52 @@ export function computePenaltyShootouts(matches) {
     .sort((a, b) => b.missed - a.missed || a.name.localeCompare(b.name, 'da'));
   return { shootouts, missers };
 }
+
+// ─── Fase 3b: hold-stil-radar (fra statsRaw's spilfase-minutter) ─────────────
+
+const STYLE_AXES = [
+  { key: 'press', label: 'Højt pres', fields: ['PhaseAggregateHighPress'] },
+  { key: 'buildup', label: 'Opspil', fields: ['PhaseAggregateBuildUpUnopposed', 'PhaseAggregateBuildUpOpposed'] },
+  { key: 'progression', label: 'Fremdrift', fields: ['PhaseAggregateProgression'] },
+  { key: 'finalThird', label: 'Sidste 3.-del', fields: ['PhaseAggregateFinalThird'] },
+  { key: 'counter', label: 'Kontra', fields: ['PhaseAggregateCounterattack'] },
+  { key: 'lowBlock', label: 'Lav blok', fields: ['PhaseAggregateLowBlock'] },
+];
+
+/**
+ * Hold-stil pr. nation: gennemsnitlige spilfase-minutter (fra details.statsRaw)
+ * over de afsluttede kampe, normaliseret 0-100 ift. det højeste hold pr. akse —
+ * så radaren viser relativ stil (pres/opspil/fremdrift/sidste tredjedel/kontra/
+ * lav blok). Kræver gen-hentning (statsRaw kom med data-oplåsningen).
+ * @returns {{ axes: string[], teams: Array<{code, matches, values:number[]}> }}
+ */
+export function computeTeamStyles(matches) {
+  const acc = {};
+  for (const m of finishedWithResult(matches)) {
+    const sr = m?.details?.statsRaw;
+    if (!sr) continue;
+    for (const [side, code] of [['home', m.homeTeam], ['away', m.awayTeam]]) {
+      const raw = sr[side];
+      if (!raw || !code || !TEAMS[code]) continue;
+      const a = (acc[code] = acc[code] || { code, matches: 0, sums: {} });
+      a.matches += 1;
+      for (const ax of STYLE_AXES) {
+        a.sums[ax.key] = (a.sums[ax.key] || 0) + ax.fields.reduce((s, f) => s + (Number(raw[f]) || 0), 0);
+      }
+    }
+  }
+  const teams = Object.values(acc).map((a) => {
+    const avg = {};
+    for (const ax of STYLE_AXES) avg[ax.key] = a.matches ? a.sums[ax.key] / a.matches : 0;
+    return { code: a.code, matches: a.matches, avg };
+  });
+  if (teams.length === 0) return { axes: STYLE_AXES.map((a) => a.label), teams: [] };
+  const max = {};
+  for (const ax of STYLE_AXES) max[ax.key] = Math.max(1, ...teams.map((t) => t.avg[ax.key]));
+  for (const t of teams) {
+    t.values = STYLE_AXES.map((ax) => Math.round((t.avg[ax.key] / max[ax.key]) * 100));
+    delete t.avg;
+  }
+  teams.sort((a, b) => teamName(a.code).localeCompare(teamName(b.code), 'da'));
+  return { axes: STYLE_AXES.map((a) => a.label), teams };
+}

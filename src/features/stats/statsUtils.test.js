@@ -7,7 +7,7 @@ import {
   computeFieryMatches, computeRefereeStats, pointsByUidForMatches,
   computeCountryStats,
   computeXgOverUnder, computeRecords, computeMvpTally,
-  computeGoalkeeperRanking, computePenaltyShootouts,
+  computeGoalkeeperRanking, computePenaltyShootouts, computeTeamStyles,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -399,6 +399,30 @@ describe('computePenaltyShootouts', () => {
   });
   it('tæller brændte straffe pr. skytte', () => {
     expect(missers[0]).toMatchObject({ name: 'Sanchez', missed: 1, code: 'COL' });
+  });
+});
+
+describe('computeTeamStyles', () => {
+  const raw = (over) => ({ PhaseAggregateHighPress: 0, PhaseAggregateBuildUpUnopposed: 0, PhaseAggregateBuildUpOpposed: 0, PhaseAggregateProgression: 0, PhaseAggregateFinalThird: 0, PhaseAggregateCounterattack: 0, PhaseAggregateLowBlock: 0, ...over });
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 1, away: 0 },
+      details: { statsRaw: { home: raw({ PhaseAggregateHighPress: 10 }), away: raw({ PhaseAggregateLowBlock: 20 }) } } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 0, away: 0 }, details: {} }, // ingen statsRaw
+  ];
+  const { axes, teams } = computeTeamStyles(matches);
+  it('6 akser, normaliseret 0-100 ift. feltet', () => {
+    expect(axes).toHaveLength(6);
+    const bra = teams.find((t) => t.code === 'BRA');
+    const arg = teams.find((t) => t.code === 'ARG');
+    // BRA har max Højt pres (akse 0) → 100; ARG har 0 på den akse.
+    expect(bra.values[0]).toBe(100);
+    expect(arg.values[0]).toBe(0);
+    // ARG har max Lav blok (akse 5) → 100.
+    expect(arg.values[5]).toBe(100);
+    expect(bra.matches).toBe(1);
+  });
+  it('hold uden statsRaw udelades', () => {
+    expect(teams.find((t) => t.code === 'GER')).toBeUndefined();
   });
 });
 
