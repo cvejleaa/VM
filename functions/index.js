@@ -2436,10 +2436,12 @@ exports.backfillFifaVenuesNow = onCall({ region: REGION, timeoutSeconds: 120 }, 
 // (med gamle football-data-detaljer) får det fulde FIFA-billede. Rører ikke
 // resultater. Kan tage lidt tid (henter pr. kamp).
 // ---------------------------------------------------------------------------
-exports.resyncFifaDetailsNow = onCall({ region: REGION, timeoutSeconds: 540 }, async (request) => {
+exports.resyncFifaDetailsNow = onCall({ region: REGION, timeoutSeconds: 300, memory: '512MiB' }, async (request) => {
   const db = getFirestore();
   await requireAdmin(db, request);
-  return fifaSync.runFifaDetailsSync(db, { full: true });
+  // Afgrænset portion pr. kald (undgår timeout på ~104 kampe × 5 FIFA-kald).
+  // Frontend'en kalder igen indtil remaining === 0.
+  return fifaSync.runFifaDetailsSync(db, { full: true, maxWrites: 15 });
 });
 
 // ---------------------------------------------------------------------------
