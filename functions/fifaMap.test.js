@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const {
   stageToRound, teamCode, resultType, mapStatus, loc, parseMinute,
   ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult, fifaScoringResult,
-  mapTeamStats, mapPowerRanking,
+  mapTeamStats, mapTeamStatsRaw, mapPowerRanking,
 } = require('./fifaMap');
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -200,13 +200,33 @@ describe('mapTeamStats (fdh-api holdstatistik)', () => {
 });
 
 describe('mapPowerRanking (fdh-api spiller-power-index)', () => {
-  const top = mapPowerRanking(powerRank, '43924', 6);
-  it('top-spillere sorteret efter samlet score, med navn og side', () => {
-    expect(top.length).toBeGreaterThan(0);
-    expect(top.length).toBeLessThanOrEqual(6);
-    expect(top.every((p) => typeof p.name === 'string' && p.name.length > 0)).toBe(true);
-    expect(top.every((p) => p.side === 'home' || p.side === 'away')).toBe(true);
-    for (let i = 1; i < top.length; i++) expect(top[i - 1].total).toBeGreaterThanOrEqual(top[i].total);
+  const pr = mapPowerRanking(powerRank, '43924', 6);
+  it('markspillere sorteret efter samlet score, med navn, side og billede', () => {
+    expect(pr.outfield.length).toBeGreaterThan(0);
+    expect(pr.outfield.length).toBeLessThanOrEqual(6);
+    expect(pr.outfield.every((p) => typeof p.name === 'string' && p.name.length > 0)).toBe(true);
+    expect(pr.outfield.every((p) => p.side === 'home' || p.side === 'away')).toBe(true);
+    for (let i = 1; i < pr.outfield.length; i++) expect(pr.outfield[i - 1].total).toBeGreaterThanOrEqual(pr.outfield[i].total);
+    expect(pr.outfield[0].picture).toMatch(/^https?:\/\//); // spillerbillede med
+  });
+  it('målmænd med egne scorer (in-possession + forsvar)', () => {
+    expect(pr.goalkeepers.length).toBe(2);
+    expect(pr.goalkeepers.every((g) => g.name && (g.side === 'home' || g.side === 'away'))).toBe(true);
+    expect(pr.goalkeepers.every((g) => typeof g.defending === 'number' && typeof g.inPossession === 'number')).toBe(true);
+  });
+});
+
+describe('mapTeamStatsRaw (hele feltsættet)', () => {
+  const raw = mapTeamStatsRaw(statsTeams, '43924');
+  it('returnerer alle felter pr. hold som navn→værdi', () => {
+    expect(Object.keys(raw.home).length).toBeGreaterThan(100); // ~141 felter
+    expect(raw.home.XG).toBeCloseTo(2.57, 2);
+    expect(raw.home.TopSpeed).toBeGreaterThan(0);
+    expect(raw.home.PhaseAggregateHighPress).toBeDefined();
+    expect(raw.away.Possession).toBeGreaterThan(0);
+  });
+  it('null når data mangler', () => {
+    expect(mapTeamStatsRaw(null, '1')).toBeNull();
   });
 });
 
@@ -325,5 +345,11 @@ describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visnin
     const goal = d.events.find((e) => e.type === 0 || e.type === 41);
     expect(goal).toBeTruthy();
     expect(goal.side === 'home' || goal.side === 'away').toBe(true);
+  });
+  it('hændelser bærer bane-koordinat + spiller (til skudkort)', () => {
+    // Mindst én on-ball-hændelse har x/y-koordinat og et spiller-id.
+    const withCoord = d.events.filter((e) => e.x != null && e.y != null);
+    expect(withCoord.length).toBeGreaterThan(0);
+    expect(d.events.some((e) => e.idPlayer)).toBe(true);
   });
 });

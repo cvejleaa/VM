@@ -201,16 +201,22 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
         client.getPowerRanking(idIFES).catch(() => null),
       ]);
       const hid = live.HomeTeam && live.HomeTeam.IdTeam;
-      if (teamsJson) details.stats = fifaMap.mapTeamStats(teamsJson, hid);
+      if (teamsJson) {
+        details.stats = fifaMap.mapTeamStats(teamsJson, hid);
+        details.statsRaw = fifaMap.mapTeamStatsRaw(teamsJson, hid); // hele feltsættet (~141/hold)
+      }
       if (prJson) details.powerRanking = fifaMap.mapPowerRanking(prJson, hid);
     }
     // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger). Inkl.
     // spilleminut + stats, så live-opdateringer (der ændrer disse) også skrives.
+    // full=true (Gen-hent alle) tvinger genskrivning, så remaps slår igennem bagud.
+    const prLen = (dd) => (Array.isArray(dd?.powerRanking) ? dd.powerRanking.length : (dd?.powerRanking?.outfield?.length || 0));
     const sig = (dd) => JSON.stringify([
       dd?.goals || [], dd?.lineups || null, dd?.bookings || [], dd?.substitutions || [],
-      dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, dd?.powerRanking?.length || 0,
+      dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, prLen(dd),
+      dd?.statsRaw ? Object.keys(dd.statsRaw.home || {}).length : 0, dd?.attendance ?? null,
     ]);
-    if (sig(m.details) === sig(details)) continue;
+    if (!full && sig(m.details) === sig(details)) continue;
     await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     updated++;
   }
