@@ -755,7 +755,7 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
     for (const [pid, p] of Object.entries(ps)) {
       if (!p || !p.name) continue;
       const code = p.side === 'home' ? m.homeTeam : p.side === 'away' ? m.awayTeam : null;
-      const a = (agg[pid] = agg[pid] || { id: pid, name: p.name, code: code || null, matches: 0, shots: 0, onTarget: 0, assists: 0, goals: 0, topSpeed: 0, distance: 0 });
+      const a = (agg[pid] = agg[pid] || { id: pid, name: p.name, code: code || null, matches: 0, shots: 0, onTarget: 0, assists: 0, goals: 0, topSpeed: 0, distance: 0, minutes: 0 });
       a.matches += 1;
       const s = p.stats || {};
       a.shots += Number(s.AttemptAtGoal) || 0;
@@ -764,6 +764,7 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
       a.goals += Number(s.Goals) || 0;
       a.topSpeed = Math.max(a.topSpeed, Number(s.TopSpeed) || 0);
       a.distance += Number(s.TotalDistance) || 0;
+      a.minutes += Number(s.TimePlayed) || 0;
       if (!a.code && code) a.code = code;
     }
   }
@@ -782,6 +783,10 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
       .sort((a, b) => b.value - a.value).slice(0, topN),
     distance: players.filter((p) => p.distance > 0)
       .map((p) => ({ ...meta(p), value: Math.round(p.distance / 1000) }))
+      .sort((a, b) => b.value - a.value).slice(0, topN),
+    // Arbejdsrate: løbedistance pr. spillet minut (m/min). Kræver ≥ 90 min i alt.
+    workRate: players.filter((p) => p.minutes >= 90 && p.distance > 0)
+      .map((p) => ({ ...meta(p), value: Math.round(p.distance / p.minutes), sub: `${Math.round(p.distance / 1000)} km / ${Math.round(p.minutes)} min` }))
       .sort((a, b) => b.value - a.value).slice(0, topN),
   };
 }
@@ -819,7 +824,7 @@ export function computePlayerProfile(matches, id) {
   const key = String(id);
   let name = null; let code = null;
   let matchesCount = 0; let goals = 0; let assists = 0; let shots = 0; let onTarget = 0;
-  let topSpeed = 0; let distance = 0;
+  let topSpeed = 0; let distance = 0; let minutes = 0;
   const perMatch = [];
   for (const m of finishedWithResult(matches)) {
     const p = m?.details?.playerStats && m.details.playerStats[key];
@@ -832,14 +837,17 @@ export function computePlayerProfile(matches, id) {
     const s = p.stats || {};
     const g = Number(s.Goals) || 0; const a = Number(s.Assists) || 0; const sh = Number(s.AttemptAtGoal) || 0;
     const ot = Number(s.AttemptAtGoalOnTarget) || 0; const ts = Number(s.TopSpeed) || 0; const dist = Number(s.TotalDistance) || 0;
-    goals += g; assists += a; shots += sh; onTarget += ot; distance += dist;
+    const min = Number(s.TimePlayed) || 0;
+    goals += g; assists += a; shots += sh; onTarget += ot; distance += dist; minutes += min;
     if (ts > topSpeed) topSpeed = ts;
-    perMatch.push({ id: m.id, opp: opp || null, goals: g, assists: a, shots: sh, onTarget: ot, topSpeed: Math.round(ts * 10) / 10 });
+    perMatch.push({ id: m.id, opp: opp || null, goals: g, assists: a, shots: sh, onTarget: ot,
+      topSpeed: Math.round(ts * 10) / 10, perMin: min ? Math.round(dist / min) : null });
   }
   if (matchesCount === 0) return null;
   return {
     id: key, name, code, matches: matchesCount, goals, assists, shots, onTarget,
     accuracy: shots ? Math.round((onTarget / shots) * 100) : null,
-    topSpeed: Math.round(topSpeed * 10) / 10, distance: Math.round(distance / 1000), perMatch,
+    topSpeed: Math.round(topSpeed * 10) / 10, distance: Math.round(distance / 1000),
+    minutes: Math.round(minutes), distancePerMin: minutes ? Math.round(distance / minutes) : null, perMatch,
   };
 }
