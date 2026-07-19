@@ -2208,6 +2208,29 @@ async function runPreviewFifa(db, request, _getPhase, setPhase) {
         away: { IdTeam: at.IdTeam, IdCountry: at.IdCountry, Goals: dumpGoals(at.Goals) },
         timelineGoals: tlGoals,
       };
+
+      // Prøv spiller-statistik-endpointet (players.json) → er der xG pr. spiller?
+      const idIFES = live.Properties && live.Properties.IdIFES;
+      if (idIFES) {
+        out.probe.idIFES = idIFES;
+        try {
+          const pj = await client.getPlayerStats(idIFES);
+          // Find første spiller-post uanset struktur (kan være {teamId:[[Navn,val,..]]} som
+          // teams.json, eller en liste). Dump felt-navnene + fremhæv xG-lignende felter.
+          const summarize = (statsArr) => {
+            const names2 = (Array.isArray(statsArr) ? statsArr : []).map((r) => (Array.isArray(r) ? r[0] : null)).filter(Boolean);
+            const xgish = names2.filter((n) => /xg|expected|xa\b/i.test(n));
+            return { fieldCount: names2.length, xgFields: xgish, sampleFields: names2.slice(0, 40) };
+          };
+          out.probe.playerStats = {
+            topKeys: pj && typeof pj === 'object' ? Object.keys(pj).slice(0, 20) : typeof pj,
+            // Hvis det er teams.json-lignende {id:[[Navn,val]]}: opsummér første nøgle.
+            firstEntry: (pj && typeof pj === 'object')
+              ? (() => { const k = Object.keys(pj)[0]; const v = pj[k]; return Array.isArray(v) ? summarize(v) : (v && typeof v === 'object' ? { objKeys: Object.keys(v).slice(0, 40) } : v); })()
+              : null,
+          };
+        } catch (err) { out.probe.playerStatsError = String(err?.message || err); }
+      }
     } catch (err) { out.probeError = String(err?.message || err); }
   }
 
