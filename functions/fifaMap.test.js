@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const {
   stageToRound, teamCode, resultType, mapStatus, loc, parseMinute,
   ninetyScore, mapCalendarMatch, mapMatchDetails, knockoutResult, fifaScoringResult,
-  mapTeamStats, mapTeamStatsRaw, mapPowerRanking,
+  mapTeamStats, mapTeamStatsRaw, mapPlayerStats, mapPowerRanking,
 } = require('./fifaMap');
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -227,6 +227,29 @@ describe('mapTeamStatsRaw (hele feltsættet)', () => {
   });
   it('null når data mangler', () => {
     expect(mapTeamStatsRaw(null, '1')).toBeNull();
+  });
+});
+
+describe('mapPlayerStats (per-spiller fra players.json)', () => {
+  const en = (s) => [{ Locale: 'en', Description: s }];
+  const playersJson = {
+    100: [['Goals', 2], ['AttemptAtGoal', 5], ['AttemptAtGoalOnTarget', 3], ['Assists', 1], ['TopSpeed', 32.1]],
+    200: [['Goals', 0], ['AttemptAtGoal', 1], ['Assists', 2]],
+  };
+  const live = {
+    HomeTeam: { IdTeam: '1', Players: [{ IdPlayer: '100', ShortName: en('MESSI') }] },
+    AwayTeam: { IdTeam: '2', Players: [{ IdPlayer: '200', ShortName: en('MODRIC') }] },
+  };
+  it('beriger hver spiller med navn, side og hele statmappen', () => {
+    const ps = mapPlayerStats(playersJson, live);
+    expect(ps['100']).toMatchObject({ name: 'MESSI', side: 'home' });
+    expect(ps['100'].stats).toMatchObject({ Goals: 2, AttemptAtGoal: 5, AttemptAtGoalOnTarget: 3, Assists: 1 });
+    expect(ps['100'].stats.TopSpeed).toBeCloseTo(32.1, 1);
+    expect(ps['200']).toMatchObject({ name: 'MODRIC', side: 'away' });
+  });
+  it('null når data mangler', () => {
+    expect(mapPlayerStats(null, live)).toBeNull();
+    expect(mapPlayerStats({}, live)).toBeNull();
   });
 });
 
