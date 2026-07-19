@@ -8,7 +8,7 @@ import {
   computeCountryStats,
   computeXgOverUnder, computeRecords, computeMvpTally,
   computeGoalkeeperRanking, computePenaltyShootouts, computeTeamStyles,
-  computePlayerLeaderboards,
+  computePlayerLeaderboards, computeTeamPlayers,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -454,6 +454,28 @@ describe('computePlayerLeaderboards', () => {
     expect(b.assists[0]).toMatchObject({ name: 'Messi', value: 3 });
     expect(b.topSpeed[0]).toMatchObject({ name: 'Mbappe', value: 36 });
     expect(b.distance.find((p) => p.name === 'Messi').value).toBe(19); // 19000 m → 19 km
+  });
+});
+
+describe('computeTeamPlayers', () => {
+  const P = (name, side, stats) => ({ name, side, stats });
+  const matches = [
+    { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+      details: { playerStats: {
+        10: P('Messi', 'home', { Goals: 1, Assists: 1, AttemptAtGoal: 5 }),
+        20: P('Mbappe', 'away', { Goals: 2, Assists: 0, AttemptAtGoal: 6 }), // andet hold
+      } } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ARG', result: { home: 0, away: 2 },
+      details: { playerStats: {
+        10: P('Messi', 'away', { Goals: 2, Assists: 0, AttemptAtGoal: 3 }),
+        30: P('Alvarez', 'away', { Goals: 1, Assists: 2, AttemptAtGoal: 2 }),
+      } } },
+  ];
+  it('aggregerer kun holdets egne spillere, sorteret efter mål', () => {
+    const list = computeTeamPlayers(matches, 'ARG');
+    expect(list.map((p) => p.name)).toEqual(['Messi', 'Alvarez']);
+    expect(list[0]).toMatchObject({ name: 'Messi', goals: 3, assists: 1, shots: 8, matches: 2 });
+    expect(list.find((p) => p.name === 'Mbappe')).toBeUndefined(); // modstander
   });
 });
 
