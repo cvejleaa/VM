@@ -8,6 +8,7 @@ import {
   computeCountryStats,
   computeXgOverUnder, computeRecords, computeMvpTally,
   computeGoalkeeperRanking, computePenaltyShootouts, computeTeamStyles,
+  computePlayerLeaderboards,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -423,6 +424,36 @@ describe('computeTeamStyles', () => {
   });
   it('hold uden statsRaw udelades', () => {
     expect(teams.find((t) => t.code === 'GER')).toBeUndefined();
+  });
+});
+
+describe('computePlayerLeaderboards', () => {
+  const P = (name, side, stats) => ({ name, side, stats });
+  const matches = [
+    { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+      details: { playerStats: {
+        10: P('Messi', 'home', { AttemptAtGoal: 6, AttemptAtGoalOnTarget: 3, Assists: 2, TopSpeed: 30, TotalDistance: 10000 }),
+        20: P('Mbappe', 'away', { AttemptAtGoal: 4, AttemptAtGoalOnTarget: 4, Assists: 0, TopSpeed: 36, TotalDistance: 11000 }),
+      } } },
+    { id: '2', homeTeam: 'ARG', awayTeam: 'GER', result: { home: 2, away: 0 },
+      details: { playerStats: {
+        10: P('Messi', 'home', { AttemptAtGoal: 2, AttemptAtGoalOnTarget: 1, Assists: 1, TopSpeed: 31, TotalDistance: 9000 }),
+      } } },
+  ];
+  const b = computePlayerLeaderboards(matches, { minShots: 4 });
+  it('flest skud summeret over kampe', () => {
+    expect(b.shots[0]).toMatchObject({ name: 'Messi', value: 8, code: 'ARG' }); // 6+2
+  });
+  it('træfsikkerhed % (kun over min. skud)', () => {
+    const mbappe = b.accuracy.find((p) => p.name === 'Mbappe');
+    expect(mbappe).toMatchObject({ value: 100, sub: '4/4' });
+    // Messi: 4/8 = 50%
+    expect(b.accuracy.find((p) => p.name === 'Messi').value).toBe(50);
+  });
+  it('assists, tophastighed (max) og distance (km)', () => {
+    expect(b.assists[0]).toMatchObject({ name: 'Messi', value: 3 });
+    expect(b.topSpeed[0]).toMatchObject({ name: 'Mbappe', value: 36 });
+    expect(b.distance.find((p) => p.name === 'Messi').value).toBe(19); // 19000 m → 19 km
   });
 });
 
