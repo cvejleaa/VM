@@ -6,6 +6,7 @@ import {
   computeGoalsByInterval, computeTournamentFacts, computeSecondHalfStats,
   computeFieryMatches, computeRefereeStats, pointsByUidForMatches,
   computeCountryStats,
+  computeXgOverUnder, computeRecords, computeMvpTally,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -296,6 +297,58 @@ describe('computeCountryStats', () => {
   it('total: mål for = mål imod (hvert mål tælles én gang hver vej)', () => {
     expect(totals.goalsFor).toBe(totals.goalsAgainst);
     expect(totals.goalsFor).toBe(4); // 2+1+1
+  });
+});
+
+describe('computeXgOverUnder', () => {
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 0 },
+      details: { stats: { home: { xg: 1.0 }, away: { xg: 1.5 } }, goals: [g(10, 'home'), g(20, 'home')] } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 0, away: 0 },
+      details: { goals: [] } }, // ingen stats → udelades
+  ];
+  it('diff = faktiske mål − xG, kun kampe med xG', () => {
+    const list = computeXgOverUnder(matches);
+    const bra = list.find((r) => r.code === 'BRA');
+    expect(bra).toMatchObject({ goals: 2, xg: 1.0, diff: 1.0 }); // klinisk
+    const arg = list.find((r) => r.code === 'ARG');
+    expect(arg).toMatchObject({ goals: 0, xg: 1.5, diff: -1.5 }); // sløsede
+    expect(list.find((r) => r.code === 'GER')).toBeUndefined(); // ingen stats
+    expect(list[0].code).toBe('BRA'); // sorteret efter diff faldende
+  });
+});
+
+describe('computeRecords', () => {
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 3, away: 2 },
+      details: { goals: [g(5, 'away'), g(15, 'away'), g(60, 'home'), g(70, 'home'), g(88, 'home')] } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ESP', result: { home: 4, away: 0 },
+      details: { goals: [g(30, 'home'), g(40, 'home'), g(50, 'home'), g(90, 'home', 'REGULAR', 3)] } },
+  ];
+  const r = computeRecords(matches);
+  it('hurtigste og seneste mål', () => {
+    expect(r.fastest.minute).toBe(5);
+    expect(r.latest).toMatchObject({ minute: 90, injuryTime: 3 });
+  });
+  it('største sejr og mål-rigeste kamp', () => {
+    expect(r.biggestWin).toMatchObject({ id: '2', margin: 4 });
+    expect(r.highest).toMatchObject({ id: '1', total: 5 }); // 3-2 = 5 mål
+  });
+  it('største comeback: BRA var bagud 0-2 og vandt 3-2', () => {
+    expect(r.comeback).toMatchObject({ id: '1', deficit: 2, winner: 'BRA' });
+  });
+});
+
+describe('computeMvpTally', () => {
+  it('tæller hvor ofte en spiller toppede power-indekset (begge formater)', () => {
+    const matches = [
+      { id: '1', result: { home: 1, away: 0 }, details: { powerRanking: { outfield: [{ name: 'Messi', picture: 'p.jpg' }, { name: 'X' }] } } },
+      { id: '2', result: { home: 1, away: 0 }, details: { powerRanking: [{ name: 'Messi' }] } }, // gammelt format
+      { id: '3', result: { home: 1, away: 0 }, details: { powerRanking: { outfield: [{ name: 'Haaland' }] } } },
+    ];
+    const list = computeMvpTally(matches);
+    expect(list[0]).toMatchObject({ name: 'Messi', count: 2, picture: 'p.jpg' });
+    expect(list.find((p) => p.name === 'Haaland').count).toBe(1);
   });
 });
 

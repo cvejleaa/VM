@@ -526,3 +526,104 @@ export function computeCountryStats(matches) {
 
   return { list, totals };
 }
+
+// ─── Fase 1: hurtige gevinster (bygger på data vi allerede har) ──────────────
+
+const flipS = (s) => (s === 'home' ? 'away' : s === 'away' ? 'home' : s);
+
+/** Løbende stilling efter hvert mål (minut-sorteret); selvmål krediteres modstanderen. */
+function runningScoreSeq(goals) {
+  const sorted = [...(Array.isArray(goals) ? goals : [])]
+    .sort((a, b) => ((a.minute ?? 999) - (b.minute ?? 999)) || ((a.injuryTime ?? 0) - (b.injuryTime ?? 0)));
+  let h = 0; let a = 0; const seq = [];
+  for (const g of sorted) {
+    const s = g.type === 'OWN' ? flipS(g.side) : g.side;
+    if (s === 'home') h += 1; else if (s === 'away') a += 1;
+    seq.push({ home: h, away: a });
+  }
+  return seq;
+}
+
+/**
+ * xG over/underpræstation pr. land: summeret faktiske mål vs. summeret xG over de
+ * afsluttede kampe DER HAR statistik (så xG og mål dækker samme kampe). diff>0 =
+ * klinisk (scorede mere end forventet), diff<0 = sløsede chancer.
+ */
+export function computeXgOverUnder(matches) {
+  const rows = {};
+  const row = (c) => (rows[c] = rows[c] || { code: c, xg: 0, goals: 0 });
+  for (const m of finishedWithResult(matches)) {
+    const st = m?.details?.stats;
+    if (!st || st.home?.xg == null || st.away?.xg == null) continue; // kun kampe med xG
+    const goals = Array.isArray(m?.details?.goals) ? m.details.goals : [];
+    const gf = { home: 0, away: 0 };
+    for (const g of goals) {
+      const s = g.type === 'OWN' ? flipS(g.side) : g.side;
+      if (s === 'home' || s === 'away') gf[s] += 1;
+    }
+    if (m.homeTeam && TEAMS[m.homeTeam]) { row(m.homeTeam).xg += st.home.xg; row(m.homeTeam).goals += gf.home; }
+    if (m.awayTeam && TEAMS[m.awayTeam]) { row(m.awayTeam).xg += st.away.xg; row(m.awayTeam).goals += gf.away; }
+  }
+  return Object.values(rows)
+    .map((r) => ({ code: r.code, xg: Math.round(r.xg * 10) / 10, goals: r.goals, diff: Math.round((r.goals - r.xg) * 10) / 10 }))
+    .filter((r) => r.xg > 0 || r.goals > 0)
+    .sort((a, b) => b.diff - a.diff || b.goals - a.goals);
+}
+
+/**
+ * Turneringens rekorder: hurtigste + seneste mål, største sejr, mål-rigeste kamp,
+ * største comeback (størst underskud vendt af den endelige vinder). Fra mål-feed +
+ * resultat over de afsluttede kampe.
+ */
+export function computeRecords(matches) {
+  let fastest = null; let latest = null; let biggestWin = null; let highest = null; let comeback = null;
+  for (const m of finishedWithResult(matches)) {
+    const label = { id: m.id, home: m.homeTeam, away: m.awayTeam };
+    const rh = Number(m.result.home) || 0; const ra = Number(m.result.away) || 0;
+    const total = rh + ra; const score = `${rh}-${ra}`;
+    if (!highest || total > highest.total) highest = { ...label, total, score };
+    const margin = Math.abs(rh - ra);
+    if (margin > 0 && (!biggestWin || margin > biggestWin.margin)) biggestWin = { ...label, margin, score };
+
+    const goals = Array.isArray(m?.details?.goals) ? m.details.goals : [];
+    for (const g of goals) {
+      if (g.minute == null) continue;
+      const key = g.minute * 100 + (g.injuryTime || 0);
+      const stamp = { ...label, key, minute: g.minute, injuryTime: g.injuryTime || 0, scorer: g.scorer || null };
+      if (!fastest || key < fastest.key) fastest = stamp;
+      if (!latest || key > latest.key) latest = stamp;
+    }
+    if (rh !== ra && goals.length) {
+      const winner = rh > ra ? 'home' : 'away';
+      let maxDeficit = 0;
+      for (const s of runningScoreSeq(goals)) {
+        const d = winner === 'home' ? s.away - s.home : s.home - s.away;
+        if (d > maxDeficit) maxDeficit = d;
+      }
+      if (maxDeficit > 0 && (!comeback || maxDeficit > comeback.deficit)) {
+        comeback = { ...label, deficit: maxDeficit, winner: winner === 'home' ? m.homeTeam : m.awayTeam, score };
+      }
+    }
+  }
+  return { fastest, latest, biggestWin, highest, comeback };
+}
+
+/**
+ * Kampens spiller → turneringens MVP: hvor mange gange hver spiller toppede
+ * power-indekset. Håndterer både gammelt (liste) og nyt ({outfield}) format.
+ */
+export function computeMvpTally(matches, limit = 10) {
+  const tally = {};
+  for (const m of finishedWithResult(matches)) {
+    const pr = m?.details?.powerRanking;
+    const outfield = Array.isArray(pr) ? pr : (pr?.outfield ?? []);
+    const top = outfield[0];
+    if (!top || !top.name) continue;
+    tally[top.name] = tally[top.name] || { name: top.name, count: 0, picture: top.picture || null };
+    tally[top.name].count += 1;
+    if (!tally[top.name].picture && top.picture) tally[top.name].picture = top.picture;
+  }
+  return Object.values(tally)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'da'))
+    .slice(0, limit);
+}

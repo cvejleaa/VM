@@ -19,6 +19,7 @@ import FieryRefereeCard from '../features/stats/FieryRefereeCard';
 import GoalIntervalCard from '../features/stats/GoalIntervalCard';
 import TournamentFactsCard from '../features/stats/TournamentFactsCard';
 import CountryStatsCard from '../features/stats/CountryStatsCard';
+import { XgCard, RecordsCard, MvpCard } from '../features/stats/FactsExtraCards';
 import SecondHalfCard from '../features/stats/SecondHalfCard';
 import { computeDiscipline, computeTournamentFacts } from '../features/stats/statsUtils';
 import '../features/tournament/tournament.css';
@@ -443,6 +444,9 @@ function FaktaFane({ matches }) {
   return (
     <>
       <TournamentFactsCard matches={matches} />
+      <RecordsCard matches={matches} />
+      <XgCard matches={matches} />
+      <MvpCard matches={matches} />
       <CountryStatsCard matches={matches} />
       <GoalIntervalCard matches={matches} />
       <SecondHalfCard matches={matches} />
