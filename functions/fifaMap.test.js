@@ -258,6 +258,33 @@ describe('mapMatchDetails (football-data-kompatibel form til MatchDetails-visnin
     const d3 = mapMatchDetails(live, null);
     expect(d3.goals.every((g) => g.type === 'REGULAR')).toBe(true);
   });
+  it('selvmål (tidslinje Type 34) mærkes OWN og gemmes på målscorerens side', () => {
+    // Rigtig FIFA-struktur (Belgien 43935 vs Egypten 43855, IdMatch 400021478):
+    // FIFA lægger Hanys selvmål i BELGIENS (modtagerens) Goals-liste; tidslinjen
+    // mærker det Type 34 "Own goal". Egyptens egne mål ligger i deres egen liste.
+    const en = (s) => [{ Locale: 'en', Description: s }];
+    const liveOG = {
+      HomeTeam: { IdTeam: '43935', Players: [{ IdPlayer: '408950', ShortName: en('MOHAMED HANY') }],
+        Goals: [{ Type: 3, IdPlayer: '408950', Minute: "66'", Period: 5 }] }, // selvmål (modtagerens liste)
+      AwayTeam: { IdTeam: '43855', Players: [{ IdPlayer: '430482', ShortName: en('EMAM ASHOUR') }],
+        Goals: [{ Type: 2, IdPlayer: '430482', Minute: "19'", Period: 3 }] }, // Egyptens rigtige mål
+      MatchTime: "90'",
+    };
+    const tlOG = { Event: [
+      { Type: 0, TypeLocalized: en('Goal!'), IdTeam: '43855', IdPlayer: '430482', MatchMinute: "19'", Period: 3, HomeGoals: 0, AwayGoals: 1, EventDescription: en('EMAM ASHOUR (Egypt) scores!!') },
+      { Type: 34, TypeLocalized: en('Own goal'), IdTeam: '43855', IdPlayer: '408950', MatchMinute: "66'", Period: 5, HomeGoals: 1, AwayGoals: 1, EventDescription: en('MOHAMED HANY (Egypt) scores an own goal.') },
+    ] };
+    const dOG = mapMatchDetails(liveOG, tlOG);
+    const og = dOG.goals.find((g) => g.type === 'OWN');
+    expect(og).toBeTruthy();
+    expect(og.scorer).toBe('MOHAMED HANY');
+    expect(og.minute).toBe(66);
+    // Gemt på målscorerens (Egyptens = ude) side; visningen vender det til Belgien (hjemme).
+    expect(og.side).toBe('away');
+    const reg = dOG.goals.find((g) => g.type === 'REGULAR');
+    expect(reg.scorer).toBe('EMAM ASHOUR');
+    expect(reg.side).toBe('away');
+  });
   it('kort og udskiftninger med navne', () => {
     expect(Array.isArray(d.bookings)).toBe(true);
     expect(d.bookings.every((b) => b.card === 'YELLOW' || b.card === 'RED')).toBe(true);

@@ -192,29 +192,31 @@ function mapTimelineEvents(timeline, homeIdTeam) {
  * @param {object} [timeline] /timelines/{id}-svar (for eksakt 90-min)
  */
 // Mål-objekterne (HomeTeam/AwayTeam.Goals) har et tvetydigt Type-felt, så vi kan
-// ikke aflæse straffe/åbent spil derfra. Tidslinjen ER pålidelig: et straffemål er
-// Type 41 / "Penalty Goal". Byg et opslag scorer+minut → 'PENALTY', så mål-feed'et
-// kan berige typen. (Selvmål håndteres IKKE her endnu: visningen vender selvmål om
-// til modstanderens side, og uden en bekræftet FIFA-selvmålsstruktur ville et gæt
-// på siden kunne vise målet for det forkerte hold.)
-function penaltyGoalKeys(timeline) {
-  const keys = new Set();
+// ikke aflæse straffe/selvmål derfra. Tidslinjen ER pålidelig: straffemål = Type 41
+// / "Penalty Goal", selvmål = Type 34 / "Own goal". Byg et opslag scorer+minut →
+// 'PENALTY'|'OWN', så mål-feed'et kan berige typen.
+function goalTypesFromTimeline(timeline) {
+  const map = new Map();
   const evs = timeline && Array.isArray(timeline.Event) ? timeline.Event : [];
   for (const e of evs) {
     if (e.Period === 11 || e.IdPlayer == null) continue; // spring straffesparkskonkurrencen over
     const label = `${loc(e.TypeLocalized) || ''} ${loc(e.EventDescription) || ''}`.toLowerCase();
-    if (e.Type === 41 || label.includes('penalty goal')) {
-      const { minute, injuryTime } = parseMinute(e.MatchMinute);
-      keys.add(`${e.IdPlayer}|${minute}|${injuryTime}`);
-    }
+    let kind = null;
+    if (e.Type === 41 || label.includes('penalty goal')) kind = 'PENALTY';
+    else if (e.Type === 34 || label.includes('own goal')) kind = 'OWN';
+    if (!kind) continue;
+    const { minute, injuryTime } = parseMinute(e.MatchMinute);
+    map.set(`${e.IdPlayer}|${minute}|${injuryTime}`, kind);
   }
-  return keys;
+  return map;
 }
+
+const flipSide = (s) => (s === 'home' ? 'away' : s === 'away' ? 'home' : s);
 
 function mapMatchDetails(live, timeline) {
   if (!live) return null;
   const ht = live.HomeTeam || {}; const at = live.AwayTeam || {};
-  const penaltyKeys = penaltyGoalKeys(timeline);
+  const goalTypes = goalTypesFromTimeline(timeline);
 
   // IdPlayer → navn (fra begge holds spillere).
   const names = new Map();
@@ -227,8 +229,12 @@ function mapMatchDetails(live, timeline) {
   // ind i holdenes Goals, og den hører hjemme i "Straffe"-summen, ikke i mål-feed'et.
   const mapGoals = (arr, side) => (arr || []).filter((g) => g.Period !== 11).map((g) => {
     const { minute, injuryTime } = parseMinute(g.Minute);
-    const type = penaltyKeys.has(`${g.IdPlayer}|${minute}|${injuryTime}`) ? 'PENALTY' : 'REGULAR';
-    return { minute, injuryTime, type, side, scorer: nameOf(g.IdPlayer), assist: nameOf(g.IdAssistPlayer) };
+    const type = goalTypes.get(`${g.IdPlayer}|${minute}|${injuryTime}`) || 'REGULAR';
+    // FIFA lister selvmål under det hold MÅLET TÆLLER FOR (modtageren), med
+    // målscoreren fra det andet hold. Vores visning/optælling vender selvmål om til
+    // modstanderen, så vi gemmer 'side' = MÅLSCORERENS hold (modsat listen det ligger i).
+    const goalSide = type === 'OWN' ? flipSide(side) : side;
+    return { minute, injuryTime, type, side: goalSide, scorer: nameOf(g.IdPlayer), assist: nameOf(g.IdAssistPlayer) };
   });
   const mapBookings = (arr, side) => (arr || []).map((b) => {
     const { minute } = parseMinute(b.Minute);
