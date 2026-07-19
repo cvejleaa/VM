@@ -132,10 +132,27 @@ export default function SettingsTab() {
   const doResyncDetails = async () => {
     if (!window.confirm('Gen-hent kampdetaljer fra FIFA for ALLE kampe (også historiske)? Overskriver gamle detaljer med de rige FIFA-data. Rører ikke resultater. Kan tage lidt tid.')) return;
     setResyncBusy(true); setResyncMsg(null);
-    const res = await callResyncFifaDetails();
-    setResyncBusy(false);
-    if (res.ok) setResyncMsg({ kind: 'ok', text: `Detaljer gen-hentet for ${res.data?.updated ?? 0} kampe.` });
-    else setResyncMsg({ kind: 'err', text: res.error });
+    // Kaldet tager en afgrænset portion pr. gang (undgår timeout). Vi looper indtil
+    // der ikke er flere kampe der mangler det nye skema — eller vi ikke gør fremskridt.
+    let total = 0;
+    let guard = 0;
+    try {
+      for (;;) {
+        guard += 1;
+        const res = await callResyncFifaDetails();
+        if (!res.ok) { setResyncMsg({ kind: 'err', text: res.error }); break; }
+        total += res.data?.updated ?? 0;
+        const remaining = res.data?.remaining ?? 0;
+        setResyncMsg({ kind: 'ok', text: `Gen-henter… ${total} kampe opdateret${remaining ? `, ${remaining} tilbage` : ''}.` });
+        // Færdig når intet mangler, eller et kald ikke opdaterede noget (ingen fremgang), eller sikkerhedsloft.
+        if (remaining === 0 || (res.data?.updated ?? 0) === 0 || guard >= 20) {
+          setResyncMsg({ kind: 'ok', text: `Detaljer gen-hentet for ${total} kampe${remaining ? ` (${remaining} kunne ikke hentes)` : ''}.` });
+          break;
+        }
+      }
+    } finally {
+      setResyncBusy(false);
+    }
   };
 
   const doScrub = async () => {

@@ -146,17 +146,23 @@ async function runFifaResultsSync(db, { now = new Date(), dryRun = false, koSync
  * 10. minut (sparer Firestore-læsninger). `full`=true genhenter detaljer for ALLE
  * parrede kampe (også dem der allerede har detaljer) — til engangs-genhentning.
  */
-async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8, full = false } = {}) {
+// Har kampen det NYE detalje-skema (efter data-oplåsningen)? Bruges til at genhente
+// kampe med forældet skema — både i den skemalagte backfill og i den manuelle resync.
+const hasCurrentShape = (m) => !!(m.details && Array.isArray(m.details.goals) && m.details.playerStats);
+
+async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, windowAfterMin = 75, maxBackfill = 8, maxWrites = Infinity, full = false } = {}) {
   const client = createFifaClient();
   const { byPair } = await fetchFifaByPair(client);
 
   const targets = new Map();
   if (full) {
-    // Genhent ALT: alle parrede kampe (overskriver gamle detaljer).
+    // Genhent alle kampe der mangler det NYE skema — RESUMERBART: hvert kald tager en
+    // afgrænset portion (maxWrites), så det ikke rammer timeout, og gentagne kald
+    // konvergerer efterhånden som kampene får det fulde billede.
     const allSnap = await db.collection('matches').get();
     for (const d of allSnap.docs) {
       const m = { id: d.id, ...d.data() };
-      if (m.homeTeam && m.awayTeam) targets.set(m.id, m);
+      if (m.homeTeam && m.awayTeam && !hasCurrentShape(m)) targets.set(m.id, m);
     }
   } else {
     const fromTs = Timestamp.fromMillis(now.getTime() - windowBeforeH * 3600 * 1000);
@@ -176,54 +182,56 @@ async function runFifaDetailsSync(db, { now = new Date(), windowBeforeH = 3.5, w
         if (backfilled >= maxBackfill) break;
         if (targets.has(d.id)) continue;
         const m = { id: d.id, ...d.data() };
-        const hasDetails = m.details && Array.isArray(m.details.goals);
-        if (m.homeTeam && m.awayTeam && !hasDetails) { targets.set(m.id, m); backfilled++; }
+        // Genhent kampe uden detaljer ELLER med forældet skema (selv-helende backfill).
+        if (m.homeTeam && m.awayTeam && !hasCurrentShape(m)) { targets.set(m.id, m); backfilled++; }
       }
     }
   }
 
-  let updated = 0;
+  // Én kamp ad gangen, fejltolerant: en enkelt kamp der fejler (netværk, for stor
+  // skrivning m.m.) stopper ikke hele kørslen. Afgrænset af maxWrites, så det
+  // manuelle "gen-hent alle" ikke rammer timeout — kald igen for resten.
+  let updated = 0; let errors = 0; let processed = 0;
+  const prLen = (dd) => (Array.isArray(dd?.powerRanking) ? dd.powerRanking.length : (dd?.powerRanking?.outfield?.length || 0));
+  const sig = (dd) => JSON.stringify([
+    dd?.goals || [], dd?.lineups || null, dd?.bookings || [], dd?.substitutions || [],
+    dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, prLen(dd),
+    dd?.statsRaw ? Object.keys(dd.statsRaw.home || {}).length : 0, dd?.attendance ?? null,
+    dd?.playerStats ? Object.keys(dd.playerStats).length : 0,
+  ]);
   for (const m of targets.values()) {
+    if (updated >= maxWrites) break;
+    processed++;
     const fm = byPair.get(pairKey(m.homeTeam, m.awayTeam));
     if (!fm) continue;
-    let live; let timeline = null;
     try {
-      live = await client.getMatch(fm.externalId);
-      timeline = await client.getTimeline(fm.externalId).catch(() => null);
-    } catch { continue; }
-    const details = fifaMap.mapMatchDetails(live, timeline);
-    if (!details) continue;
-    // Holdstatistik + spiller-power-index fra fdh-api (valgfri; kræver stats-id).
-    const idIFES = live.Properties && live.Properties.IdIFES;
-    if (idIFES) {
-      const [teamsJson, prJson, playersJson] = await Promise.all([
-        client.getMatchStats(idIFES).catch(() => null),
-        client.getPowerRanking(idIFES).catch(() => null),
-        client.getPlayerStats(idIFES).catch(() => null),
-      ]);
-      const hid = live.HomeTeam && live.HomeTeam.IdTeam;
-      if (teamsJson) {
-        details.stats = fifaMap.mapTeamStats(teamsJson, hid);
-        details.statsRaw = fifaMap.mapTeamStatsRaw(teamsJson, hid); // hele feltsættet (~141/hold)
+      const live = await client.getMatch(fm.externalId);
+      const timeline = await client.getTimeline(fm.externalId).catch(() => null);
+      const details = fifaMap.mapMatchDetails(live, timeline);
+      if (!details) continue;
+      const idIFES = live.Properties && live.Properties.IdIFES;
+      if (idIFES) {
+        const [teamsJson, prJson, playersJson] = await Promise.all([
+          client.getMatchStats(idIFES).catch(() => null),
+          client.getPowerRanking(idIFES).catch(() => null),
+          client.getPlayerStats(idIFES).catch(() => null),
+        ]);
+        const hid = live.HomeTeam && live.HomeTeam.IdTeam;
+        if (teamsJson) {
+          details.stats = fifaMap.mapTeamStats(teamsJson, hid);
+          details.statsRaw = fifaMap.mapTeamStatsRaw(teamsJson, hid); // hele feltsættet (~141/hold)
+        }
+        if (prJson) details.powerRanking = fifaMap.mapPowerRanking(prJson, hid);
+        if (playersJson) details.playerStats = fifaMap.mapPlayerStats(playersJson, live); // ~61 felter/spiller
       }
-      if (prJson) details.powerRanking = fifaMap.mapPowerRanking(prJson, hid);
-      if (playersJson) details.playerStats = fifaMap.mapPlayerStats(playersJson, live); // ~61 felter/spiller
-    }
-    // Skriv kun når detaljerne reelt ændrer sig (undgå unødige skrivninger). Inkl.
-    // spilleminut + stats, så live-opdateringer (der ændrer disse) også skrives.
-    // full=true (Gen-hent alle) tvinger genskrivning, så remaps slår igennem bagud.
-    const prLen = (dd) => (Array.isArray(dd?.powerRanking) ? dd.powerRanking.length : (dd?.powerRanking?.outfield?.length || 0));
-    const sig = (dd) => JSON.stringify([
-      dd?.goals || [], dd?.lineups || null, dd?.bookings || [], dd?.substitutions || [],
-      dd?.events?.length || 0, dd?.minute ?? null, dd?.stats || null, prLen(dd),
-      dd?.statsRaw ? Object.keys(dd.statsRaw.home || {}).length : 0, dd?.attendance ?? null,
-      dd?.playerStats ? Object.keys(dd.playerStats).length : 0,
-    ]);
-    if (!full && sig(m.details) === sig(details)) continue;
-    await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    updated++;
+      // full=true tvinger genskrivning (remap slår igennem); ellers kun ved reel ændring.
+      if (!full && sig(m.details) === sig(details)) continue;
+      await db.collection('matches').doc(m.id).set({ details, detailsUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      updated++;
+    } catch { errors++; }
   }
-  return { source: 'fifa', targets: targets.size, updated };
+  const remaining = Math.max(0, targets.size - processed);
+  return { source: 'fifa', targets: targets.size, updated, errors, remaining };
 }
 
 /**
