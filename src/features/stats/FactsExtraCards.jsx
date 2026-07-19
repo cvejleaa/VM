@@ -1,5 +1,6 @@
 // Fase 1-fakta: xG over/underpræstation, turneringens rekorder og MVP-tælling.
 // Bygger på data der allerede ligger på kampene (stats.xg, mål-feed, power-index).
+import { useState } from 'react';
 import { computeXgOverUnder, computeRecords, computeMvpTally } from './statsUtils';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
@@ -84,7 +85,9 @@ export function RecordsCard({ matches }) {
 // ── Turneringens MVP ─────────────────────────────────────────────────────────
 export function MvpCard({ matches }) {
   const list = computeMvpTally(matches);
+  const [showAll, setShowAll] = useState(false);
   if (list.length === 0) return null;
+  const shown = showAll ? list : list.slice(0, 10);
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
       <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.15rem' }}>⭐ Kampens spiller — turneringens MVP</h2>
@@ -92,17 +95,26 @@ export function MvpCard({ matches }) {
         Antal kampe hvor spilleren toppede FIFA-power-indekset.
       </div>
       <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {list.map((p, i) => (
+        {shown.map((p, i) => (
           <li key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', fontSize: '0.9rem' }}>
-            <span style={{ width: '1.4rem', textAlign: 'right', color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums' }}>{i + 1}.</span>
+            <span style={{ width: '1.6rem', textAlign: 'right', color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums' }}>{i + 1}.</span>
             {p.picture
               ? <img src={p.picture} alt="" width={26} height={26} style={{ borderRadius: '50%', objectFit: 'cover', background: 'var(--c-border)' }} loading="lazy" />
               : <span style={{ width: 26 }} />}
-            <span style={{ flex: 1, fontWeight: 600 }}>{p.name}</span>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              {p.code && <Flag code={p.code} size={16} />}
+              <span style={{ fontWeight: 600 }}>{p.name}</span>
+              {p.code && <span style={{ color: 'var(--c-muted)', fontSize: '0.8rem' }}>· {teamName(p.code)}</span>}
+            </span>
             <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{p.count}×</span>
           </li>
         ))}
       </ol>
+      {list.length > 10 && (
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="btn btn--ghost btn--sm" style={{ marginTop: '0.4rem', fontSize: '0.78rem' }}>
+          {showAll ? 'Vis top 10' : `Vis alle (${list.length})`}
+        </button>
+      )}
     </div>
   );
 }

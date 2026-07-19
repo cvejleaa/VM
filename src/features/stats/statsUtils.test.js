@@ -340,15 +340,19 @@ describe('computeRecords', () => {
 });
 
 describe('computeMvpTally', () => {
-  it('tæller hvor ofte en spiller toppede power-indekset (begge formater)', () => {
+  it('tæller top-spilleren pr. kamp med land + billede (begge power-index-formater)', () => {
     const matches = [
-      { id: '1', result: { home: 1, away: 0 }, details: { powerRanking: { outfield: [{ name: 'Messi', picture: 'p.jpg' }, { name: 'X' }] } } },
-      { id: '2', result: { home: 1, away: 0 }, details: { powerRanking: [{ name: 'Messi' }] } }, // gammelt format
-      { id: '3', result: { home: 1, away: 0 }, details: { powerRanking: { outfield: [{ name: 'Haaland' }] } } },
+      { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+        details: { powerRanking: { outfield: [{ name: 'Messi', side: 'home', picture: 'p.jpg' }, { name: 'X', side: 'away' }] } } },
+      { id: '2', homeTeam: 'FRA', awayTeam: 'ARG', result: { home: 1, away: 0 },
+        details: { powerRanking: [{ name: 'Messi', side: 'away' }] } }, // gammelt format
+      { id: '3', homeTeam: 'NOR', awayTeam: 'GER', result: { home: 1, away: 0 },
+        details: { powerRanking: { outfield: [{ name: 'Haaland', side: 'home' }] } } },
     ];
     const list = computeMvpTally(matches);
-    expect(list[0]).toMatchObject({ name: 'Messi', count: 2, picture: 'p.jpg' });
-    expect(list.find((p) => p.name === 'Haaland').count).toBe(1);
+    expect(list[0]).toMatchObject({ name: 'Messi', count: 2, picture: 'p.jpg', code: 'ARG' });
+    expect(list.find((p) => p.name === 'Haaland')).toMatchObject({ count: 1, code: 'NOR' });
+    expect(list.length).toBe(2); // returnerer ALLE (ingen limit)
   });
 });
 
