@@ -63,6 +63,7 @@ export default function PlayerPage() {
               <Stat label="Træfsik." value={p.accuracy == null ? '–' : `${p.accuracy}%`} />
               <Stat label="Tophast." value={p.topSpeed ? `${p.topSpeed}` : '–'} />
               <Stat label="Løb (km)" value={p.distance || '–'} />
+              <Stat label="Løb/min" value={p.distancePerMin ? `${p.distancePerMin}m` : '–'} />
             </div>
           </div>
 

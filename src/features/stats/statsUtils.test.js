@@ -432,12 +432,12 @@ describe('computePlayerLeaderboards', () => {
   const matches = [
     { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
       details: { playerStats: {
-        10: P('Messi', 'home', { AttemptAtGoal: 6, AttemptAtGoalOnTarget: 3, Assists: 2, TopSpeed: 30, TotalDistance: 10000 }),
-        20: P('Mbappe', 'away', { AttemptAtGoal: 4, AttemptAtGoalOnTarget: 4, Assists: 0, TopSpeed: 36, TotalDistance: 11000 }),
+        10: P('Messi', 'home', { AttemptAtGoal: 6, AttemptAtGoalOnTarget: 3, Assists: 2, TopSpeed: 30, TotalDistance: 10000, TimePlayed: 90 }),
+        20: P('Mbappe', 'away', { AttemptAtGoal: 4, AttemptAtGoalOnTarget: 4, Assists: 0, TopSpeed: 36, TotalDistance: 11000, TimePlayed: 90 }),
       } } },
     { id: '2', homeTeam: 'ARG', awayTeam: 'GER', result: { home: 2, away: 0 },
       details: { playerStats: {
-        10: P('Messi', 'home', { AttemptAtGoal: 2, AttemptAtGoalOnTarget: 1, Assists: 1, TopSpeed: 31, TotalDistance: 9000 }),
+        10: P('Messi', 'home', { AttemptAtGoal: 2, AttemptAtGoalOnTarget: 1, Assists: 1, TopSpeed: 31, TotalDistance: 9000, TimePlayed: 100 }),
       } } },
   ];
   const b = computePlayerLeaderboards(matches, { minShots: 4 });
@@ -454,6 +454,12 @@ describe('computePlayerLeaderboards', () => {
     expect(b.assists[0]).toMatchObject({ name: 'Messi', value: 3 });
     expect(b.topSpeed[0]).toMatchObject({ name: 'Mbappe', value: 36 });
     expect(b.distance.find((p) => p.name === 'Messi').value).toBe(19); // 19000 m → 19 km
+  });
+  it('løb pr. minut = distance/spillede minutter', () => {
+    // Messi: 19000 m / 190 min = 100 m/min; Mbappe: 11000 / 90 ≈ 122.
+    const messi = b.workRate.find((p) => p.name === 'Messi');
+    expect(messi.value).toBe(100);
+    expect(b.workRate[0].name).toBe('Mbappe'); // højere m/min → øverst
   });
 });
 

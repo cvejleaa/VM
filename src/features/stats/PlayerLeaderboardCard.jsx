@@ -12,6 +12,7 @@ const BOARDS = [
   { key: 'assists', label: '🅰️ Assists', unit: '', suffix: '' },
   { key: 'topSpeed', label: '🏃 Tophastighed', unit: 'km/t', suffix: ' km/t' },
   { key: 'distance', label: '🛣️ Løbedistance', unit: 'km', suffix: ' km' },
+  { key: 'workRate', label: '🏃‍♂️ Løb pr. min', unit: 'm/min', suffix: ' m/min' },
 ];
 
 export default function PlayerLeaderboardCard({ matches }) {
