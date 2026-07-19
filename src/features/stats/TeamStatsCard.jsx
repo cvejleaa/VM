@@ -1,6 +1,7 @@
 // Holdets samlede statistik på hold-siden: mål for/imod, straffe, selvmål, kort,
 // xG-diff + holdets spillere (mål/assists/skud). Bygger på de afsluttede kampe.
 import { computeCountryStats, computeXgOverUnder, computeTeamPlayers } from './statsUtils';
+import PlayerLink from '../../components/PlayerLink';
 
 function Stat({ label, value }) {
   return (
@@ -49,7 +50,7 @@ export default function TeamStatsCard({ matches, code }) {
               <tbody>
                 {players.map((p) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--c-border)' }}>
-                    <td style={{ padding: '0.3rem 0.4rem', fontWeight: 600 }}>{p.name}</td>
+                    <td style={{ padding: '0.3rem 0.4rem', fontWeight: 600 }}><PlayerLink id={p.id}>{p.name}</PlayerLink></td>
                     <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.goals || ''}</td>
                     <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{p.assists || ''}</td>
                     <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--c-muted)' }}>{p.shots || ''}</td>

@@ -10,6 +10,7 @@ import MatchesPage from './pages/MatchesPage';
 import HelpPage from './pages/HelpPage';
 import TournamentPage from './pages/TournamentPage';
 import TeamPage from './pages/TeamPage';
+import PlayerPage from './pages/PlayerPage';
 import StatsPage from './pages/StatsPage';
 import MyBetsPage from './pages/MyBetsPage';
 import BonusPage from './pages/BonusPage';
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/bonus" element={<ProtectedRoute><BonusPage /></ProtectedRoute>} />
           <Route path="/turnering" element={<ProtectedRoute><TournamentPage /></ProtectedRoute>} />
           <Route path="/hold/:code" element={<ProtectedRoute><TeamPage /></ProtectedRoute>} />
+          <Route path="/spiller/:id" element={<ProtectedRoute><PlayerPage /></ProtectedRoute>} />
           <Route path="/statistik" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
           <Route path="/stilling" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
           <Route path="/ligaer" element={<ProtectedRoute><LeaguesPage /></ProtectedRoute>} />
