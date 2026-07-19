@@ -8,7 +8,7 @@ import {
   computeCountryStats,
   computeXgOverUnder, computeRecords, computeMvpTally,
   computeGoalkeeperRanking, computePenaltyShootouts, computeTeamStyles,
-  computePlayerLeaderboards, computeTeamPlayers,
+  computePlayerLeaderboards, computeTeamPlayers, computePlayerProfile,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -476,6 +476,27 @@ describe('computeTeamPlayers', () => {
     expect(list.map((p) => p.name)).toEqual(['Messi', 'Alvarez']);
     expect(list[0]).toMatchObject({ name: 'Messi', goals: 3, assists: 1, shots: 8, matches: 2 });
     expect(list.find((p) => p.name === 'Mbappe')).toBeUndefined(); // modstander
+  });
+});
+
+describe('computePlayerProfile', () => {
+  const matches = [
+    { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+      details: { playerStats: { 10: { name: 'Messi', side: 'home', stats: { Goals: 1, Assists: 1, AttemptAtGoal: 4, AttemptAtGoalOnTarget: 2, TopSpeed: 30, TotalDistance: 10000 } } } } },
+    { id: '2', homeTeam: 'GER', awayTeam: 'ARG', result: { home: 0, away: 2 },
+      details: { playerStats: { 10: { name: 'Messi', side: 'away', stats: { Goals: 2, Assists: 0, AttemptAtGoal: 6, AttemptAtGoalOnTarget: 4, TopSpeed: 32, TotalDistance: 9000 } } } } },
+  ];
+  it('aggregerer en spillers nøgletal + per-kamp', () => {
+    const p = computePlayerProfile(matches, '10');
+    expect(p).toMatchObject({ name: 'Messi', code: 'ARG', matches: 2, goals: 3, assists: 1, shots: 10, onTarget: 6 });
+    expect(p.accuracy).toBe(60); // 6/10
+    expect(p.topSpeed).toBe(32); // max
+    expect(p.distance).toBe(19); // 19000 m → 19 km
+    expect(p.perMatch).toHaveLength(2);
+    expect(p.perMatch[1]).toMatchObject({ opp: 'GER', goals: 2 }); // kamp 2, ARG ude → modstander GER
+  });
+  it('null når spilleren ikke findes', () => {
+    expect(computePlayerProfile(matches, '999')).toBeNull();
   });
 });
 

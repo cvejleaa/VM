@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { computePlayerLeaderboards } from './statsUtils';
 import { teamName } from '../../lib/teams';
 import Flag from '../../components/Flag';
+import PlayerLink from '../../components/PlayerLink';
 
 const BOARDS = [
   { key: 'shots', label: '👟 Flest skud', unit: '', suffix: '' },
@@ -41,7 +42,7 @@ export default function PlayerLeaderboardCard({ matches }) {
                 <span style={{ width: '1.6rem', textAlign: 'right', color: 'var(--c-muted)', fontVariantNumeric: 'tabular-nums' }}>{i + 1}.</span>
                 {p.code && <Flag code={p.code} size={16} />}
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontWeight: 600 }}>{p.name}</span>
+                  <PlayerLink id={p.id} style={{ fontWeight: 600 }}>{p.name}</PlayerLink>
                   <span style={{ color: 'var(--c-muted)', fontSize: '0.78rem' }}> · {p.code ? teamName(p.code) : ''}</span>
                 </span>
                 <strong style={{ fontVariantNumeric: 'tabular-nums' }} title={p.sub || ''}>{p.value}{board.suffix}</strong>

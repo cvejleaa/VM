@@ -808,3 +808,38 @@ export function computeTeamPlayers(matches, code, topN = 14) {
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || b.shots - a.shots || a.name.localeCompare(b.name, 'da'))
     .slice(0, topN);
 }
+
+/**
+ * Én spillers profil på tværs af de afsluttede kampe (fra details.playerStats):
+ * navn, land, kampantal + summerede/afledte nøgletal + per-kamp-opdeling.
+ * @returns {{id, name, code, matches, goals, assists, shots, onTarget, accuracy,
+ *            topSpeed, distance, perMatch:Array}|null}
+ */
+export function computePlayerProfile(matches, id) {
+  const key = String(id);
+  let name = null; let code = null;
+  let matchesCount = 0; let goals = 0; let assists = 0; let shots = 0; let onTarget = 0;
+  let topSpeed = 0; let distance = 0;
+  const perMatch = [];
+  for (const m of finishedWithResult(matches)) {
+    const p = m?.details?.playerStats && m.details.playerStats[key];
+    if (!p) continue;
+    matchesCount += 1;
+    if (!name && p.name) name = p.name;
+    const c = p.side === 'home' ? m.homeTeam : p.side === 'away' ? m.awayTeam : null;
+    if (!code && c) code = c;
+    const opp = p.side === 'home' ? m.awayTeam : m.homeTeam;
+    const s = p.stats || {};
+    const g = Number(s.Goals) || 0; const a = Number(s.Assists) || 0; const sh = Number(s.AttemptAtGoal) || 0;
+    const ot = Number(s.AttemptAtGoalOnTarget) || 0; const ts = Number(s.TopSpeed) || 0; const dist = Number(s.TotalDistance) || 0;
+    goals += g; assists += a; shots += sh; onTarget += ot; distance += dist;
+    if (ts > topSpeed) topSpeed = ts;
+    perMatch.push({ id: m.id, opp: opp || null, goals: g, assists: a, shots: sh, onTarget: ot, topSpeed: Math.round(ts * 10) / 10 });
+  }
+  if (matchesCount === 0) return null;
+  return {
+    id: key, name, code, matches: matchesCount, goals, assists, shots, onTarget,
+    accuracy: shots ? Math.round((onTarget / shots) * 100) : null,
+    topSpeed: Math.round(topSpeed * 10) / 10, distance: Math.round(distance / 1000), perMatch,
+  };
+}
