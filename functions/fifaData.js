@@ -63,6 +63,8 @@ function createFifaClient({ fetchImpl, sleepImpl = sleep, competition = ID_COMPE
     getStandings: (stageId) => request(`/calendar/${competition}/${season}/${stageId}/standing?language=en&count=200`),
     // Holdstatistik (besiddelse, skud, afleveringer …) — kræver stats-id (IdIFES).
     getMatchStats: (idIFES) => fdh(`/v1/stats/match/${idIFES}/teams.json`),
+    // Spiller-statistik (parallel til teams.json) — kan indeholde xG pr. spiller.
+    getPlayerStats: (idIFES) => fdh(`/v1/stats/match/${idIFES}/players.json`),
     // Spiller-power-index (angreb/forsvar/kreativitet pr. spiller) — IdIFES.
     getPowerRanking: (idIFES) => fdh(`/v1/powerranking/match/${idIFES}.json`),
   };
