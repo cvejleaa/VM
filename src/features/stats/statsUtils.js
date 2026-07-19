@@ -627,3 +627,65 @@ export function computeMvpTally(matches) {
   }
   return Object.values(tally).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'da'));
 }
+
+// ─── Fase 3: turneringens målmand + straffesparkstavle ──────────────────────
+
+/**
+ * Turneringens målmand: aggregér FIFA-power-index for målmænd (powerRanking.
+ * goalkeepers) pr. keeper over de afsluttede kampe. Sorteret efter gennemsnitlig
+ * "defending the goal"-score. Kræver det nye power-index-format (efter gen-hentning).
+ */
+export function computeGoalkeeperRanking(matches, minMatches = 1) {
+  const gks = {};
+  for (const m of finishedWithResult(matches)) {
+    const pr = m?.details?.powerRanking;
+    const list = (pr && !Array.isArray(pr) && Array.isArray(pr.goalkeepers)) ? pr.goalkeepers : [];
+    for (const g of list) {
+      if (!g.name) continue;
+      const code = g.side === 'home' ? m.homeTeam : g.side === 'away' ? m.awayTeam : null;
+      const k = (gks[g.name] = gks[g.name] || { name: g.name, code: code || null, picture: g.picture || null, matches: 0, defSum: 0, totalSum: 0, best: 0 });
+      k.matches += 1; k.defSum += g.defending || 0; k.totalSum += g.total || 0;
+      if ((g.defending || 0) > k.best) k.best = g.defending || 0;
+      if (!k.code && code) k.code = code;
+      if (!k.picture && g.picture) k.picture = g.picture;
+    }
+  }
+  return Object.values(gks)
+    .filter((k) => k.matches >= minMatches)
+    .map((k) => ({ name: k.name, code: k.code, picture: k.picture, matches: k.matches, best: Math.round(k.best * 10) / 10,
+      avgDef: Math.round((k.defSum / k.matches) * 10) / 10, avgTotal: Math.round((k.totalSum / k.matches) * 10) / 10 }))
+    .sort((a, b) => b.avgDef - a.avgDef || b.matches - a.matches || a.name.localeCompare(b.name, 'da'));
+}
+
+/**
+ * Straffesparkskonkurrencer: pr. kamp med Period-11-hændelser → spark-for-spark
+ * (scoret Type 41 / brændt Type 60) med skytte + side. Plus en tælling af hvem der
+ * brændte flest. Kræver spillernavne på hændelserne (efter gen-hentning).
+ */
+export function computePenaltyShootouts(matches) {
+  const shootouts = [];
+  const takers = {};
+  for (const m of finishedWithResult(matches)) {
+    const evs = (Array.isArray(m?.details?.events) ? m.details.events : [])
+      .filter((e) => e.period === 11 && (e.type === 41 || e.type === 60));
+    if (evs.length === 0) continue;
+    const kicks = evs.map((e) => {
+      const scored = e.type === 41;
+      const code = e.side === 'home' ? m.homeTeam : e.side === 'away' ? m.awayTeam : null;
+      if (e.player) {
+        const t = (takers[e.player] = takers[e.player] || { name: e.player, code: code || null, scored: 0, missed: 0 });
+        if (scored) t.scored += 1; else t.missed += 1;
+        if (!t.code && code) t.code = code;
+      }
+      return { side: e.side, player: e.player || null, scored, code };
+    });
+    shootouts.push({
+      id: m.id, home: m.homeTeam, away: m.awayTeam, kicks,
+      homeScored: kicks.filter((k) => k.side === 'home' && k.scored).length,
+      awayScored: kicks.filter((k) => k.side === 'away' && k.scored).length,
+    });
+  }
+  const missers = Object.values(takers).filter((t) => t.missed > 0)
+    .sort((a, b) => b.missed - a.missed || a.name.localeCompare(b.name, 'da'));
+  return { shootouts, missers };
+}
