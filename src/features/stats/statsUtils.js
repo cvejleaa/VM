@@ -470,3 +470,59 @@ export function computeRefereeStats(matches) {
   }
   return Object.values(byRef).sort((a, b) => b.matches - a.matches || (b.yellow + b.red) - (a.yellow + a.red));
 }
+
+/**
+ * Per-land opgørelse over de afsluttede kampe: mål for/imod, straffemål (scoret),
+ * selvmål for/imod og gule/røde kort. Bygger på kampenes mål-feed + kort.
+ * Selvmål er gemt på målscorerens side og krediteres modstanderen (som i visningen);
+ * "selvmål for" = selvmål der gav landet et mål, "selvmål imod" = eget mål begået af
+ * landets spiller. Alle deltagende nationer får en række (også ved 0).
+ * @param {Array<object>} matches
+ * @returns {{ list: Array<object>, totals: object }}
+ */
+export function computeCountryStats(matches) {
+  const finished = finishedWithResult(matches);
+  const rows = {};
+  const flip = (s) => (s === 'home' ? 'away' : s === 'away' ? 'home' : s);
+  const row = (code) => {
+    rows[code] = rows[code] || { code, goalsFor: 0, goalsAgainst: 0, penaltyFor: 0, ownFor: 0, ownAgainst: 0, yellow: 0, red: 0 };
+    return rows[code];
+  };
+
+  for (const m of finished) {
+    const teamOf = (side) => (side === 'home' ? m.homeTeam : side === 'away' ? m.awayTeam : null);
+    for (const code of [m.homeTeam, m.awayTeam]) if (code && TEAMS[code]) row(code); // også nationer med 0
+
+    for (const g of (Array.isArray(m?.details?.goals) ? m.details.goals : [])) {
+      // Selvmål er gemt på målscorerens side → modtageren er modstanderen.
+      const benef = teamOf(g.type === 'OWN' ? flip(g.side) : g.side);
+      const concede = teamOf(g.type === 'OWN' ? g.side : flip(g.side));
+      if (benef && TEAMS[benef]) row(benef).goalsFor += 1;
+      if (concede && TEAMS[concede]) row(concede).goalsAgainst += 1;
+      if (g.type === 'PENALTY' && benef && TEAMS[benef]) row(benef).penaltyFor += 1;
+      if (g.type === 'OWN') {
+        if (benef && TEAMS[benef]) row(benef).ownFor += 1;
+        const scorer = teamOf(g.side); // målscorerens hold begik selvmålet
+        if (scorer && TEAMS[scorer]) row(scorer).ownAgainst += 1;
+      }
+    }
+    for (const b of (Array.isArray(m?.details?.bookings) ? m.details.bookings : [])) {
+      const t = teamOf(b.side);
+      if (!t || !TEAMS[t]) continue;
+      if (b.card === 'YELLOW') row(t).yellow += 1;
+      else if (b.card === 'RED' || b.card === 'YELLOW_RED') row(t).red += 1;
+    }
+  }
+
+  const list = Object.values(rows).sort((a, b) =>
+    b.goalsFor - a.goalsFor
+    || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst)
+    || teamName(a.code).localeCompare(teamName(b.code), 'da'));
+
+  const totals = list.reduce((acc, r) => {
+    for (const k of ['goalsFor', 'goalsAgainst', 'penaltyFor', 'ownFor', 'ownAgainst', 'yellow', 'red']) acc[k] += r[k];
+    return acc;
+  }, { goalsFor: 0, goalsAgainst: 0, penaltyFor: 0, ownFor: 0, ownAgainst: 0, yellow: 0, red: 0 });
+
+  return { list, totals };
+}

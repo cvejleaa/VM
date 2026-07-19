@@ -5,6 +5,7 @@ import {
   computeDiscipline,
   computeGoalsByInterval, computeTournamentFacts, computeSecondHalfStats,
   computeFieryMatches, computeRefereeStats, pointsByUidForMatches,
+  computeCountryStats,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -252,6 +253,49 @@ describe('computeTournamentFacts', () => {
     expect(f.frequentResults[0]).toEqual({ score: '2-1', count: 2 });
     expect(f.earliest.minute).toBe(5);
     expect(f.latest.minute).toBe(80);
+  });
+});
+
+describe('computeCountryStats', () => {
+  // BRA-ARG: BRA 2 (1 straffe) - ARG 1. GER-BRA: GER 1 (selvmål af BRA-spiller) - BRA 0.
+  const matches = [
+    { id: '1', homeTeam: 'BRA', awayTeam: 'ARG', result: { home: 2, away: 1 },
+      details: {
+        goals: [g(10, 'home'), g(20, 'home', 'PENALTY'), g(80, 'away')],
+        bookings: [{ side: 'home', card: 'YELLOW' }, { side: 'away', card: 'RED' }, { side: 'away', card: 'YELLOW_RED' }],
+      } },
+    // Selvmål er gemt på målscorerens side (BRA = ude her), krediteres GER (hjemme).
+    { id: '2', homeTeam: 'GER', awayTeam: 'BRA', result: { home: 1, away: 0 },
+      details: { goals: [g(55, 'away', 'OWN')], bookings: [] } },
+  ];
+  const { list, totals } = computeCountryStats(matches);
+  const byCode = Object.fromEntries(list.map((r) => [r.code, r]));
+
+  it('mål for/imod inkl. straffe og selvmål', () => {
+    expect(byCode.BRA.goalsFor).toBe(2);      // 2 i kamp 1
+    expect(byCode.BRA.goalsAgainst).toBe(2);  // 1 (ARG) + 1 (eget selvmål i kamp 2)
+    expect(byCode.ARG.goalsFor).toBe(1);
+    expect(byCode.ARG.goalsAgainst).toBe(2);
+    expect(byCode.GER.goalsFor).toBe(1);      // selvmålet tæller for GER
+    expect(byCode.GER.goalsAgainst).toBe(0);
+  });
+  it('straffemål krediteres målscoreren', () => {
+    expect(byCode.BRA.penaltyFor).toBe(1);
+    expect(byCode.ARG.penaltyFor).toBe(0);
+  });
+  it('selvmål for/imod: for = modtager, imod = den der begik det', () => {
+    expect(byCode.GER.ownFor).toBe(1);     // GER fik målet
+    expect(byCode.BRA.ownAgainst).toBe(1); // BRA-spiller lavede selvmålet
+    expect(byCode.BRA.ownFor).toBe(0);
+    expect(byCode.GER.ownAgainst).toBe(0);
+  });
+  it('gule/røde kort (2. gule = rødt)', () => {
+    expect(byCode.BRA.yellow).toBe(1);
+    expect(byCode.ARG.red).toBe(2); // ét rødt + ét andet-gult-rødt
+  });
+  it('total: mål for = mål imod (hvert mål tælles én gang hver vej)', () => {
+    expect(totals.goalsFor).toBe(totals.goalsAgainst);
+    expect(totals.goalsFor).toBe(4); // 2+1+1
   });
 });
 
