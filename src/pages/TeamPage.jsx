@@ -12,6 +12,7 @@ import { teamName, TEAMS } from '../lib/teams';
 import { MATCH_STATUS } from '../lib/constants';
 import Flag from '../components/Flag';
 import TeamLink from '../components/TeamLink';
+import TeamStatsCard from '../features/stats/TeamStatsCard';
 
 const OUTCOME = {
   win:  { label: 'Vundet',    cls: 'badge--green', chip: 'V', color: 'var(--c-ok)' },
@@ -140,6 +141,8 @@ export default function TeamPage() {
           <div className="empty-state__title">Ingen kampe fundet for dette hold</div>
         </div>
       )}
+
+      {played.length > 0 && <TeamStatsCard matches={matches} code={code} />}
 
       {played.length > 0 && (
         <div className="card" style={{ marginBottom: '1rem' }}>

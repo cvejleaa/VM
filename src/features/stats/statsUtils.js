@@ -785,3 +785,26 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
       .sort((a, b) => b.value - a.value).slice(0, topN),
   };
 }
+
+/** Ét holds spillere aggregeret (mål, assists, skud) fra details.playerStats. */
+export function computeTeamPlayers(matches, code, topN = 14) {
+  const agg = {};
+  for (const m of finishedWithResult(matches)) {
+    if (m.homeTeam !== code && m.awayTeam !== code) continue;
+    const side = m.homeTeam === code ? 'home' : 'away';
+    const ps = m?.details?.playerStats;
+    if (!ps || typeof ps !== 'object') continue;
+    for (const [pid, p] of Object.entries(ps)) {
+      if (!p || p.side !== side || !p.name) continue;
+      const a = (agg[pid] = agg[pid] || { id: pid, name: p.name, matches: 0, goals: 0, assists: 0, shots: 0 });
+      a.matches += 1;
+      const s = p.stats || {};
+      a.goals += Number(s.Goals) || 0;
+      a.assists += Number(s.Assists) || 0;
+      a.shots += Number(s.AttemptAtGoal) || 0;
+    }
+  }
+  return Object.values(agg)
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists || b.shots - a.shots || a.name.localeCompare(b.name, 'da'))
+    .slice(0, topN);
+}
