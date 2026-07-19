@@ -738,3 +738,50 @@ export function computeTeamStyles(matches) {
   teams.sort((a, b) => teamName(a.code).localeCompare(teamName(b.code), 'da'));
   return { axes: STYLE_AXES.map((a) => a.label), teams };
 }
+
+// ─── Fase 4: spiller-leaderboards (fra details.playerStats) ─────────────────
+
+/**
+ * Spiller-toplister på tværs af de afsluttede kampe (fra details.playerStats):
+ * flest skud, træfsikkerhed (%), assists, tophastighed og løbedistance. Nøglet på
+ * playerId (stabilt), beriget med navn + land. Kræver gen-hentning.
+ * @returns {{shots,accuracy,assists,topSpeed,distance:Array}}
+ */
+export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } = {}) {
+  const agg = {};
+  for (const m of finishedWithResult(matches)) {
+    const ps = m?.details?.playerStats;
+    if (!ps || typeof ps !== 'object') continue;
+    for (const [pid, p] of Object.entries(ps)) {
+      if (!p || !p.name) continue;
+      const code = p.side === 'home' ? m.homeTeam : p.side === 'away' ? m.awayTeam : null;
+      const a = (agg[pid] = agg[pid] || { id: pid, name: p.name, code: code || null, matches: 0, shots: 0, onTarget: 0, assists: 0, goals: 0, topSpeed: 0, distance: 0 });
+      a.matches += 1;
+      const s = p.stats || {};
+      a.shots += Number(s.AttemptAtGoal) || 0;
+      a.onTarget += Number(s.AttemptAtGoalOnTarget) || 0;
+      a.assists += Number(s.Assists) || 0;
+      a.goals += Number(s.Goals) || 0;
+      a.topSpeed = Math.max(a.topSpeed, Number(s.TopSpeed) || 0);
+      a.distance += Number(s.TotalDistance) || 0;
+      if (!a.code && code) a.code = code;
+    }
+  }
+  const players = Object.values(agg);
+  const meta = (p) => ({ id: p.id, name: p.name, code: p.code, matches: p.matches });
+  const board = (valFn, keep) => players.filter(keep).map((p) => ({ ...meta(p), value: valFn(p) }))
+    .sort((a, b) => b.value - a.value).slice(0, topN);
+  return {
+    shots: board((p) => p.shots, (p) => p.shots > 0),
+    accuracy: players.filter((p) => p.shots >= minShots)
+      .map((p) => ({ ...meta(p), value: Math.round((p.onTarget / p.shots) * 100), sub: `${p.onTarget}/${p.shots}` }))
+      .sort((a, b) => b.value - a.value).slice(0, topN),
+    assists: board((p) => p.assists, (p) => p.assists > 0),
+    topSpeed: players.filter((p) => p.topSpeed > 0)
+      .map((p) => ({ ...meta(p), value: Math.round(p.topSpeed * 10) / 10 }))
+      .sort((a, b) => b.value - a.value).slice(0, topN),
+    distance: players.filter((p) => p.distance > 0)
+      .map((p) => ({ ...meta(p), value: Math.round(p.distance / 1000) }))
+      .sort((a, b) => b.value - a.value).slice(0, topN),
+  };
+}
