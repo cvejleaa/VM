@@ -345,14 +345,14 @@ describe('computeMvpTally', () => {
   it('tæller top-spilleren pr. kamp med land + billede (begge power-index-formater)', () => {
     const matches = [
       { id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
-        details: { powerRanking: { outfield: [{ name: 'Messi', side: 'home', picture: 'p.jpg' }, { name: 'X', side: 'away' }] } } },
+        details: { powerRanking: { outfield: [{ id: 'm10', name: 'Messi', side: 'home', picture: 'p.jpg' }, { name: 'X', side: 'away' }] } } },
       { id: '2', homeTeam: 'FRA', awayTeam: 'ARG', result: { home: 1, away: 0 },
         details: { powerRanking: [{ name: 'Messi', side: 'away' }] } }, // gammelt format
       { id: '3', homeTeam: 'NOR', awayTeam: 'GER', result: { home: 1, away: 0 },
         details: { powerRanking: { outfield: [{ name: 'Haaland', side: 'home' }] } } },
     ];
     const list = computeMvpTally(matches);
-    expect(list[0]).toMatchObject({ name: 'Messi', count: 2, picture: 'p.jpg', code: 'ARG' });
+    expect(list[0]).toMatchObject({ name: 'Messi', count: 2, picture: 'p.jpg', code: 'ARG', id: 'm10' });
     expect(list.find((p) => p.name === 'Haaland')).toMatchObject({ count: 1, code: 'NOR' });
     expect(list.length).toBe(2); // returnerer ALLE (ingen limit)
   });
@@ -362,7 +362,7 @@ describe('computeGoalkeeperRanking', () => {
   const matches = [
     { id: '1', homeTeam: 'BEL', awayTeam: 'EGY', result: { home: 1, away: 1 },
       details: { powerRanking: { outfield: [], goalkeepers: [
-        { name: 'Courtois', side: 'home', defending: 8, inPossession: 4, total: 12, picture: 'c.jpg' },
+        { name: 'Courtois', side: 'home', defending: 8, inPossession: 4, total: 12, picture: 'c.jpg', id: 'gk1' },
         { name: 'Shoubir', side: 'away', defending: 6, inPossession: 3, total: 9 },
       ] } } },
     { id: '2', homeTeam: 'FRA', awayTeam: 'BEL', result: { home: 0, away: 0 },
@@ -375,7 +375,7 @@ describe('computeGoalkeeperRanking', () => {
   it('aggregerer keeper-scorer med land, billede og kampantal', () => {
     const list = computeGoalkeeperRanking(matches);
     const c = list.find((k) => k.name === 'Courtois');
-    expect(c).toMatchObject({ matches: 2, code: 'BEL', picture: 'c.jpg', best: 8 });
+    expect(c).toMatchObject({ matches: 2, code: 'BEL', picture: 'c.jpg', best: 8, id: 'gk1' });
     expect(c.avgDef).toBe(7); // (8+6)/2
     expect(list[0].name).toBe('Courtois'); // højest gnsn. forsvar → øverst
   });
@@ -387,7 +387,7 @@ describe('computePenaltyShootouts', () => {
       details: { events: [
         { period: 11, type: 41, side: 'away', player: 'Quintero' },
         { period: 11, type: 41, side: 'home', player: 'Xhaka' },
-        { period: 11, type: 60, side: 'away', player: 'Sanchez' },
+        { period: 11, type: 60, side: 'away', player: 'Sanchez', idPlayer: 'p99' },
         { period: 5, type: 12, side: 'home', player: 'X' }, // ikke straffekonkurrence
       ] } },
     { id: 'grp', homeTeam: 'A', awayTeam: 'B', result: { home: 1, away: 0 }, details: { events: [] } },
@@ -399,7 +399,7 @@ describe('computePenaltyShootouts', () => {
     expect(shootouts[0].kicks).toHaveLength(3);
   });
   it('tæller brændte straffe pr. skytte', () => {
-    expect(missers[0]).toMatchObject({ name: 'Sanchez', missed: 1, code: 'COL' });
+    expect(missers[0]).toMatchObject({ name: 'Sanchez', missed: 1, code: 'COL', id: 'p99' });
   });
 });
 

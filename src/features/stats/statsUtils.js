@@ -620,10 +620,11 @@ export function computeMvpTally(matches) {
     const top = outfield[0];
     if (!top || !top.name) continue;
     const code = top.side === 'home' ? m.homeTeam : top.side === 'away' ? m.awayTeam : null;
-    const t = (tally[top.name] = tally[top.name] || { name: top.name, count: 0, picture: top.picture || null, code: code || null });
+    const t = (tally[top.name] = tally[top.name] || { name: top.name, count: 0, picture: top.picture || null, code: code || null, id: top.id || null });
     t.count += 1;
     if (!t.picture && top.picture) t.picture = top.picture;
     if (!t.code && code) t.code = code;
+    if (!t.id && top.id) t.id = top.id;
   }
   return Object.values(tally).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'da'));
 }
@@ -643,16 +644,17 @@ export function computeGoalkeeperRanking(matches, minMatches = 1) {
     for (const g of list) {
       if (!g.name) continue;
       const code = g.side === 'home' ? m.homeTeam : g.side === 'away' ? m.awayTeam : null;
-      const k = (gks[g.name] = gks[g.name] || { name: g.name, code: code || null, picture: g.picture || null, matches: 0, defSum: 0, totalSum: 0, best: 0 });
+      const k = (gks[g.name] = gks[g.name] || { name: g.name, code: code || null, picture: g.picture || null, id: g.id || null, matches: 0, defSum: 0, totalSum: 0, best: 0 });
       k.matches += 1; k.defSum += g.defending || 0; k.totalSum += g.total || 0;
       if ((g.defending || 0) > k.best) k.best = g.defending || 0;
       if (!k.code && code) k.code = code;
       if (!k.picture && g.picture) k.picture = g.picture;
+      if (!k.id && g.id) k.id = g.id;
     }
   }
   return Object.values(gks)
     .filter((k) => k.matches >= minMatches)
-    .map((k) => ({ name: k.name, code: k.code, picture: k.picture, matches: k.matches, best: Math.round(k.best * 10) / 10,
+    .map((k) => ({ name: k.name, code: k.code, picture: k.picture, id: k.id, matches: k.matches, best: Math.round(k.best * 10) / 10,
       avgDef: Math.round((k.defSum / k.matches) * 10) / 10, avgTotal: Math.round((k.totalSum / k.matches) * 10) / 10 }))
     .sort((a, b) => b.avgDef - a.avgDef || b.matches - a.matches || a.name.localeCompare(b.name, 'da'));
 }
@@ -673,11 +675,12 @@ export function computePenaltyShootouts(matches) {
       const scored = e.type === 41;
       const code = e.side === 'home' ? m.homeTeam : e.side === 'away' ? m.awayTeam : null;
       if (e.player) {
-        const t = (takers[e.player] = takers[e.player] || { name: e.player, code: code || null, scored: 0, missed: 0 });
+        const t = (takers[e.player] = takers[e.player] || { name: e.player, code: code || null, id: e.idPlayer || null, scored: 0, missed: 0 });
         if (scored) t.scored += 1; else t.missed += 1;
         if (!t.code && code) t.code = code;
+        if (!t.id && e.idPlayer) t.id = e.idPlayer;
       }
-      return { side: e.side, player: e.player || null, scored, code };
+      return { side: e.side, player: e.player || null, id: e.idPlayer || null, scored, code };
     });
     shootouts.push({
       id: m.id, home: m.homeTeam, away: m.awayTeam, kicks,
