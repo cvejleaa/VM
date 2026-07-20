@@ -7,6 +7,31 @@
 const { teamName, flagUrl } = require('./teams');
 const { leagueTotal } = require('./leagueRecap');
 
+// Scoring-normalisering — server-side spejl af frontendens leagueFormat.js, så
+// hver ligas AKTIVEREDE dele bruges (og gamle `format`-ligaer håndteres korrekt).
+const DEFAULT_SCORING = { group: true, knockout: true, bonus: true, leagueBonus: true, doubleKnockout: false };
+const LEAGUE_FORMAT = { FULL: 'full', BONUS_ONLY: 'bonusOnly', KNOCKOUT_ONLY: 'knockoutOnly', GROUP_ONLY: 'groupOnly', DOUBLE_KNOCKOUT: 'doubleKnockout' };
+
+function fromLegacyFormat(format) {
+  switch (format) {
+    case LEAGUE_FORMAT.BONUS_ONLY: return { group: false, knockout: false, bonus: true, leagueBonus: true, doubleKnockout: false };
+    case LEAGUE_FORMAT.KNOCKOUT_ONLY: return { group: false, knockout: true, bonus: false, leagueBonus: true, doubleKnockout: false };
+    case LEAGUE_FORMAT.GROUP_ONLY: return { group: true, knockout: false, bonus: false, leagueBonus: true, doubleKnockout: false };
+    case LEAGUE_FORMAT.DOUBLE_KNOCKOUT: return { group: true, knockout: true, bonus: true, leagueBonus: true, doubleKnockout: true };
+    case LEAGUE_FORMAT.FULL:
+    default: return { ...DEFAULT_SCORING };
+  }
+}
+
+/** Ligaens faktiske scoring: ny `scoring` (udfyldt med defaults) ellers gammelt `format`. */
+function normalizeScoring(league) {
+  if (league && league.scoring && typeof league.scoring === 'object') {
+    return { ...DEFAULT_SCORING, ...league.scoring };
+  }
+  if (league && league.format) return fromLegacyFormat(league.format);
+  return { ...DEFAULT_SCORING };
+}
+
 const C = {
   pitch: '#15803d', pitch2: '#16a34a', gold: '#c99a2e', goldSoft: '#f6ecd0',
   ink: '#14261c', muted: '#5b6b60', line: '#e2ebe3', page: '#eef3ee', you: '#eaf5ee',
@@ -41,8 +66,8 @@ function nation(code, h = 14) {
  * @returns {{ name, memberCount, rows: Array<{uid,name,points,rank}> }}
  */
 function leagueStandings(league, membersById, leagueBonusByUid = {}) {
-  const scoring = league && league.scoring ? league.scoring : null;
-  const useLeagueBonus = !!(scoring && scoring.leagueBonus);
+  const scoring = normalizeScoring(league);
+  const useLeagueBonus = scoring.leagueBonus === true;
   const uids = Array.isArray(league && league.memberUids) ? league.memberUids : [];
   const rows = uids
     .map((uid) => {
@@ -223,4 +248,4 @@ function renderThankYouEmail({ displayName, champion, boot, facts, team, leagues
 </table></td></tr></table></body></html>`;
 }
 
-module.exports = { leagueStandings, renderThankYouEmail, esc };
+module.exports = { leagueStandings, renderThankYouEmail, normalizeScoring, esc };

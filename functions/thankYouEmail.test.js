@@ -1,7 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { leagueStandings, renderThankYouEmail } = require('./thankYouEmail');
+const { leagueStandings, renderThankYouEmail, normalizeScoring } = require('./thankYouEmail');
+
+describe('normalizeScoring', () => {
+  it('udfylder manglende nøgler fra standard', () => {
+    expect(normalizeScoring({ scoring: { group: false } })).toEqual({
+      group: false, knockout: true, bonus: true, leagueBonus: true, doubleKnockout: false,
+    });
+  });
+  it('oversætter gammelt format-felt', () => {
+    expect(normalizeScoring({ format: 'bonusOnly' })).toMatchObject({ group: false, knockout: false, bonus: true, leagueBonus: true });
+    expect(normalizeScoring({ format: 'doubleKnockout' })).toMatchObject({ knockout: true, doubleKnockout: true });
+  });
+  it('uden scoring/format → alt tæller', () => {
+    expect(normalizeScoring({})).toEqual({ group: true, knockout: true, bonus: true, leagueBonus: true, doubleKnockout: false });
+  });
+});
 
 describe('leagueStandings', () => {
   const membersById = {
@@ -36,6 +51,13 @@ describe('leagueStandings', () => {
     expect(std.rows.map((r) => [r.name, r.points])).toEqual([
       ['Anders', 152], ['Mette', 148], ['Jonas', 143],
     ]);
+  });
+  it('bruger gammelt format-felt (doubleKnockout fordobler slutspil)', () => {
+    // format doubleKnockout → group + knockout×2 + bonus. u2: 90 + 45×2 + 6 = 186.
+    const league = { name: 'Legacy', memberUids: ['u1', 'u2'], format: 'doubleKnockout' };
+    const std = leagueStandings(league, membersById);
+    expect(std.rows.find((r) => r.name === 'Jonas').points).toBe(186);
+    expect(std.rows.find((r) => r.name === 'Mette').points).toBe(188); // 100 + 40×2 + 8
   });
   it('ignorerer liga-bonus når scoring.leagueBonus er slået fra', () => {
     const league = { name: 'K', memberUids: ['u1', 'u3'], scoring: { group: true, knockout: true, bonus: true, leagueBonus: false } };
