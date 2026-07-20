@@ -907,7 +907,8 @@ export function computePlayerProfile(matches, id) {
     goals += g; assists += a; shots += sh; onTarget += ot; distance += dist; minutes += min;
     if (ts > topSpeed) topSpeed = ts;
     perMatch.push({ id: m.id, opp: opp || null, goals: g, assists: a, shots: sh, onTarget: ot,
-      topSpeed: Math.round(ts * 10) / 10, perMin: min ? Math.round(dist / min) : null });
+      topSpeed: Math.round(ts * 10) / 10, minutes: min ? Math.round(min) : null,
+      perMin: min ? Math.round(dist / min) : null });
   }
   if (matchesCount === 0) return null;
   return {
