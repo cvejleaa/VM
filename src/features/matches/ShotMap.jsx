@@ -66,7 +66,9 @@ export default function ShotMap({ events, homeName, awayName }) {
   const awayShots = pts.filter((p) => p.side === 'away').length;
 
   const marker = (p, i) => {
-    const cx = (p.y / 100) * 68;
+    // Bredde-akse spejlvendes, så venstre/højre matcher angrebsretningen (opad):
+    // når man angriber opad, er ens venstre = skærmens venstre.
+    const cx = (1 - p.y / 100) * 68;
     const cy = (1 - p.x / 100) * 105; // høj X (hjemmes angreb) → top
     const color = p.side === 'home' ? 'var(--c-pitch, #16a34a)' : '#8a8f88';
     if (p.isGoal) {
