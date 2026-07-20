@@ -69,7 +69,7 @@ function leagueStandings(league, membersById, leagueBonusByUid = {}) {
   const scoring = normalizeScoring(league);
   const useLeagueBonus = scoring.leagueBonus === true;
   const uids = Array.isArray(league && league.memberUids) ? league.memberUids : [];
-  const rows = uids
+  const sorted = uids
     .map((uid) => {
       const u = membersById[uid];
       if (!u) return null;
@@ -78,8 +78,18 @@ function leagueStandings(league, membersById, leagueBonusByUid = {}) {
       return { uid, name: u.displayName || 'Spiller', points };
     })
     .filter(Boolean)
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'))
-    .map((r, i) => ({ ...r, rank: i + 1 }));
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'));
+
+  // Standard konkurrence-rangering ("1224"): lige mange point → samme, bedste
+  // placering. Næste placering springer frem svarende til antal delinger.
+  let prevPoints = null;
+  let prevRank = 0;
+  const rows = sorted.map((r, i) => {
+    const rank = (prevPoints !== null && r.points === prevPoints) ? prevRank : i + 1;
+    prevPoints = r.points;
+    prevRank = rank;
+    return { ...r, rank };
+  });
   return { name: (league && league.name) || 'Liga', memberCount: rows.length, rows };
 }
 
