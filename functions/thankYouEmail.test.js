@@ -38,6 +38,20 @@ describe('leagueStandings', () => {
     const std = leagueStandings(league, membersById);
     expect(std.rows.map((r) => r.points)).toEqual([100, 90]); // kun groupPoints
   });
+  it('giver delt placering ved lige point (begge får den bedste)', () => {
+    const members = {
+      a: { displayName: 'Nada', groupPoints: 312, knockoutPoints: 0, bonusPoints: 0 },
+      b: { displayName: 'Bibamus', groupPoints: 309, knockoutPoints: 0, bonusPoints: 0 },
+      c: { displayName: 'Valentina', groupPoints: 309, knockoutPoints: 0, bonusPoints: 0 },
+      d: { displayName: 'Sidste', groupPoints: 300, knockoutPoints: 0, bonusPoints: 0 },
+    };
+    const league = { name: 'ITFL', memberUids: ['a', 'b', 'c', 'd'], scoring: { group: true, knockout: false, bonus: false } };
+    const std = leagueStandings(league, members);
+    // 312 → 1, 309+309 → begge 2, 300 → 4 (standard konkurrence-rangering)
+    expect(std.rows.map((r) => [r.name, r.rank])).toEqual([
+      ['Nada', 1], ['Bibamus', 2], ['Valentina', 2], ['Sidste', 4],
+    ]);
+  });
   it('springer ukendte medlemmer over', () => {
     const league = { name: 'X', memberUids: ['u1', 'ghost'], scoring: { group: true, knockout: true, bonus: true } };
     const std = leagueStandings(league, membersById);
