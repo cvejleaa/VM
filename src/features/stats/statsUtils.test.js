@@ -417,10 +417,25 @@ describe('computeTeamOfTournament', () => {
     expect(xi.defenders[2].code).toBe('FRA'); // d3 spillede for ude-holdet
   });
 
+  it('respekterer valgt opstilling (linje-størrelser)', () => {
+    const xi = computeTeamOfTournament(matches, { formation: '3-4-3' });
+    expect(xi.formation).toBe('3-4-3');
+    expect(xi.forwards).toHaveLength(3);
+    expect(xi.midfielders).toHaveLength(4);
+    expect(xi.defenders).toHaveLength(3);
+    const ids = [...xi.forwards, ...xi.midfielders, ...xi.defenders].map((p) => p.id);
+    expect(new Set(ids).size).toBe(10); // stadig 10 markspillere uden gengangere
+  });
+
+  it('returnerer null når kampkravet er for højt', () => {
+    // Alle spillere har 2 kampe → et krav på 3+ udelukker alle.
+    expect(computeTeamOfTournament(matches, { minMatches: 3 })).toBeNull();
+  });
+
   it('returnerer null når der er for få markspillere', () => {
     const thin = [{ id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
       details: { powerRanking: { outfield: [{ id: 'x', name: 'Solo', side: 'home', att: 5, cre: 5, def: 5 }], goalkeepers: [] } } }];
-    expect(computeTeamOfTournament(thin)).toBeNull();
+    expect(computeTeamOfTournament(thin, { minMatches: 1 })).toBeNull();
   });
 });
 
