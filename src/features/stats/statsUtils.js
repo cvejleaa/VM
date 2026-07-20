@@ -794,6 +794,69 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
   };
 }
 
+/**
+ * 🏆 Turneringens hold (bedste 11'er, 4-3-3) ud fra FIFA-power-indekset over de
+ * afsluttede kampe. Hver markspiller aggregeres pr. kamp med gennemsnitlig
+ * angrebs- (att), forsvars- (def) og kreativitets-score (cre). Rollerne udledes
+ * af hvor spilleren er stærkest: angribere vælges på avgAtt, midtbane på avgCre,
+ * forsvar på avgDef — grådigt og uden gengangere (en spiller kan kun stå i én
+ * kæde). Målmanden er nr. 1 fra computeGoalkeeperRanking. Kræver det nye
+ * power-index-format (efter gen-hentning); returnerer null hvis der er for få
+ * spillere til en fuld 11'er.
+ * @param {Array<object>} matches
+ * @param {{minMatches?:number}} [opts]
+ * @returns {{formation:string, gk:object|null, defenders:Array, midfielders:Array, forwards:Array}|null}
+ */
+export function computeTeamOfTournament(matches, { minMatches = 2 } = {}) {
+  const agg = {};
+  for (const m of finishedWithResult(matches)) {
+    const pr = m?.details?.powerRanking;
+    const outfield = Array.isArray(pr) ? pr : (pr?.outfield ?? []);
+    for (const p of outfield) {
+      if (!p || !p.name) continue;
+      const key = p.id != null ? String(p.id) : p.name;
+      const code = p.side === 'home' ? m.homeTeam : p.side === 'away' ? m.awayTeam : null;
+      const a = (agg[key] = agg[key] || { id: p.id != null ? String(p.id) : null, name: p.name, code: code || null, picture: p.picture || null, matches: 0, attSum: 0, defSum: 0, creSum: 0, totalSum: 0 });
+      a.matches += 1;
+      a.attSum += Number(p.att) || 0;
+      a.defSum += Number(p.def) || 0;
+      a.creSum += Number(p.cre) || 0;
+      a.totalSum += Number(p.total) || 0;
+      if (!a.code && code) a.code = code;
+      if (!a.picture && p.picture) a.picture = p.picture;
+      if (!a.id && p.id != null) a.id = String(p.id);
+    }
+  }
+  const mapAvg = (p) => ({
+    id: p.id, name: p.name, code: p.code, picture: p.picture, matches: p.matches,
+    avgAtt: Math.round((p.attSum / p.matches) * 10) / 10,
+    avgDef: Math.round((p.defSum / p.matches) * 10) / 10,
+    avgCre: Math.round((p.creSum / p.matches) * 10) / 10,
+    avgTotal: Math.round((p.totalSum / p.matches) * 10) / 10,
+  });
+  const all = Object.values(agg);
+  let pool = all.filter((p) => p.matches >= minMatches).map(mapAvg);
+  if (pool.length < 10) pool = all.map(mapAvg); // for lidt data → slæk kampkravet
+  if (pool.length < 10) return null; // stadig ikke nok markspillere til en 11'er
+
+  const used = new Set();
+  const uid = (p) => p.id ?? p.name;
+  const pick = (metric, n) => {
+    const chosen = pool.filter((p) => !used.has(uid(p)))
+      .sort((a, b) => b[metric] - a[metric] || b.avgTotal - a.avgTotal || a.name.localeCompare(b.name, 'da'))
+      .slice(0, n);
+    for (const p of chosen) used.add(uid(p));
+    return chosen;
+  };
+  // Grådig udvælgelse: angreb → midtbane → forsvar (uden gengangere).
+  const forwards = pick('avgAtt', 3);
+  const midfielders = pick('avgCre', 3);
+  const defenders = pick('avgDef', 4);
+  const gk = computeGoalkeeperRanking(matches)[0] || null;
+
+  return { formation: '4-3-3', gk, defenders, midfielders, forwards };
+}
+
 /** Ét holds spillere aggregeret (mål, assists, skud) fra details.playerStats. */
 export function computeTeamPlayers(matches, code, topN = 14) {
   const agg = {};
