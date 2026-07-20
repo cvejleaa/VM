@@ -29,6 +29,19 @@ describe('leagueStandings', () => {
     expect(std.rows).toHaveLength(1);
     expect(std.rows[0].name).toBe('Mette');
   });
+  it('lægger liga-bonus til når ligaen bruger den', () => {
+    const league = { name: 'K', memberUids: ['u1', 'u2', 'u3'], scoring: { group: true, knockout: true, bonus: true, leagueBonus: true } };
+    // u3 (137) får +15 liga-bonus → 152, overhaler Mette (148) og Jonas (141).
+    const std = leagueStandings(league, membersById, { u3: 15, u2: 2 });
+    expect(std.rows.map((r) => [r.name, r.points])).toEqual([
+      ['Anders', 152], ['Mette', 148], ['Jonas', 143],
+    ]);
+  });
+  it('ignorerer liga-bonus når scoring.leagueBonus er slået fra', () => {
+    const league = { name: 'K', memberUids: ['u1', 'u3'], scoring: { group: true, knockout: true, bonus: true, leagueBonus: false } };
+    const std = leagueStandings(league, membersById, { u3: 99 });
+    expect(std.rows.find((r) => r.name === 'Anders').points).toBe(137); // uændret
+  });
 });
 
 describe('renderThankYouEmail', () => {

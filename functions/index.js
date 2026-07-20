@@ -62,6 +62,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints, historicalMembers, windowDayPoints } = require('./leagueRecap');
 const tournamentSummary = require('./tournamentSummary');
 const { leagueStandings, renderThankYouEmail } = require('./thankYouEmail');
+const { leagueBonusPointsByUid } = require('./leagueBonusScoring');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
@@ -1000,10 +1001,28 @@ async function buildThankYouContext(db) {
     if (u.status === 'approved') recipientUids.push(d.id);
   });
 
+  // Liga-bonus (individuelle spørgsmål pr. liga) → point pr. uid pr. liga, så
+  // slutstillingen matcher app'ens leaderboard for ligaer der bruger liga-bonus.
+  const [bonusQSnap, bonusASnap] = await Promise.all([
+    db.collection('leagueBonus').get(),
+    db.collection('leagueBonusAnswers').get(),
+  ]);
+  const bonusQByLeague = {};
+  bonusQSnap.docs.forEach((d) => {
+    const q = { id: d.id, ...d.data() };
+    (bonusQByLeague[q.leagueId] = bonusQByLeague[q.leagueId] || []).push(q);
+  });
+  const bonusAByLeague = {};
+  bonusASnap.docs.forEach((d) => {
+    const a = d.data();
+    (bonusAByLeague[a.leagueId] = bonusAByLeague[a.leagueId] || []).push(a);
+  });
+
   const leaguesSnap = await db.collection('leagues').where('status', '==', 'approved').get();
   const standings = leaguesSnap.docs.map((d) => {
     const lg = { id: d.id, ...d.data() };
-    return { memberUids: Array.isArray(lg.memberUids) ? lg.memberUids : [], std: leagueStandings(lg, membersById) };
+    const lbByUid = leagueBonusPointsByUid(bonusQByLeague[lg.id] || [], bonusAByLeague[lg.id] || []);
+    return { memberUids: Array.isArray(lg.memberUids) ? lg.memberUids : [], std: leagueStandings(lg, membersById, lbByUid) };
   });
   const leaguesForUid = (uid) => standings.filter((x) => x.memberUids.includes(uid)).map((x) => x.std);
 

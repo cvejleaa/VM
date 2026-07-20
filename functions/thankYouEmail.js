@@ -33,18 +33,24 @@ function nation(code, h = 14) {
 
 /**
  * Beregn en ligas slutstilling ud fra medlemmernes point og ligaens scoring.
+ * Liga-bonus lægges til når ligaen bruger den (scoring.leagueBonus) — samme
+ * grundlag som app'ens leaderboard (leagueScore).
  * @param {object} league  { name, memberUids, scoring }
  * @param {Object<string,object>} membersById  uid → { displayName, groupPoints, knockoutPoints, bonusPoints }
+ * @param {Object<string,number>} [leagueBonusByUid]  uid → liga-bonuspoint
  * @returns {{ name, memberCount, rows: Array<{uid,name,points,rank}> }}
  */
-function leagueStandings(league, membersById) {
+function leagueStandings(league, membersById, leagueBonusByUid = {}) {
   const scoring = league && league.scoring ? league.scoring : null;
+  const useLeagueBonus = !!(scoring && scoring.leagueBonus);
   const uids = Array.isArray(league && league.memberUids) ? league.memberUids : [];
   const rows = uids
     .map((uid) => {
       const u = membersById[uid];
       if (!u) return null;
-      return { uid, name: u.displayName || 'Spiller', points: leagueTotal(u, scoring) };
+      let points = leagueTotal(u, scoring);
+      if (useLeagueBonus) points += Number(leagueBonusByUid[uid] || 0);
+      return { uid, name: u.displayName || 'Spiller', points };
     })
     .filter(Boolean)
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'da'))
