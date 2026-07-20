@@ -22,6 +22,9 @@ export default defineConfig({
       'fifaMap.test.js',
       'fifaResultsSync.test.js',
       'fifaSync.test.js',
+      'tournamentSummary.test.js',
+      'thankYouEmail.test.js',
+      'leagueBonusScoring.test.js',
     ],
     exclude: [
       'rules.test.js',
