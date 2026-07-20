@@ -9,6 +9,7 @@ import {
   computeXgOverUnder, computeRecords, computeMvpTally,
   computeGoalkeeperRanking, computePenaltyShootouts, computeTeamStyles,
   computePlayerLeaderboards, computeTeamPlayers, computePlayerProfile,
+  computeTeamOfTournament,
 } from './statsUtils';
 import { POINTS } from '../../lib/scoring';
 
@@ -378,6 +379,48 @@ describe('computeGoalkeeperRanking', () => {
     expect(c).toMatchObject({ matches: 2, code: 'BEL', picture: 'c.jpg', best: 8, id: 'gk1' });
     expect(c.avgDef).toBe(7); // (8+6)/2
     expect(list[0].name).toBe('Courtois'); // højest gnsn. forsvar → øverst
+  });
+});
+
+describe('computeTeamOfTournament', () => {
+  const OUT = [
+    { id: 'f1', name: 'Fwd1', side: 'home', att: 90, cre: 10, def: 10, total: 90, picture: 'f1.jpg' },
+    { id: 'f2', name: 'Fwd2', side: 'home', att: 88, cre: 10, def: 10, total: 88 },
+    { id: 'f3', name: 'Fwd3', side: 'away', att: 86, cre: 10, def: 10, total: 86 },
+    { id: 'm1', name: 'Mid1', side: 'home', att: 10, cre: 90, def: 10, total: 90 },
+    { id: 'm2', name: 'Mid2', side: 'home', att: 10, cre: 88, def: 10, total: 88 },
+    { id: 'm3', name: 'Mid3', side: 'away', att: 10, cre: 86, def: 10, total: 86 },
+    { id: 'd1', name: 'Def1', side: 'home', att: 10, cre: 10, def: 90, total: 90 },
+    { id: 'd2', name: 'Def2', side: 'home', att: 10, cre: 10, def: 88, total: 88 },
+    { id: 'd3', name: 'Def3', side: 'away', att: 10, cre: 10, def: 86, total: 86 },
+    { id: 'd4', name: 'Def4', side: 'away', att: 10, cre: 10, def: 84, total: 84 },
+  ];
+  const GK = [{ name: 'Keeper', side: 'home', defending: 9, total: 12, id: 'gk1', picture: 'k.jpg' }];
+  const mk = (id) => ({ id, homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+    details: { powerRanking: { outfield: OUT, goalkeepers: GK } } });
+  const matches = [mk('1'), mk('2')];
+
+  it('bygger en 4-3-3 efter rolle-score uden gengangere', () => {
+    const xi = computeTeamOfTournament(matches);
+    expect(xi.formation).toBe('4-3-3');
+    expect(xi.forwards.map((p) => p.id)).toEqual(['f1', 'f2', 'f3']);
+    expect(xi.midfielders.map((p) => p.id)).toEqual(['m1', 'm2', 'm3']);
+    expect(xi.defenders.map((p) => p.id)).toEqual(['d1', 'd2', 'd3', 'd4']);
+    expect(xi.gk).toMatchObject({ name: 'Keeper', id: 'gk1' });
+    const ids = [...xi.forwards, ...xi.midfielders, ...xi.defenders].map((p) => p.id);
+    expect(new Set(ids).size).toBe(10); // ingen spiller i to kæder
+  });
+
+  it('beriger med land, billede og gennemsnitsscore', () => {
+    const xi = computeTeamOfTournament(matches);
+    expect(xi.forwards[0]).toMatchObject({ name: 'Fwd1', code: 'ARG', picture: 'f1.jpg', avgAtt: 90, matches: 2 });
+    expect(xi.defenders[2].code).toBe('FRA'); // d3 spillede for ude-holdet
+  });
+
+  it('returnerer null når der er for få markspillere', () => {
+    const thin = [{ id: '1', homeTeam: 'ARG', awayTeam: 'FRA', result: { home: 1, away: 0 },
+      details: { powerRanking: { outfield: [{ id: 'x', name: 'Solo', side: 'home', att: 5, cre: 5, def: 5 }], goalkeepers: [] } } }];
+    expect(computeTeamOfTournament(thin)).toBeNull();
   });
 });
 

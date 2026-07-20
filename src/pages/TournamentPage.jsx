@@ -23,6 +23,7 @@ import { XgCard, RecordsCard, MvpCard } from '../features/stats/FactsExtraCards'
 import { GoalkeeperCard, PenaltyShootoutCard } from '../features/stats/KeeperPenaltyCards';
 import StyleRadarCard from '../features/stats/StyleRadarCard';
 import PlayerLeaderboardCard from '../features/stats/PlayerLeaderboardCard';
+import TeamOfTournamentCard from '../features/stats/TeamOfTournamentCard';
 import SecondHalfCard from '../features/stats/SecondHalfCard';
 import { computeDiscipline, computeTournamentFacts } from '../features/stats/statsUtils';
 import '../features/tournament/tournament.css';
@@ -450,6 +451,7 @@ function FaktaFane({ matches }) {
       <RecordsCard matches={matches} />
       <XgCard matches={matches} />
       <MvpCard matches={matches} />
+      <TeamOfTournamentCard matches={matches} />
       <PlayerLeaderboardCard matches={matches} />
       <StyleRadarCard matches={matches} />
       <GoalkeeperCard matches={matches} />
