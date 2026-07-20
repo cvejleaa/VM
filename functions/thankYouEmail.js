@@ -101,19 +101,26 @@ function factRow(k, v) {
 
 function chip(role, p) {
   const nm = esc(p && p.name ? p.name : '—');
-  const co = p && p.code ? `${flag(p.code, 11)}<span style="color:#dff2e6">${esc(teamName(p.code))}</span>` : '';
-  return `<td align="center" width="25%" style="padding:6px 2px;color:#fff">
-    <div style="width:30px;height:30px;line-height:30px;border-radius:50%;background:rgba(255,255,255,0.9);color:${C.pitch};font-weight:800;font-size:11px;margin:0 auto 4px">${role}</div>
-    <div style="font-size:11.5px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,0.5)">${nm}</div>
-    <div style="font-size:10px">${co}</div>
-  </td>`;
+  const co = p && p.code
+    ? `${flag(p.code, 12)}<span style="color:#eafff0"> ${esc(teamName(p.code))}</span>`
+    : '';
+  return `<div style="color:#fff;text-align:center;padding:0 3px">
+    <div style="width:34px;height:34px;line-height:34px;border-radius:50%;background:rgba(255,255,255,0.94);color:${C.pitch};font-weight:800;font-size:12px;margin:0 auto 5px;box-shadow:0 1px 3px rgba(0,0,0,0.28)">${role}</div>
+    <div style="font-size:12px;font-weight:700;line-height:1.2;text-shadow:0 1px 2px rgba(0,0,0,0.55)">${nm}</div>
+    <div style="font-size:10px;margin-top:2px;white-space:nowrap">${co}</div>
+  </div>`;
 }
 
+// Én kæde som fuld-bredde tabel med jævnt fordelte celler (så 3- og 4-mands-
+// rækker begge centreres pænt uanset antal).
 function pitchRow(players, role) {
   if (!players || players.length === 0) return '';
-  const cells = players.map((p) => chip(role, p)).join('');
-  return `<tr>${cells}</tr>`;
+  const w = Math.floor(100 / players.length);
+  const cells = players.map((p) => `<td width="${w}%" align="center" valign="top" style="padding:11px 2px">${chip(role, p)}</td>`).join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr>${cells}</tr></table>`;
 }
+
+const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
 function leagueBlock(std, youUid) {
   const rows = std.rows.map((r) => {
@@ -121,7 +128,7 @@ function leagueBlock(std, youUid) {
     const isWin = r.rank === 1;
     const bg = isWin ? C.goldSoft : isYou ? C.you : '#ffffff';
     const weight = isWin || isYou ? '700' : '400';
-    const rankCell = isWin ? '🥇' : String(r.rank);
+    const rankCell = MEDALS[r.rank] || String(r.rank);
     const youTag = isYou ? ` <span style="color:${C.pitch};font-size:11px;font-weight:700">· dig</span>` : '';
     return `<tr>
       <td style="padding:8px 14px;border-top:1px solid ${C.line};background:${bg};text-align:right;width:1%;white-space:nowrap;font-weight:${weight}">${rankCell}</td>
@@ -136,6 +143,17 @@ function leagueBlock(std, youUid) {
       </td></tr>
       ${rows}
     </table></div>`;
+}
+
+// Finale-linje: "vandt 1–0 efter forlænget spilletid over X" / "vandt 1–1 (4–3
+// på straffe) efter forlænget spilletid over X" / "vandt 2–1 over X".
+function championLine(c) {
+  const over = `over ${esc(teamName(c.runnerUp))}`;
+  const et = c.extraTime ? ' efter forlænget spilletid' : '';
+  if (c.decidedOnPenalties && c.penalties) {
+    return `Finale: vandt ${c.champScore}–${c.otherScore} (${c.penalties.for}–${c.penalties.against} på straffe)${et} ${over}`;
+  }
+  return `Finale: vandt ${esc(c.score)}${et} ${over}`;
 }
 
 function section(title, subtitle) {
@@ -158,7 +176,12 @@ function section(title, subtitle) {
  */
 function renderThankYouEmail({ displayName, champion, boot, facts, team, leagues, youUid, appUrl = 'https://vm.vejleaa.dk' }) {
   const f = facts || {};
-  const min = (r) => (r == null ? '' : (r.injuryTime ? `${r.minute}+${r.injuryTime}'` : `${r.minute}'`));
+  // Minut-label for hurtigste mål (minut 0 vises som 1' — første minut).
+  const fastLabel = (r) => {
+    if (!r) return '';
+    if (r.injuryTime) return `${r.minute}+${r.injuryTime}'`;
+    return `${Math.max(1, Number(r.minute) || 0)}'`;
+  };
 
   // Verdensmester-banner
   const champHtml = champion ? `
@@ -166,12 +189,12 @@ function renderThankYouEmail({ displayName, champion, boot, facts, team, leagues
       <div style="font-size:34px;line-height:1">🏆</div>
       <div style="font-size:11.5px;letter-spacing:2px;text-transform:uppercase;color:${C.gold};font-weight:800;margin:8px 0 2px">Verdensmester 2026</div>
       <div style="font-family:Georgia,serif;font-size:25px;font-weight:700;color:#4a3708">${nation(champion.champion, 22)}</div>
-      <div style="font-size:13px;color:#7a5c18;margin-top:6px">Finale: vandt ${esc(champion.score)}${champion.decidedOnPenalties && champion.penalties ? ` (${champion.penalties.for}–${champion.penalties.against} på straffe)` : ''} over ${esc(teamName(champion.runnerUp))}</div>
+      <div style="font-size:13px;color:#7a5c18;margin-top:6px">${championLine(champion)}</div>
     </div>` : '';
 
   // Fakta
   const factsList = [
-    f.fastest ? factRow('⚡ Hurtigste mål', `${esc(f.fastest.scorer || nation(f.fastest.code, 13))} · ${min(f.fastest)}`) : '',
+    f.fastest ? factRow('⚡ Hurtigste mål', `${nation(f.fastest.code, 13)}${f.fastest.scorer ? ` · ${esc(f.fastest.scorer)}` : ''} · ${fastLabel(f.fastest)}`) : '',
     f.biggestWin ? factRow('💥 Største sejr', `${nation(f.biggestWin.winner, 13)} ${esc(f.biggestWin.score)} ${esc(teamName(f.biggestWin.loser))}`) : '',
     f.highest ? factRow('🥅 Mål-rigeste kamp', `${nation(f.highest.home, 13)} ${esc(f.highest.score)} ${esc(teamName(f.highest.away))}`) : '',
     f.topNation ? factRow('🎯 Mest scorende hold', `${nation(f.topNation.code, 13)} · ${f.topNation.goals} mål`) : '',
@@ -198,17 +221,16 @@ function renderThankYouEmail({ displayName, champion, boot, facts, team, leagues
       </tr>
     </table>` : '';
 
-  // Turneringens hold
+  // Turneringens hold — lodret bane (angreb øverst → målmand nederst).
   let teamHtml = '';
   if (team) {
-    const gkRow = team.gk ? `<tr>${chip('MÅ', team.gk)}</tr>` : '';
     teamHtml = `${section(`🏆 Turneringens hold <span style="display:inline-block;background:${C.goldSoft};color:#7a5a12;border:1px solid #ecd9a6;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:700;vertical-align:middle">${esc(team.formation)} · min. 3 kampe</span>`, 'Kåret ud fra FIFA’s power-index over hele turneringen.')}
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:${C.pitch};border-radius:14px">
+      <div style="background:linear-gradient(180deg,#166534,#16a34a);border-radius:14px;padding:10px 6px;box-shadow:inset 0 0 0 2px rgba(255,255,255,0.18)">
         ${pitchRow(team.forwards, 'AN')}
         ${pitchRow(team.midfielders, 'MB')}
         ${pitchRow(team.defenders, 'FO')}
-        ${gkRow}
-      </table>`;
+        ${team.gk ? pitchRow([team.gk], 'MÅ') : ''}
+      </div>`;
   }
 
   // Ligaer
@@ -238,7 +260,7 @@ function renderThankYouEmail({ displayName, champion, boot, facts, team, leagues
   </td></tr>
   <tr><td style="padding:22px 30px 26px">
     <p style="font-size:14px;margin:8px 0 0">Tak for en fantastisk turnering — for kampene, for konkurrencen og for det gode selskab undervejs. 🌍⚽</p>
-    <p style="font-family:Georgia,serif;font-size:15px;color:${C.pitch};margin:12px 0 0">Vi ses til næste slutrunde!</p>
+    <p style="font-family:Georgia,serif;font-size:15px;color:${C.pitch};margin:12px 0 0">Vi ses måske til næste slutrunde!</p>
     <p style="color:${C.muted};font-size:13px;margin:6px 0 0">— VM 2026 Tip</p>
   </td></tr>
   <tr><td style="padding:18px 30px 24px;text-align:center;font-size:11.5px;color:${C.muted};border-top:1px solid ${C.line};background:#f8fbf9">

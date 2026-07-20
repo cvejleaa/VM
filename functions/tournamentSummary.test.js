@@ -35,6 +35,14 @@ describe('computeChampion', () => {
     expect(c).toMatchObject({ champion: 'BRA', runnerUp: 'ARG', decidedOnPenalties: true });
     expect(c.penalties).toEqual({ for: 4, against: 3 });
   });
+  it('bruger fuld stilling inkl. forlænget spilletid fra mål-feedet', () => {
+    // 90 min endte 0-0; Spanien scorer i det 105. minut → 1-0 e.f.s.
+    const matches = [{ id: 'f', round: 'final', kickoffMs: 9, homeTeam: 'ESP', awayTeam: 'ARG',
+      result: { home: 0, away: 0, advance: 'ESP' },
+      details: { goals: [{ minute: 105, side: 'home', type: 'REGULAR' }] } }];
+    const c = computeChampion(matches);
+    expect(c).toMatchObject({ champion: 'ESP', runnerUp: 'ARG', score: '1–0', extraTime: true, decidedOnPenalties: false });
+  });
   it('null når ingen finale', () => {
     expect(computeChampion([{ id: 'x', round: 'sf', result: { home: 1, away: 0 } }])).toBeNull();
   });

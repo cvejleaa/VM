@@ -79,9 +79,10 @@ describe('renderThankYouEmail', () => {
       comeback: { team: 'POR', deficit: 2, score: '3–2' } },
     team: { formation: '4-3-3', gk: { name: 'Donnarumma', code: 'ITA' },
       defenders: [{ name: 'Hakimi', code: 'MAR' }], midfielders: [{ name: 'Pedri', code: 'ESP' }], forwards: [{ name: 'Mbappe', code: 'FRA' }] },
-    leagues: [{ name: 'Kontoret', memberCount: 2, rows: [
+    leagues: [{ name: 'Kontoret', memberCount: 3, rows: [
       { uid: 'u1', name: 'Mette', points: 148, rank: 1 },
-      { uid: 'u3', name: 'Anders', points: 137, rank: 2 },
+      { uid: 'u2', name: 'Jonas', points: 141, rank: 2 },
+      { uid: 'u3', name: 'Anders', points: 137, rank: 3 },
     ] }],
   };
   const html = renderThankYouEmail(data);
@@ -94,9 +95,19 @@ describe('renderThankYouEmail', () => {
     expect(html).toContain('Kontoret');
     expect(html).toContain('Anders');
   });
-  it('fremhæver vinderen (🥇) og modtageren (· dig)', () => {
+  it('markerer top 3 med medaljer og modtageren (· dig)', () => {
     expect(html).toContain('🥇');
+    expect(html).toContain('🥈');
+    expect(html).toContain('🥉');
     expect(html).toContain('· dig');
+  });
+  it('slutbemærkningen er "Vi ses måske til næste slutrunde!"', () => {
+    expect(html).toContain('Vi ses måske til næste slutrunde!');
+  });
+  it('viser forlænget spilletid i finale-linjen', () => {
+    const etHtml = renderThankYouEmail({ ...data, champion: { champion: 'ESP', runnerUp: 'ARG', score: '1–0', champScore: 1, otherScore: 0, extraTime: true, decidedOnPenalties: false, penalties: null } });
+    expect(etHtml).toContain('efter forlænget spilletid');
+    expect(etHtml).toContain('1–0');
   });
   it('er en komplet HTML-mail', () => {
     expect(html).toContain('<!DOCTYPE html>');

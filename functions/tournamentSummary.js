@@ -31,8 +31,23 @@ function computeChampion(matches) {
   const finals = finishedWithResult(matches).filter((m) => m.round === 'final');
   if (finals.length === 0) return null;
   const m = finals.slice().sort((a, b) => kickoffMs(b) - kickoffMs(a))[0];
-  const rh = Number(m.result.home) || 0;
-  const ra = Number(m.result.away) || 0;
+  const rh90 = Number(m.result.home) || 0;
+  const ra90 = Number(m.result.away) || 0;
+
+  // Fuld stilling inkl. forlænget spilletid: tælles fra mål-feedet (som også
+  // indeholder ET-mål; straffesparkskonkurrencen er filtreret fra i mapningen).
+  // Falder tilbage til 90-min-resultatet hvis mål-feedet mangler.
+  const goals = Array.isArray(m.details && m.details.goals) ? m.details.goals : [];
+  let hg = 0; let ag = 0; let maxMinute = 0;
+  for (const g of goals) {
+    const s = g.type === 'OWN' ? flipS(g.side) : g.side;
+    if (s === 'home') hg += 1; else if (s === 'away') ag += 1;
+    if (g.minute != null && g.minute > maxMinute) maxMinute = g.minute;
+  }
+  const hasFeed = goals.length > 0;
+  const rh = hasFeed ? hg : rh90;
+  const ra = hasFeed ? ag : ra90;
+
   let winner = m.result.advance || null;
   if (!winner) {
     if (rh > ra) winner = m.homeTeam;
@@ -46,12 +61,18 @@ function computeChampion(matches) {
     ? { for: winner === m.homeTeam ? m.result.penalties.home : m.result.penalties.away,
         against: winner === m.homeTeam ? m.result.penalties.away : m.result.penalties.home }
     : null;
+  const decidedOnPenalties = champScore === otherScore && !!pens;
+  // Forlænget spilletid: mål efter 90. min, eller 90-min var lige men det blev afgjort.
+  const extraTime = maxMinute > 90 || (rh90 === ra90 && (rh !== ra || decidedOnPenalties));
   return {
     champion: winner,
     runnerUp,
     score: `${champScore}–${otherScore}`,
+    champScore,
+    otherScore,
     penalties: pens,
-    decidedOnPenalties: rh === ra && !!pens,
+    decidedOnPenalties,
+    extraTime,
   };
 }
 
