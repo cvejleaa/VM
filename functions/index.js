@@ -60,12 +60,28 @@ const { computeGroupStandings } = require('./standings');
 const { redeemInviteCodeCore } = require('./invites');
 const Anthropic = require('@anthropic-ai/sdk');
 const { RECAP_SYSTEM, RECAP_DEFAULT_TIME, buildRecapFacts, recapWindowOpen, leagueMatchPoints, historicalMembers, windowDayPoints } = require('./leagueRecap');
+const tournamentSummary = require('./tournamentSummary');
+const { leagueStandings, renderThankYouEmail } = require('./thankYouEmail');
 
 // Initialiser Firebase Admin (singleton)
 initializeApp();
 
 // Region for alle funktioner
 const REGION = 'europe-west1';
+
+// Global "automatik på pause"-kontakt: når config/automation.paused === true,
+// springer alle skemalagte jobs over (resultat-sync, AI-morgenopslag, tip-
+// påmindelsesmails m.fl.). Reversibelt via setAutomationPaused. Fejler sikkert
+// til "ikke på pause", så en læsefejl ikke utilsigtet standser alt.
+async function automationPaused(db) {
+  try {
+    const snap = await db.collection('config').doc('automation').get();
+    return snap.exists && snap.data().paused === true;
+  } catch (e) {
+    console.error('automationPaused: kunne ikke læse config/automation', e?.message || e);
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // recomputeMatch — beregner point for alle bets når et kampresultat ændres
@@ -689,6 +705,7 @@ exports.snapshotRanks = onSchedule(
   { schedule: '5 4 * * *', timeZone: TZ, region: REGION },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('snapshotRanks: automatik på pause — springer over.'); return; }
     const snap = await db
       .collection('users')
       .where('status', '==', 'approved')
@@ -843,7 +860,11 @@ async function runTipReminders(db, transporter) {
 
 exports.tipReminders = onSchedule(
   { schedule: '0 9 * * *', timeZone: TZ, region: REGION, secrets: [SMTP_PASSWORD] },
-  async () => { await runTipReminders(getFirestore(), buildTransport(SMTP_PASSWORD.value())); }
+  async () => {
+    const db = getFirestore();
+    if (await automationPaused(db)) { console.log('tipReminders: automatik på pause — springer over.'); return; }
+    await runTipReminders(db, buildTransport(SMTP_PASSWORD.value()));
+  }
 );
 
 // Callable: admin kan udløse påmindelserne manuelt (til test).
@@ -930,6 +951,111 @@ exports.sendTestReminderToMe = onCall(
 
     return { success: true, sentTo: email, days: days.length, matches: total };
   }
+);
+
+// ---------------------------------------------------------------------------
+// setAutomationPaused — owner/global admin sætter/ophæver global pause for ALLE
+// skemalagte jobs (config/automation.paused). Bruges når turneringen er slut.
+// ---------------------------------------------------------------------------
+exports.setAutomationPaused = onCall({ region: REGION }, async (request) => {
+  const db = getFirestore();
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+  const role = (await db.collection('users').doc(request.auth.uid).get()).data()?.role;
+  if (role !== 'owner' && role !== 'globalAdmin') {
+    throw new HttpsError('permission-denied', 'Kun owner/global admin kan styre automatikken.');
+  }
+  const paused = request.data?.paused === true;
+  await db.collection('config').doc('automation').set(
+    { paused, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid },
+    { merge: true },
+  );
+  console.log(`setAutomationPaused: paused=${paused} af ${request.auth.uid}`);
+  return { success: true, paused };
+});
+
+// ---------------------------------------------------------------------------
+// sendThankYouEmails — afsluttende takke-mail med turnerings-tilbageblik
+// (verdensmester, Golden Boot, fakta, Turneringens hold i 4-3-3 med min. 3
+// kampe) + hver spillers liga-slutstillinger. dryRun:true (default) sender KUN
+// til admin selv til gennemsyn; dryRun:false sender til alle godkendte spillere
+// med en registreret mailadresse (email-frameldinger ignoreres — bevidst valg).
+// ---------------------------------------------------------------------------
+async function buildThankYouContext(db) {
+  const matchesSnap = await db.collection('matches').get();
+  const matches = matchesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const champion = tournamentSummary.computeChampion(matches);
+  const boot = tournamentSummary.computeGoldenBoot(matches);
+  const facts = tournamentSummary.computeFacts(matches);
+  const team = tournamentSummary.computeTeamOfTournament(matches, { minMatches: 3, formation: '4-3-3' });
+
+  const usersSnap = await db.collection('users').get();
+  const membersById = {};
+  const recipientUids = [];
+  usersSnap.docs.forEach((d) => {
+    const u = d.data();
+    membersById[d.id] = {
+      displayName: u.displayName,
+      groupPoints: u.groupPoints, knockoutPoints: u.knockoutPoints, bonusPoints: u.bonusPoints,
+    };
+    if (u.status === 'approved') recipientUids.push(d.id);
+  });
+
+  const leaguesSnap = await db.collection('leagues').where('status', '==', 'approved').get();
+  const standings = leaguesSnap.docs.map((d) => {
+    const lg = { id: d.id, ...d.data() };
+    return { memberUids: Array.isArray(lg.memberUids) ? lg.memberUids : [], std: leagueStandings(lg, membersById) };
+  });
+  const leaguesForUid = (uid) => standings.filter((x) => x.memberUids.includes(uid)).map((x) => x.std);
+
+  return { champion, boot, facts, team, membersById, recipientUids, leaguesForUid };
+}
+
+exports.sendThankYouEmails = onCall(
+  { region: REGION, timeoutSeconds: 300, memory: '512MiB', secrets: [SMTP_PASSWORD] },
+  async (request) => {
+    const db = getFirestore();
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Du skal være logget ind.');
+    const me = (await db.collection('users').doc(request.auth.uid).get()).data();
+    if (!me || (me.role !== 'owner' && me.role !== 'globalAdmin')) {
+      throw new HttpsError('permission-denied', 'Kun owner/global admin kan sende takke-mailen.');
+    }
+    const transporter = buildTransport(SMTP_PASSWORD.value());
+    if (!transporter) throw new HttpsError('failed-precondition', 'SMTP_PASSWORD er ikke sat endnu.');
+
+    const dryRun = request.data?.dryRun !== false; // default: kun til mig
+    const ctx = await buildThankYouContext(db);
+    const subject = '🏆 Tak for VM 2026 — dit turnerings-tilbageblik';
+    const renderFor = (uid, name) => renderThankYouEmail({
+      displayName: name, youUid: uid, champion: ctx.champion, boot: ctx.boot,
+      facts: ctx.facts, team: ctx.team, leagues: ctx.leaguesForUid(uid),
+    });
+
+    if (dryRun) {
+      const email = (await getAuth().getUser(request.auth.uid).catch(() => null))?.email;
+      if (!email) throw new HttpsError('failed-precondition', 'Din profil har ingen e-mailadresse.');
+      const html = renderFor(request.auth.uid, me.displayName || 'spiller');
+      await sendEmail(db, transporter, { to: email, subject: `[UDKAST] ${subject}`, html, type: 'thankyou-dryrun' });
+      return { success: true, dryRun: true, sentTo: email };
+    }
+
+    // Rigtig udsendelse: alle godkendte spillere med en mailadresse i Auth.
+    const emailByUid = await fetchAuthEmails(ctx.recipientUids);
+    let sent = 0; let failed = 0; let noEmail = 0;
+    for (const uid of ctx.recipientUids) {
+      const email = emailByUid[uid];
+      if (!email) { noEmail += 1; continue; }
+      const name = (ctx.membersById[uid] && ctx.membersById[uid].displayName) || 'spiller';
+      try {
+        await sendEmail(db, transporter, { to: email, subject, html: renderFor(uid, name), type: 'thankyou' });
+        sent += 1;
+      } catch (e) {
+        failed += 1;
+        console.error(`sendThankYouEmails: fejl til ${email}:`, e?.message || e);
+      }
+    }
+    console.log(`sendThankYouEmails: sendt=${sent}, fejlet=${failed}, uden-mail=${noEmail}`);
+    return { success: true, dryRun: false, sent, failed, noEmail, recipients: ctx.recipientUids.length };
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -1215,6 +1341,7 @@ exports.generateLeagueRecaps = onSchedule(
   { schedule: '*/5 * * * *', timeZone: TZ, region: REGION, secrets: [ANTHROPIC_API_KEY] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('generateLeagueRecaps: automatik på pause — springer over.'); return; }
     const apiKey = ANTHROPIC_API_KEY.value();
     if (!apiKey) { console.log('generateLeagueRecaps: ANTHROPIC_API_KEY ikke sat — springer over.'); return; }
 
@@ -1416,6 +1543,7 @@ exports.syncResults = onSchedule(
   { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('syncResults: automatik på pause — springer over.'); return; }
     const statusRef = db.collection('config').doc('syncStatus');
     const source = await fifaSync.getDataSource(db);
     const token = FOOTBALL_DATA_TOKEN.value();
@@ -1694,6 +1822,7 @@ exports.syncKnockoutTeams = onSchedule(
   { schedule: 'every 1 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('syncKnockoutTeams: automatik på pause — springer over.'); return; }
     const source = await fifaSync.getDataSource(db);
     try {
       const res = source === 'fifa'
@@ -1733,6 +1862,7 @@ exports.syncScorers = onSchedule(
   { schedule: 'every 30 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('syncScorers: automatik på pause — springer over.'); return; }
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) { console.log('syncScorers: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
     try {
@@ -1912,6 +2042,7 @@ exports.syncMatchDetails = onSchedule(
   { schedule: 'every 1 minutes', timeoutSeconds: 150, timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('syncMatchDetails: automatik på pause — springer over.'); return; }
     const source = await fifaSync.getDataSource(db);
     if (source === 'fifa') {
       // FIFA sætter 90-min direkte i resultatsynken → ingen separat heal nødvendig.
@@ -1947,6 +2078,7 @@ exports.healKnockoutResults = onSchedule(
   { schedule: 'every 5 minutes', timeZone: TZ, region: REGION },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('healKnockoutResults: automatik på pause — springer over.'); return; }
     try {
       const res = await runHealKnockoutResults(db);
       if (res.fixed) console.log(`healKnockoutResults: rettede ${res.fixed} knockout-resultat(er).`);
@@ -2006,6 +2138,7 @@ exports.syncStandings = onSchedule(
   { schedule: 'every 30 minutes', timeZone: TZ, region: REGION, secrets: [FOOTBALL_DATA_TOKEN] },
   async () => {
     const db = getFirestore();
+    if (await automationPaused(db)) { console.log('syncStandings: automatik på pause — springer over.'); return; }
     const token = FOOTBALL_DATA_TOKEN.value();
     if (!token) { console.log('syncStandings: FOOTBALL_DATA_TOKEN ikke sat — springer over.'); return; }
     try {

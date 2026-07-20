@@ -251,6 +251,45 @@ export async function callSendTestReminderToMe() {
 }
 
 /**
+ * Kald Cloud Function 'setAutomationPaused' — slå alle skemalagte jobs
+ * (resultat-sync, AI-opslag, påmindelsesmails) til/fra. Kun owner/global admin.
+ * @param {boolean} paused
+ */
+export async function callSetAutomationPaused(paused) {
+  try {
+    const fn = httpsCallable(functions, 'setAutomationPaused');
+    const result = await fn({ paused });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "setAutomationPaused" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af setAutomationPaused.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Kald Cloud Function 'sendThankYouEmails' — afsluttende takke-mail med
+ * turnerings-tilbageblik + liga-slutstillinger. dryRun:true sender kun til
+ * admin selv (til gennemsyn); dryRun:false sender til alle. Kun owner/global admin.
+ * @param {{dryRun?: boolean}} [opts]
+ */
+export async function callSendThankYouEmails({ dryRun = true } = {}) {
+  try {
+    const fn = httpsCallable(functions, 'sendThankYouEmails');
+    const result = await fn({ dryRun });
+    return { ok: true, data: result.data };
+  } catch (err) {
+    const msg =
+      err?.code === 'functions/not-found'
+        ? 'Cloud Function "sendThankYouEmails" er ikke deployet endnu.'
+        : err?.message ?? 'Ukendt fejl ved kald af sendThankYouEmails.';
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Kald Cloud Function 'pruneOrphanMatches' — sletter forældede knockout-kampe
  * (gamle id'er der ikke længere bruges). Kun owner.
  */
