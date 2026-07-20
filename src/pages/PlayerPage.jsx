@@ -77,6 +77,8 @@ export default function PlayerPage() {
                     <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Mål</th>
                     <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Assist</th>
                     <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Skud</th>
+                    <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Min</th>
+                    <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Løb/min</th>
                     <th style={{ textAlign: 'right', padding: '0.3rem 0.4rem', fontWeight: 600 }}>Tophast.</th>
                   </tr>
                 </thead>
@@ -93,6 +95,8 @@ export default function PlayerPage() {
                       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.goals || ''}</td>
                       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.assists || ''}</td>
                       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--c-muted)' }}>{r.shots || ''}</td>
+                      <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--c-muted)' }}>{r.minutes != null ? `${r.minutes}′` : ''}</td>
+                      <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--c-muted)' }}>{r.perMin != null ? `${r.perMin}m` : ''}</td>
                       <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--c-muted)' }}>{r.topSpeed || ''}</td>
                     </tr>
                   ))}

@@ -794,20 +794,29 @@ export function computePlayerLeaderboards(matches, { minShots = 4, topN = 10 } =
   };
 }
 
+/** Understøttede opstillinger som forsvar-midtbane-angreb (summerer altid til 10). */
+export const TEAM_FORMATIONS = ['4-3-3', '4-4-2', '3-5-2', '3-4-3', '5-3-2', '4-5-1'];
+
 /**
- * 🏆 Turneringens hold (bedste 11'er, 4-3-3) ud fra FIFA-power-indekset over de
+ * 🏆 Turneringens hold (bedste 11'er) ud fra FIFA-power-indekset over de
  * afsluttede kampe. Hver markspiller aggregeres pr. kamp med gennemsnitlig
  * angrebs- (att), forsvars- (def) og kreativitets-score (cre). Rollerne udledes
  * af hvor spilleren er stærkest: angribere vælges på avgAtt, midtbane på avgCre,
  * forsvar på avgDef — grådigt og uden gengangere (en spiller kan kun stå i én
- * kæde). Målmanden er nr. 1 fra computeGoalkeeperRanking. Kræver det nye
- * power-index-format (efter gen-hentning); returnerer null hvis der er for få
- * spillere til en fuld 11'er.
+ * kæde). Antal i hver kæde styres af `formation` (fx "4-3-3" = 4 forsvar, 3
+ * midtbane, 3 angreb), og `minMatches` filtrerer på spillede kampe. Målmanden er
+ * nr. 1 fra computeGoalkeeperRanking. Kræver det nye power-index-format (efter
+ * gen-hentning); returnerer null hvis der er for få spillere til opstillingen.
  * @param {Array<object>} matches
- * @param {{minMatches?:number}} [opts]
+ * @param {{minMatches?:number, formation?:string}} [opts]
  * @returns {{formation:string, gk:object|null, defenders:Array, midfielders:Array, forwards:Array}|null}
  */
-export function computeTeamOfTournament(matches, { minMatches = 2 } = {}) {
+export function computeTeamOfTournament(matches, { minMatches = 2, formation = '4-3-3' } = {}) {
+  const parts = String(formation).split('-').map((n) => parseInt(n, 10));
+  const nDef = Number.isFinite(parts[0]) ? parts[0] : 4;
+  const nMid = Number.isFinite(parts[1]) ? parts[1] : 3;
+  const nFwd = Number.isFinite(parts[2]) ? parts[2] : 3;
+  const need = nDef + nMid + nFwd;
   const agg = {};
   for (const m of finishedWithResult(matches)) {
     const pr = m?.details?.powerRanking;
@@ -834,10 +843,8 @@ export function computeTeamOfTournament(matches, { minMatches = 2 } = {}) {
     avgCre: Math.round((p.creSum / p.matches) * 10) / 10,
     avgTotal: Math.round((p.totalSum / p.matches) * 10) / 10,
   });
-  const all = Object.values(agg);
-  let pool = all.filter((p) => p.matches >= minMatches).map(mapAvg);
-  if (pool.length < 10) pool = all.map(mapAvg); // for lidt data → slæk kampkravet
-  if (pool.length < 10) return null; // stadig ikke nok markspillere til en 11'er
+  const pool = Object.values(agg).filter((p) => p.matches >= minMatches).map(mapAvg);
+  if (pool.length < need) return null; // ikke nok markspillere til opstillingen
 
   const used = new Set();
   const uid = (p) => p.id ?? p.name;
@@ -849,12 +856,12 @@ export function computeTeamOfTournament(matches, { minMatches = 2 } = {}) {
     return chosen;
   };
   // Grådig udvælgelse: angreb → midtbane → forsvar (uden gengangere).
-  const forwards = pick('avgAtt', 3);
-  const midfielders = pick('avgCre', 3);
-  const defenders = pick('avgDef', 4);
+  const forwards = pick('avgAtt', nFwd);
+  const midfielders = pick('avgCre', nMid);
+  const defenders = pick('avgDef', nDef);
   const gk = computeGoalkeeperRanking(matches)[0] || null;
 
-  return { formation: '4-3-3', gk, defenders, midfielders, forwards };
+  return { formation, gk, defenders, midfielders, forwards };
 }
 
 /** Ét holds spillere aggregeret (mål, assists, skud) fra details.playerStats. */
@@ -907,7 +914,8 @@ export function computePlayerProfile(matches, id) {
     goals += g; assists += a; shots += sh; onTarget += ot; distance += dist; minutes += min;
     if (ts > topSpeed) topSpeed = ts;
     perMatch.push({ id: m.id, opp: opp || null, goals: g, assists: a, shots: sh, onTarget: ot,
-      topSpeed: Math.round(ts * 10) / 10, perMin: min ? Math.round(dist / min) : null });
+      topSpeed: Math.round(ts * 10) / 10, minutes: min ? Math.round(min) : null,
+      perMin: min ? Math.round(dist / min) : null });
   }
   if (matchesCount === 0) return null;
   return {
