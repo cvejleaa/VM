@@ -394,6 +394,11 @@ exports.redeemInviteCode = onCall({ region: REGION }, async (request) => {
     saveAttempt: (u, state) =>
       db.collection('inviteAttempts').doc(u).set(state, { merge: true }),
 
+    getUserStatus: async (u) => {
+      const snap = await db.collection('users').doc(u).get();
+      return snap.exists ? snap.data()?.status : null;
+    },
+
     findApprovedLeagueByCode: async (code) => {
       const snap = await db.collection('leagues')
         .where('joinCode', '==', code)

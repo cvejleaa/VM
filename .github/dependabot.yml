@@ -1,46 +1,42 @@
 version: 2
 
-# Dependabot holder afhængigheder opdaterede ved automatisk at åbne PR'er.
-# CI (.github/workflows/ci.yml) kører på hver PR, så opdateringer testes før merge.
-# Major-opdateringer (fx vitest v1 -> v4) kommer som separate PR'er, så evt.
-# breaking changes kan vurderes enkeltvis.
+# VM 2026 er afsluttet, og repoet er frosset frem mod migreringen til den
+# fælles platform på tip.vejleaa.dk (se docs/samlet-platform.md). Almindelige
+# versions-opdateringer er derfor slået fra (open-pull-requests-limit: 0), så
+# Dependabot ikke længere åbner ugentlige opgraderings-PR'er her.
+# SIKKERHEDSOPDATERINGER påvirkes ikke af denne fil — de styres af repoets
+# indstillinger (Security -> Dependabot security updates) og åbner stadig PR'er
+# ved kendte sårbarheder.
 updates:
-  # Frontend (rod-package.json)
+  # Frontend (rod-package.json) — kun sikkerhed
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
-    groups:
-      frontend-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 0
     labels: ["dependencies"]
     commit-message:
       prefix: "deps"
 
-  # Cloud Functions
+  # Cloud Functions — kun sikkerhed
   - package-ecosystem: "npm"
     directory: "/functions"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
-    groups:
-      functions-minor-patch:
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 0
     labels: ["dependencies", "functions"]
     commit-message:
       prefix: "deps(functions)"
 
-  # GitHub Actions (holder fx actions/checkout opdateret -> undgår Node-deprecations)
+  # GitHub Actions — kun sikkerhed
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 0
     labels: ["dependencies", "ci"]
     commit-message:
       prefix: "ci"
